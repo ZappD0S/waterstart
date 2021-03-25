@@ -1,0 +1,6 @@
+[submodule "Open-API-2.0-protobuf-messages"]
+	path = Open-API-2.0-protobuf-messages
+	url = git@github.com:spotware/Open-API-2.0-protobuf-messages.git
+[submodule "OpenAPI.Net"]
+	path = OpenAPI.Net
+	url = git@github.com:spotware/OpenAPI.Net.git

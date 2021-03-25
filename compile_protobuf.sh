@@ -1,0 +1,1 @@
+protoc -I=Open-API-2.0-protobuf-messages/7.1 --python_out=openapi Open-API-2.0-protobuf-messages/7.1/*.proto
