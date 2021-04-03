@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from asyncio import StreamReader, StreamWriter
-from typing import AsyncIterator, Callable, Coroutine, List, Optional, Tuple
+from asyncio import Future, StreamReader, StreamWriter
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
+from contextlib import asynccontextmanager
+from typing import AsyncContextManager, Optional
 
 from google.protobuf.message import Message
 
-from .openapi import ProtoHeartbeatEvent, ProtoMessage, messages_dict
+from .openapi import ProtoHeartbeatEvent, ProtoMessage, ProtoOAErrorRes, messages_dict
 
 
 class OpenApiClient:
@@ -21,12 +23,12 @@ class OpenApiClient:
         self.writer = writer
         self._last_sent_message_time = 0.0
         self._payloadtype_to_messageproto = {
-            proto.payloadType.DESCRIPTOR.default_value: proto
+            proto.payloadType.DESCRIPTOR.default_value: proto  # type: ignore
             for proto in messages_dict.values()
             if hasattr(proto, "payloadType")
         }
         self._writer_lock = asyncio.Lock()
-        self._setters: List[Callable[[Message], Coroutine]] = []
+        self._setters: list[Callable[[Message], Coroutine]] = []
         self._heartbeat_task = asyncio.create_task(
             self._send_heatbeat(heartbeat_interval)
         )
@@ -34,7 +36,8 @@ class OpenApiClient:
 
     async def send_message(self, message: Message) -> None:
         protomessage = ProtoMessage(
-            payloadType=message.payloadType, payload=message.SerializeToString()
+            payloadType=message.payloadType,  # type: ignore
+            payload=message.SerializeToString(),
         )
         payload_data = protomessage.SerializeToString()
         length_data = len(payload_data).to_bytes(4, byteorder="big")
@@ -72,16 +75,16 @@ class OpenApiClient:
     @staticmethod
     def _build_generator_and_setter(
         pred: Callable[[Message], bool]
-    ) -> Tuple[Callable[[Message], Coroutine], AsyncIterator[Message]]:
+    ) -> tuple[Callable[[Message], Coroutine], AsyncGenerator[Message, None]]:
         loop = asyncio.get_running_loop()
-        future = loop.create_future()
+        future: Future[Message] = loop.create_future()
         sem = asyncio.Semaphore()
 
         async def set_result(val: Message) -> None:
             await sem.acquire()
             future.set_result(val)
 
-        async def generator() -> AsyncIterator[Message]:
+        async def generator() -> AsyncGenerator[Message, None]:
             nonlocal future
 
             while True:
@@ -90,15 +93,25 @@ class OpenApiClient:
                 future = loop.create_future()
                 sem.release()
 
-                if pred(val):
+                if pred(val) or isinstance(val, ProtoOAErrorRes):
                     yield val
 
         return set_result, generator()
 
-    def register(self, cond: Callable[[Message], bool]):
+    def register(
+        self, cond: Callable[[Message], bool]
+    ) -> AsyncContextManager[AsyncIterator[Message]]:
+        @asynccontextmanager
+        async def _get_contextmanager():
+            self._setters.append(setter)
+            try:
+                yield gen
+            finally:
+                await gen.aclose()
+                self._setters.remove(setter)
+
         setter, gen = self._build_generator_and_setter(cond)
-        self._setters.append(setter)
-        return gen
+        return _get_contextmanager()
 
     async def close(self) -> None:
         self._heartbeat_task.cancel()
