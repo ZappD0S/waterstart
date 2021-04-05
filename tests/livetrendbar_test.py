@@ -1,9 +1,10 @@
 import asyncio
 import time
-from typing import Optional
+from datetime import datetime
+from typing import Optional, TypeVar
 
 import numpy as np
-from aioitertools.builtins import next
+from aioitertools import next
 from google.protobuf.message import Message
 from waterstart.client import OpenApiClient
 from waterstart.openapi import (
@@ -26,12 +27,14 @@ HOST = "demo.ctraderapi.com"
 PORT = 5035
 ACCOUNT_ID = 20783271
 
+T = TypeVar("T", bound=Message)
+
 
 async def main() -> None:
-    async def send_and_wait(req: Message, res_type: type[Message]):
-        async with client.register(lambda m: isinstance(m, res_type)) as gen:
+    async def send_and_wait(req: Message, res_type: type[T], timeout: float = 5.0) -> T:
+        async with client.register(res_type) as gen:
             await client.send_message(req)
-            res = await asyncio.wait_for(next(gen), 5.0)
+            res = await asyncio.wait_for(next(gen), timeout)
 
         if isinstance(res, ProtoOAErrorRes):
             raise RuntimeError(res.description)
@@ -93,24 +96,37 @@ async def main() -> None:
         symbols_left = set(symbols_set)
         t0: Optional[float] = None
 
-        async with client.register(lambda m: isinstance(m, ProtoOASpotEvent)) as gen:
+        async with client.register(ProtoOASpotEvent) as gen:
             async for spot_event in gen:
+                if isinstance(spot_event, ProtoOAErrorRes):
+                    raise RuntimeError(spot_event.description)
+
                 if not spot_event.symbolId in symbols_left:
                     continue
 
+                symbol_name = symbol_id_to_name[spot_event.symbolId]
+
+                utc_ts_in_mins = int(datetime.now().timestamp() / 60)
                 if not spot_event.trendbar:
+                    print(f"spot event w/o trendabr for: {symbol_name}")
+                    print(f"\tutc ts: {utc_ts_in_mins}")
                     continue
 
                 [trendbar] = spot_event.trendbar
 
                 if trendbar.utcTimestampInMinutes <= last_completed_timestamp:
+                    print(f"skipped event w/ trendbar for: {symbol_name}")
+                    print(f"\tutc ts: {utc_ts_in_mins}")
+                    print(f"\treceived utc ts: {trendbar.utcTimestampInMinutes}")
                     continue
 
                 if t0 is None:
                     t0 = time.time()
 
-                symbol_name = symbol_id_to_name[spot_event.symbolId]
-                print(f"received spot event for: {symbol_name}")
+                print(f"spot w/ trendbar for: {symbol_name}")
+                print(f"\tutc ts: {utc_ts_in_mins}")
+                print(f"\treceived utc ts: {trendbar.utcTimestampInMinutes}")
+
                 symbols_left.remove(spot_event.symbolId)
 
                 if not symbols_left:

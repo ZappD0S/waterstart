@@ -5,11 +5,13 @@ import time
 from asyncio import Future, StreamReader, StreamWriter
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
-from typing import AsyncContextManager, Optional
+from typing import AsyncContextManager, Optional, TypeVar, Union
 
 from google.protobuf.message import Message
 
 from .openapi import ProtoHeartbeatEvent, ProtoMessage, ProtoOAErrorRes, messages_dict
+
+T = TypeVar("T", bound=Message)
 
 
 class OpenApiClient:
@@ -74,17 +76,19 @@ class OpenApiClient:
 
     @staticmethod
     def _build_generator_and_setter(
-        pred: Callable[[Message], bool]
-    ) -> tuple[Callable[[Message], Coroutine], AsyncGenerator[Message, None]]:
+        message_type: type[T], pred: Callable[[T], bool]
+    ) -> tuple[
+        Callable[[Message], Coroutine], AsyncGenerator[Union[T, ProtoOAErrorRes], None]
+    ]:
         loop = asyncio.get_running_loop()
         future: Future[Message] = loop.create_future()
         sem = asyncio.Semaphore()
 
-        async def set_result(val: Message) -> None:
+        async def set_result(val: Message):
             await sem.acquire()
             future.set_result(val)
 
-        async def generator() -> AsyncGenerator[Message, None]:
+        async def generator():
             nonlocal future
 
             while True:
@@ -93,14 +97,16 @@ class OpenApiClient:
                 future = loop.create_future()
                 sem.release()
 
-                if pred(val) or isinstance(val, ProtoOAErrorRes):
+                if isinstance(val, ProtoOAErrorRes) or (
+                    isinstance(val, message_type) and pred(val)
+                ):
                     yield val
 
         return set_result, generator()
 
     def register(
-        self, cond: Callable[[Message], bool]
-    ) -> AsyncContextManager[AsyncIterator[Message]]:
+        self, message_type: type[T], pred: Optional[Callable[[T], bool]] = None
+    ) -> AsyncContextManager[AsyncIterator[Union[T, ProtoOAErrorRes]]]:
         @asynccontextmanager
         async def _get_contextmanager():
             self._setters.append(setter)
@@ -110,7 +116,10 @@ class OpenApiClient:
                 await gen.aclose()
                 self._setters.remove(setter)
 
-        setter, gen = self._build_generator_and_setter(cond)
+        if pred is None:
+            pred = lambda _: True
+
+        setter, gen = self._build_generator_and_setter(message_type, pred)
         return _get_contextmanager()
 
     async def close(self) -> None:
