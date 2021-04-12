@@ -1,27 +1,26 @@
 import asyncio
-from typing import TypeVar, Union
+from typing import TypeVar
 
 from aioitertools import next
 from google.protobuf.message import Message
 from waterstart.client import OpenApiClient
 from waterstart.openapi import (
+    BUY,
     MARKET,
+    SELL,
     ProtoOAAccountAuthReq,
     ProtoOAAccountAuthRes,
     ProtoOAApplicationAuthReq,
     ProtoOAApplicationAuthRes,
     ProtoOAErrorRes,
-    ProtoOASymbolsListReq,
-    ProtoOASymbolsListRes,
-)
-from waterstart.openapi.OpenApiMessages_pb2 import (
     ProtoOAExecutionEvent,
     ProtoOANewOrderReq,
     ProtoOAOrderErrorEvent,
     ProtoOASymbolByIdReq,
     ProtoOASymbolByIdRes,
+    ProtoOASymbolsListReq,
+    ProtoOASymbolsListRes,
 )
-from waterstart.openapi.OpenApiModelMessages_pb2 import BUY, SELL
 
 HOST = "demo.ctraderapi.com"
 PORT = 5035
@@ -125,11 +124,22 @@ async def main() -> None:
         ]
 
         async with client.register(
-            Union[ProtoOAExecutionEvent, ProtoOAOrderErrorEvent]
+            (ProtoOAExecutionEvent, ProtoOAOrderErrorEvent)
         ) as gen:
-            async for exec_event in gen:
+            await client.send_message(
+                ProtoOANewOrderReq(
+                    ctidTraderAccountId=ACCOUNT_ID,
+                    symbolId=symbol.symbolId,
+                    orderType=MARKET,
+                    tradeSide=SELL,
+                    # positionId=...,
+                    volume=int(0.02 * symbol.lotSize),
+                ),
+            )
 
+            async for exec_event in gen:
                 if isinstance(exec_event, ProtoOAErrorRes):
+                    print(exec_event)
                     raise RuntimeError(exec_event.description)
 
                 print(exec_event)

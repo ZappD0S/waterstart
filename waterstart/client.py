@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import time
-from asyncio import Future, StreamReader, StreamWriter
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
+from asyncio import StreamReader, StreamWriter
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine, Mapping
 from contextlib import asynccontextmanager
-from typing import AsyncContextManager, Optional, TypeVar, Union
+from typing import AsyncContextManager, Optional, TypeVar, Union, overload
 
+from aioitertools import next
 from google.protobuf.message import Message
 
 from .openapi import ProtoHeartbeatEvent, ProtoMessage, ProtoOAErrorRes, messages_dict
 
-T = TypeVar("T", bound=Message)
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class OpenApiClient:
@@ -48,6 +50,47 @@ class OpenApiClient:
         await self.writer.drain()
         self._last_sent_message_time = time.time()
 
+    async def send_and_wait_response(self, req: Message, res_type: type[T]) -> T:
+        async with self.register(res_type) as gen:
+            await self.send_message(req)
+            res = await next(gen)
+
+        if isinstance(res, ProtoOAErrorRes):
+            raise RuntimeError(f"{res.errorCode}: {res.description}")
+
+        return res
+
+    async def send_and_wait_responses(
+        self,
+        id_to_req: Mapping[T, Message],
+        res_type: type[U],
+        get_key: Callable[[U], T],
+    ) -> AsyncIterator[tuple[T, U]]:
+        keys_left = set(id_to_req)
+
+        async with self.register(res_type) as gen:
+            tasks = [
+                asyncio.create_task(self.send_message(req))
+                for req in id_to_req.values()
+            ]
+
+            await asyncio.wait(tasks)
+
+            async for res in gen:
+                if isinstance(res, ProtoOAErrorRes):
+                    raise RuntimeError()
+
+                key = get_key(res)
+
+                if key not in keys_left:
+                    raise RuntimeError()
+
+                yield key, res
+                keys_left.remove(key)
+
+                if not keys_left:
+                    break
+
     def _parse_message(self, data: bytes) -> Message:
         protomessage = ProtoMessage.FromString(data)
         messageproto = self._payloadtype_to_messageproto[protomessage.payloadType]
@@ -75,16 +118,31 @@ class OpenApiClient:
             await asyncio.wait(tasks)
 
     @staticmethod
+    @overload
     def _build_generator_and_setter(
         message_type: type[T], pred: Callable[[T], bool]
     ) -> tuple[
         Callable[[Message], Coroutine], AsyncGenerator[Union[T, ProtoOAErrorRes], None]
     ]:
+        ...
+
+    @staticmethod
+    @overload
+    def _build_generator_and_setter(
+        message_type: tuple[type[T], type[U]], pred: Callable[[Union[T, U]], bool]
+    ) -> tuple[
+        Callable[[Message], Coroutine],
+        AsyncGenerator[Union[T, U, ProtoOAErrorRes], None],
+    ]:
+        ...
+
+    @staticmethod
+    def _build_generator_and_setter(message_type, pred):
         loop = asyncio.get_running_loop()
-        future: Future[Message] = loop.create_future()
+        future = loop.create_future()
         sem = asyncio.Semaphore()
 
-        async def set_result(val: Message):
+        async def set_result(val):
             await sem.acquire()
             future.set_result(val)
 
@@ -104,11 +162,23 @@ class OpenApiClient:
 
         return set_result, generator()
 
+    @overload
     def register(
         self, message_type: type[T], pred: Optional[Callable[[T], bool]] = None
     ) -> AsyncContextManager[AsyncIterator[Union[T, ProtoOAErrorRes]]]:
+        ...
+
+    @overload
+    def register(
+        self,
+        message_type: tuple[type[T], type[U]],
+        pred: Optional[Callable[[Union[T, U]], bool]] = None,
+    ) -> AsyncContextManager[AsyncIterator[Union[T, U, ProtoOAErrorRes]]]:
+        ...
+
+    def register(self, message_type, pred=None):
         @asynccontextmanager
-        async def _get_contextmanager():
+        async def _get_contextmanager() -> AsyncIterator:
             self._setters.append(setter)
             try:
                 yield gen

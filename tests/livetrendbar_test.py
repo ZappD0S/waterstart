@@ -19,6 +19,8 @@ from waterstart.openapi import (
     ProtoOASubscribeLiveTrendbarRes,
     ProtoOASubscribeSpotsReq,
     ProtoOASubscribeSpotsRes,
+    ProtoOASymbolByIdReq,
+    ProtoOASymbolByIdRes,
     ProtoOASymbolsListReq,
     ProtoOASymbolsListRes,
 )
@@ -37,13 +39,15 @@ async def main() -> None:
             res = await asyncio.wait_for(next(gen), timeout)
 
         if isinstance(res, ProtoOAErrorRes):
-            raise RuntimeError(res.description)
+            raise RuntimeError(f"{res.errorCode}: {res.description}")
 
         return res
 
     client = await OpenApiClient.create(HOST, PORT)
 
     # refresh_token => wwJXiEBoC-7Uu4NzyNf90iWIZRlFCUdW4jUWBYoDOYs
+    sorted_pairs = np.load("../financelab/train_data/train_data.npz")["sorted_pairs"]
+    pairs_set = set(pair.lower() for pair in sorted_pairs)
 
     try:
         app_auth_req = ProtoOAApplicationAuthReq(
@@ -58,21 +62,34 @@ async def main() -> None:
         )
         acc_auth_res = await send_and_wait(acc_auth_req, ProtoOAAccountAuthRes)
 
-        sym_list_req = ProtoOASymbolsListReq(ctidTraderAccountId=ACCOUNT_ID)
-        sym_list_res = await send_and_wait(sym_list_req, ProtoOASymbolsListRes)
-
-        print(max(sym_list_res.symbol, key=lambda x: len(x.symbolName)))
-
-        sorted_pairs = np.load("../financelab/train_data/train_data.npz")[
-            "sorted_pairs"
-        ]
-        pairs_set = set(pair.lower() for pair in sorted_pairs)
-
+        light_sym_list_req = ProtoOASymbolsListReq(ctidTraderAccountId=ACCOUNT_ID)
+        light_sym_list_res = await send_and_wait(
+            light_sym_list_req, ProtoOASymbolsListRes
+        )
         symbol_id_to_name = {
             sym.symbolId: name
-            for sym in sym_list_res.symbol
+            for sym in light_sym_list_res.symbol
             if (name := sym.symbolName.lower()) in pairs_set
         }
+
+        sym_list_req = ProtoOASymbolByIdReq(
+            ctidTraderAccountId=ACCOUNT_ID,
+            symbolId=[sym.symbolId for sym in light_sym_list_res.symbol],
+        )
+        sym_list_res = await send_and_wait(sym_list_req, ProtoOASymbolByIdRes)
+
+        symbol_id_to_minvol = {
+            sym.symbolId: sym.minVolume / 100 for sym in sym_list_res.symbol
+        }
+
+        symbol_ids = symbol_id_to_name.keys() & symbol_id_to_minvol.keys()
+
+        symbol_name_to_minvol = {
+            symbol_id_to_name[sym_id]: symbol_id_to_minvol[sym_id]
+            for sym_id in symbol_ids
+        }
+        print(symbol_name_to_minvol)
+        print(max(light_sym_list_res.symbol, key=lambda x: len(x.symbolName)))
 
         sub_spot_req = ProtoOASubscribeSpotsReq(
             ctidTraderAccountId=ACCOUNT_ID, symbolId=symbol_id_to_name.keys()
