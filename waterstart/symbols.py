@@ -18,6 +18,7 @@ from waterstart.openapi import (
 
 @dataclass(frozen=True)
 class ConvChains:
+    # TODO: maybe make this sequences of SymbolInfo?
     base_asset: Sequence[ProtoOALightSymbol]
     quote_asset: Sequence[ProtoOALightSymbol]
 
@@ -25,11 +26,21 @@ class ConvChains:
 # TODO: remove conv_chains from here and make a subclass that has it
 @dataclass(frozen=True)
 class SymbolInfo:
-    name: str
+    light_symbol: ProtoOALightSymbol
     symbol: ProtoOASymbol
     conv_chains: Optional[ConvChains] = None
 
+    @property
+    def name(self):
+        return self.light_symbol.symbolName.lower()
 
+    @property
+    def id(self):
+        return self.symbol.symbolId
+
+
+# TODO: here we pass the Trader object to the constructor instead of passing
+# the id to the methods below
 class SymbolsList:
     def __init__(self, client: OpenApiClient) -> None:
         self.client = client
@@ -124,7 +135,7 @@ class SymbolsList:
         if not conv_chains:
             return [
                 SymbolInfo(
-                    sym.symbolName.lower(),
+                    sym,
                     self._symbols_map[sym_id],
                 )
                 for sym_id, sym in light_symbols_map.items()
@@ -152,7 +163,7 @@ class SymbolsList:
 
         return [
             SymbolInfo(
-                sym.symbolName.lower(),
+                sym,
                 self._symbols_map[sym_id],
                 ConvChains(
                     id_to_convlist[sym.baseAssetId], id_to_convlist[sym.quoteAssetId]

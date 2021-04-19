@@ -30,16 +30,6 @@ T = TypeVar("T", bound=Message)
 
 
 async def main() -> None:
-    async def send_and_wait(req: Message, res_type: type[T], timeout: float = 5.0) -> T:
-        async with client.register(res_type) as gen:
-            await client.send_message(req)
-            res = await asyncio.wait_for(next(gen), timeout)
-
-        if isinstance(res, ProtoOAErrorRes):
-            raise RuntimeError(res.description)
-
-        return res
-
     client = await OpenApiClient.create(HOST, PORT)
 
     # refresh_token => wwJXiEBoC-7Uu4NzyNf90iWIZRlFCUdW4jUWBYoDOYs
@@ -49,16 +39,22 @@ async def main() -> None:
             clientId="2396_zKg1chyHLMkfP4ahuqh5924VjbWaz4m0YPW3jlIrFc1j8cf7TB",
             clientSecret="B9ExeJTkUHnNbJb13Pi1POmUwgKG0YpOiVzswE0QI1g5rXhNwC",
         )
-        app_auth_res = await send_and_wait(app_auth_req, ProtoOAApplicationAuthRes)
+        app_auth_res = await client.send_and_wait_response(
+            app_auth_req, ProtoOAApplicationAuthRes
+        )
 
         acc_auth_req = ProtoOAAccountAuthReq(
             ctidTraderAccountId=ACCOUNT_ID,
             accessToken="FpNGIMCt16aMrPRM5jiqNxxnBzAsYB8aOxY15r1_EIU",
         )
-        acc_auth_res = await send_and_wait(acc_auth_req, ProtoOAAccountAuthRes)
+        acc_auth_res = await client.send_and_wait_response(
+            acc_auth_req, ProtoOAAccountAuthRes
+        )
 
         sym_list_req = ProtoOASymbolsListReq(ctidTraderAccountId=ACCOUNT_ID)
-        sym_list_res = await send_and_wait(sym_list_req, ProtoOASymbolsListRes)
+        sym_list_res = await client.send_and_wait_response(
+            sym_list_req, ProtoOASymbolsListRes
+        )
 
         symbol_name_to_id = {
             name: sym.symbolId
@@ -69,61 +65,10 @@ async def main() -> None:
         sym_req = ProtoOASymbolByIdReq(
             ctidTraderAccountId=ACCOUNT_ID, symbolId=[symbol_name_to_id["btc/usd"]]
         )
-        [symbol] = (await send_and_wait(sym_req, ProtoOASymbolByIdRes)).symbol
+        sym_res = await client.send_and_wait_response(sym_req, ProtoOASymbolByIdRes)
+        [symbol] = sym_res.symbol
 
-        order_reqs = [
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=BUY,
-                volume=int(0.02 * symbol.lotSize),
-            ),
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=BUY,
-                volume=int(0.03 * symbol.lotSize),
-            ),
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=BUY,
-                volume=int(0.02 * symbol.lotSize),
-            ),
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=SELL,
-                volume=int(0.03 * symbol.lotSize),
-            ),
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=SELL,
-                volume=int(0.01 * symbol.lotSize),
-            ),
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=SELL,
-                volume=int(0.02 * symbol.lotSize),
-            ),
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=SELL,
-                volume=int(0.01 * symbol.lotSize),
-            ),
-        ]
-
-        async with client.register(
+        async with client.register_types(
             (ProtoOAExecutionEvent, ProtoOAOrderErrorEvent)
         ) as gen:
             await client.send_message(

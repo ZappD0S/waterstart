@@ -3,26 +3,27 @@ from __future__ import annotations
 import asyncio
 import time
 from asyncio import StreamReader, StreamWriter
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine, Mapping
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable, Mapping
 from typing import AsyncContextManager, Optional, TypeVar, Union, overload
 
-from aioitertools import next
 from google.protobuf.message import Message
 
+from .observable import Observabe
 from .openapi import ProtoHeartbeatEvent, ProtoMessage, ProtoOAErrorRes, messages_dict
 
-T = TypeVar("T")
-U = TypeVar("U")
+S = TypeVar("S")
+T = TypeVar("T", bound=Message)
+U = TypeVar("U", bound=Message)
 
 
-class OpenApiClient:
+class OpenApiClient(Observabe[Message]):
     def __init__(
         self,
         reader: StreamReader,
         writer: StreamWriter,
         heartbeat_interval: float = 10.0,
     ) -> None:
+        super().__init__()
         self.reader = reader
         self.writer = writer
         self._last_sent_message_time = 0.0
@@ -31,12 +32,9 @@ class OpenApiClient:
             for proto in messages_dict.values()
             if hasattr(proto, "payloadType")
         }
-        self._writer_lock = asyncio.Lock()
-        self._setters: list[Callable[[Message], Coroutine]] = []
         self._heartbeat_task = asyncio.create_task(
             self._send_heatbeat(heartbeat_interval)
         )
-        self._dispatch_task = asyncio.create_task(self._dispatch_messages())
 
     async def send_message(self, message: Message) -> None:
         protomessage = ProtoMessage(
@@ -45,15 +43,19 @@ class OpenApiClient:
         )
         payload_data = protomessage.SerializeToString()
         length_data = len(payload_data).to_bytes(4, byteorder="big")
-        async with self._writer_lock:
-            self.writer.write(length_data + payload_data)
+        self.writer.write(length_data + payload_data)
         await self.writer.drain()
         self._last_sent_message_time = time.time()
 
     async def send_and_wait_response(self, req: Message, res_type: type[T]) -> T:
-        async with self.register(res_type) as gen:
+        res: Union[T, ProtoOAErrorRes, None] = None
+        async with self.register_types(res_type) as gen:
             await self.send_message(req)
-            res = await next(gen)
+            async for res in gen:
+                break
+
+        if res is None:
+            raise RuntimeError()
 
         if isinstance(res, ProtoOAErrorRes):
             raise RuntimeError(f"{res.errorCode}: {res.description}")
@@ -62,13 +64,13 @@ class OpenApiClient:
 
     async def send_and_wait_responses(
         self,
-        id_to_req: Mapping[T, Message],
-        res_type: type[U],
-        get_key: Callable[[U], T],
-    ) -> AsyncIterator[tuple[T, U]]:
+        id_to_req: Mapping[S, Message],
+        res_type: type[T],
+        get_key: Callable[[T], S],
+    ) -> AsyncIterator[tuple[S, T]]:
         keys_left = set(id_to_req)
 
-        async with self.register(res_type) as gen:
+        async with self.register_types(res_type) as gen:
             tasks = [
                 asyncio.create_task(self.send_message(req))
                 for req in id_to_req.values()
@@ -105,96 +107,43 @@ class OpenApiClient:
         payload_data = await self.reader.readexactly(length)
         return self._parse_message(payload_data)
 
-    async def _dispatch_messages(self) -> None:
+    async def _get_async_iterator(self) -> AsyncIterator[Message]:
         while True:
             message = await self._read_message()
-            if message is None:
-                continue
-
-            if not self._setters:
-                continue
-
-            tasks = [asyncio.create_task(setter(message)) for setter in self._setters]
-            await asyncio.wait(tasks)
-
-    @staticmethod
-    @overload
-    def _build_generator_and_setter(
-        message_type: type[T], pred: Callable[[T], bool]
-    ) -> tuple[
-        Callable[[Message], Coroutine], AsyncGenerator[Union[T, ProtoOAErrorRes], None]
-    ]:
-        ...
-
-    @staticmethod
-    @overload
-    def _build_generator_and_setter(
-        message_type: tuple[type[T], type[U]], pred: Callable[[Union[T, U]], bool]
-    ) -> tuple[
-        Callable[[Message], Coroutine],
-        AsyncGenerator[Union[T, U, ProtoOAErrorRes], None],
-    ]:
-        ...
-
-    @staticmethod
-    def _build_generator_and_setter(message_type, pred):
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        sem = asyncio.Semaphore()
-
-        async def set_result(val):
-            await sem.acquire()
-            future.set_result(val)
-
-        async def generator():
-            nonlocal future
-
-            while True:
-                val = await future
-
-                future = loop.create_future()
-                sem.release()
-
-                if isinstance(val, ProtoOAErrorRes) or (
-                    isinstance(val, message_type) and pred(val)
-                ):
-                    yield val
-
-        return set_result, generator()
+            if message is not None:
+                yield message
 
     @overload
-    def register(
-        self, message_type: type[T], pred: Optional[Callable[[T], bool]] = None
+    def register_types(
+        self, message_type: type[T]
     ) -> AsyncContextManager[AsyncIterator[Union[T, ProtoOAErrorRes]]]:
         ...
 
     @overload
-    def register(
+    def register_types(
         self,
         message_type: tuple[type[T], type[U]],
-        pred: Optional[Callable[[Union[T, U]], bool]] = None,
     ) -> AsyncContextManager[AsyncIterator[Union[T, U, ProtoOAErrorRes]]]:
         ...
 
-    def register(self, message_type, pred=None):
-        @asynccontextmanager
-        async def _get_contextmanager() -> AsyncIterator:
-            self._setters.append(setter)
-            try:
-                yield gen
-            finally:
-                await gen.aclose()
-                self._setters.remove(setter)
+    def register_types(self, message_type):
+        def func(x: Message):
+            if isinstance(x, message_type) or isinstance(x, ProtoOAErrorRes):
+                return x
+            else:
+                return None
 
-        if pred is None:
-            pred = lambda _: True
-
-        setter, gen = self._build_generator_and_setter(message_type, pred)
-        return _get_contextmanager()
+        return self.register(func)
 
     async def close(self) -> None:
+        await super().close()
+
         self._heartbeat_task.cancel()
-        self._dispatch_task.cancel()
+        try:
+            await self._heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
         self.writer.close()
         await self.writer.wait_closed()
 

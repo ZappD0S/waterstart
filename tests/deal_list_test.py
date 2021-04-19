@@ -26,16 +26,6 @@ T = TypeVar("T", bound=Message)
 
 
 async def main() -> None:
-    async def send_and_wait(req: Message, res_type: type[T], timeout: float = 5.0) -> T:
-        async with client.register(res_type) as gen:
-            await client.send_message(req)
-            res = await asyncio.wait_for(next(gen), timeout)
-
-        if isinstance(res, ProtoOAErrorRes):
-            raise RuntimeError(res.description)
-
-        return res
-
     client = await OpenApiClient.create(HOST, PORT)
 
     # refresh_token => wwJXiEBoC-7Uu4NzyNf90iWIZRlFCUdW4jUWBYoDOYs
@@ -45,16 +35,22 @@ async def main() -> None:
             clientId="2396_zKg1chyHLMkfP4ahuqh5924VjbWaz4m0YPW3jlIrFc1j8cf7TB",
             clientSecret="B9ExeJTkUHnNbJb13Pi1POmUwgKG0YpOiVzswE0QI1g5rXhNwC",
         )
-        app_auth_res = await send_and_wait(app_auth_req, ProtoOAApplicationAuthRes)
+        app_auth_res = await client.send_and_wait_response(
+            app_auth_req, ProtoOAApplicationAuthRes
+        )
 
         acc_auth_req = ProtoOAAccountAuthReq(
             ctidTraderAccountId=ACCOUNT_ID,
             accessToken="FpNGIMCt16aMrPRM5jiqNxxnBzAsYB8aOxY15r1_EIU",
         )
-        acc_auth_res = await send_and_wait(acc_auth_req, ProtoOAAccountAuthRes)
+        acc_auth_res = await client.send_and_wait_response(
+            acc_auth_req, ProtoOAAccountAuthRes
+        )
 
         reconcile_req = ProtoOAReconcileReq(ctidTraderAccountId=ACCOUNT_ID)
-        reconcile_res = await send_and_wait(reconcile_req, ProtoOAReconcileRes)
+        reconcile_res = await client.send_and_wait_response(
+            reconcile_req, ProtoOAReconcileRes
+        )
 
         position = reconcile_res.position[0]
 
@@ -69,7 +65,9 @@ async def main() -> None:
             toTimestamp=to_timestamp,
         )
 
-        deal_list_res = await send_and_wait(deal_list_req, ProtoOADealListRes)
+        deal_list_res = await client.send_and_wait_response(
+            deal_list_req, ProtoOADealListRes
+        )
 
         pos_deals = [
             deal
