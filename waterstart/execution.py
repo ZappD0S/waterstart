@@ -11,14 +11,14 @@ from waterstart.client import OpenApiClient
 from waterstart.symbols import SymbolInfo
 
 
-@dataclass
+@dataclass(frozen=True)
 class Trendbar:
     high: float
     low: float
     close: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class PriceSnapshot:
     sym_trendbar: Trendbar
     base_deposit_rate: float
@@ -130,8 +130,8 @@ class Executor(Generic[T]):
 
         self._market_data = np.roll(self._market_data, shift=-1, axis=2)
         latest_market_data = self._market_data[..., -1]
-        latest_market_data[...] = 0
+        latest_market_data[...] = np.nan
         latest_market_data[feat_inds, sym_inds] = vals
 
-        if np.any(latest_market_data == 0):
+        if np.isnan(latest_market_data).any():
             raise ValueError()

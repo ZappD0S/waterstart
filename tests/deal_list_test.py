@@ -10,7 +10,6 @@ from waterstart.openapi import (
     ProtoOAAccountAuthRes,
     ProtoOAApplicationAuthReq,
     ProtoOAApplicationAuthRes,
-    ProtoOAErrorRes,
     ProtoOADealListReq,
     ProtoOADealListRes,
     ProtoOAReconcileReq,

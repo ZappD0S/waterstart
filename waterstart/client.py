@@ -8,15 +8,16 @@ from typing import AsyncContextManager, Optional, TypeVar, Union, overload
 
 from google.protobuf.message import Message
 
-from .observable import Observabe
+from .observable import Observable
 from .openapi import ProtoHeartbeatEvent, ProtoMessage, ProtoOAErrorRes, messages_dict
 
 S = TypeVar("S")
 T = TypeVar("T", bound=Message)
 U = TypeVar("U", bound=Message)
+V = TypeVar("V", bound=Message)
 
 
-class OpenApiClient(Observabe[Message]):
+class OpenApiClient(Observable[Message]):
     def __init__(
         self,
         reader: StreamReader,
@@ -49,7 +50,7 @@ class OpenApiClient(Observabe[Message]):
 
     async def send_and_wait_response(self, req: Message, res_type: type[T]) -> T:
         res: Union[T, ProtoOAErrorRes, None] = None
-        async with self.register_types(res_type) as gen:
+        async with self.register_types((res_type, ProtoOAErrorRes)) as gen:
             await self.send_message(req)
             async for res in gen:
                 break
@@ -70,7 +71,7 @@ class OpenApiClient(Observabe[Message]):
     ) -> AsyncIterator[tuple[S, T]]:
         keys_left = set(id_to_req)
 
-        async with self.register_types(res_type) as gen:
+        async with self.register_types((res_type, ProtoOAErrorRes)) as gen:
             tasks = [
                 asyncio.create_task(self.send_message(req))
                 for req in id_to_req.values()
@@ -116,22 +117,26 @@ class OpenApiClient(Observabe[Message]):
     @overload
     def register_types(
         self, message_type: type[T]
-    ) -> AsyncContextManager[AsyncIterator[Union[T, ProtoOAErrorRes]]]:
+    ) -> AsyncContextManager[AsyncIterator[T]]:
         ...
 
     @overload
     def register_types(
         self,
         message_type: tuple[type[T], type[U]],
-    ) -> AsyncContextManager[AsyncIterator[Union[T, U, ProtoOAErrorRes]]]:
+    ) -> AsyncContextManager[AsyncIterator[Union[T, U]]]:
         ...
 
-    def register_types(self, message_type):
+    @overload
+    def register_types(
+        self,
+        message_type: tuple[type[T], type[U], type[V]],
+    ) -> AsyncContextManager[AsyncIterator[Union[T, U, V]]]:
+        ...
+
+    def register_types(self, message_type) -> AsyncContextManager[AsyncIterator]:
         def func(x: Message):
-            if isinstance(x, message_type) or isinstance(x, ProtoOAErrorRes):
-                return x
-            else:
-                return None
+            return x if isinstance(x, message_type) else None
 
         return self.register(func)
 

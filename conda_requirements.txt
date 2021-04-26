@@ -1,11 +1,11 @@
 aiohttp
-aioitertools
 black
 flake8
 ipython
 mypy
 mypy-protobuf
 numpy
+scipy
 onnx
 pip
 protobuf

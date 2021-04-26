@@ -1,6 +1,6 @@
-from collections.abc import Iterable, Iterator, Mapping, MutableMapping, Sequence, Set
-from dataclasses import dataclass
-from typing import Optional
+from collections.abc import AsyncIterator, Mapping, MutableMapping, Sequence, Set
+from dataclasses import dataclass, field
+from typing import Collection, Optional, TypeVar, Union, cast
 
 from waterstart.client import OpenApiClient
 from waterstart.openapi import (
@@ -17,18 +17,9 @@ from waterstart.openapi import (
 
 
 @dataclass(frozen=True)
-class ConvChains:
-    # TODO: maybe make this sequences of SymbolInfo?
-    base_asset: Sequence[ProtoOALightSymbol]
-    quote_asset: Sequence[ProtoOALightSymbol]
-
-
-# TODO: remove conv_chains from here and make a subclass that has it
-@dataclass(frozen=True)
 class SymbolInfo:
     light_symbol: ProtoOALightSymbol
     symbol: ProtoOASymbol
-    conv_chains: Optional[ConvChains] = None
 
     @property
     def name(self):
@@ -39,135 +30,193 @@ class SymbolInfo:
         return self.symbol.symbolId
 
 
-# TODO: here we pass the Trader object to the constructor instead of passing
-# the id to the methods below
+@dataclass(frozen=True)
+class ConvChains:
+    base_asset: Sequence[SymbolInfo]
+    quote_asset: Sequence[SymbolInfo]
+
+
+@dataclass(frozen=True)
+class SymbolInfoWithConvChains(SymbolInfo):
+    conv_chains: ConvChains = field(hash=False)
+
+
+T = TypeVar("T")
+U = TypeVar("U")
+T_SymInfo = TypeVar("T_SymInfo", bound=SymbolInfo)
+
+# TODO: have a loop that subscribes to ProtoOASymbolChangedEvent and updates the
+# changed symbols
 class SymbolsList:
-    def __init__(self, client: OpenApiClient) -> None:
+    def __init__(self, client: OpenApiClient, trader: ProtoOATrader) -> None:
         self.client = client
-        self._light_symbols_map: Optional[Mapping[int, ProtoOALightSymbol]] = None
-        self._symbols_map: MutableMapping[int, ProtoOASymbol] = {}
+        self._trader = trader
+        self._light_symbol_map: Optional[
+            Mapping[Union[int, str], ProtoOALightSymbol]
+        ] = None
+        self._name_to_sym_info_map: MutableMapping[str, SymbolInfo] = {}
+        self._id_to_full_symbol_map: MutableMapping[int, ProtoOASymbol] = {}
 
-    # TODO: we keep a dict of SymbolInfo, and we create only the one that are missing
-    # We keep two methods, one that returns a sequence of instances of SymbolInfo, while
-    # the other the subclass with conv_chains. If we already have a SymbolInfo that doesn't
-    # have conv_chains we update the saved one with the newly created
-    async def get_symbols(
-        self,
-        trader: ProtoOATrader,
-        subset: Optional[Iterable[str]] = None,
-        conv_chains: bool = False,
-    ) -> Sequence[SymbolInfo]:
-        if subset is None:
-            return await self._get_symbols(trader, conv_chains=conv_chains)
-
-        return await self._get_symbols(
-            trader,
-            {name.lower() for name in subset},
-            conv_chains=conv_chains,
+    async def get_sym_infos(
+        self, subset: Optional[Set[str]] = None
+    ) -> AsyncIterator[SymbolInfo]:
+        found_sym_infos, missing_syms = await self._get_saved_sym_infos(
+            self._name_to_sym_info_map, subset
         )
+
+        for sym_info in found_sym_infos:
+            yield sym_info
+
+        async for sym_info in self._build_sym_info(missing_syms):
+            self._name_to_sym_info_map[sym_info.name] = sym_info
+            yield sym_info
+
+    async def get_sym_infos_with_conv_chains(
+        self, subset: Optional[Set[str]] = None
+    ) -> AsyncIterator[SymbolInfoWithConvChains]:
+        found_sym_infos, missing_syms = await self._get_saved_sym_infos(
+            {
+                name: sym_info
+                for name, sym_info in self._name_to_sym_info_map.items()
+                if isinstance(sym_info, SymbolInfoWithConvChains)
+            },
+            subset,
+        )
+
+        for sym_info in found_sym_infos:
+            yield sym_info
+
+        async for sym_info in self._build_sym_info_with_conv_chains(missing_syms):
+            self._name_to_sym_info_map[sym_info.name] = sym_info
+            yield sym_info
+
+    async def _get_saved_sym_infos(
+        self,
+        saved_sym_info_map: Mapping[str, T_SymInfo],
+        subset: Optional[Set[str]],
+    ) -> tuple[Collection[T_SymInfo], Set[ProtoOALightSymbol]]:
+        light_symbol_map = await self._get_light_symbol_map()
+
+        if subset is None:
+            subset = {name for name in light_symbol_map if isinstance(name, str)}
+
+        found_sym_infos, missing_names = self._get_saved_and_missing(
+            saved_sym_info_map, subset
+        )
+
+        missing_symbols = {light_symbol_map[name] for name in missing_names}
+        return found_sym_infos.values(), missing_symbols
 
     @staticmethod
-    def _get_symbols_subset(
-        symbols: Iterable[ProtoOALightSymbol], subset: Set[str]
-    ) -> Iterator[ProtoOALightSymbol]:
-        subset = set(subset)
-        for sym in symbols:
-            if (name := sym.symbolName.lower()) in subset:
-                yield sym
-                subset.remove(name)
+    def _get_saved_and_missing(
+        saved_map: Mapping[T, U],
+        keys: Set[T],
+    ) -> tuple[Mapping[T, U], Set[T]]:
+        missing_keys = keys - saved_map.keys()
+        saved_map = {key: saved_map[key] for key in keys}
+        return saved_map, missing_keys
 
-        if subset:
-            raise ValueError(
-                "The following symbols could not found: " + ", ".join(subset)
-            )
+    async def _build_sym_info(
+        self, light_syms: Set[ProtoOALightSymbol]
+    ) -> AsyncIterator[SymbolInfo]:
+        async for light_sym, sym in self._get_full_symbols(light_syms):
+            yield SymbolInfo(light_sym, sym)
 
-    async def _get_light_symbols_map(
-        self, account_id: int
-    ) -> Mapping[int, ProtoOALightSymbol]:
-        light_sym_list_req = ProtoOASymbolsListReq(ctidTraderAccountId=account_id)
-        light_sym_list_res = await self.client.send_and_wait_response(
-            light_sym_list_req, ProtoOASymbolsListRes
+    async def _build_sym_info_with_conv_chains(
+        self, light_syms: Set[ProtoOALightSymbol]
+    ) -> AsyncIterator[SymbolInfoWithConvChains]:
+        conv_chains = {
+            sym: conv_chain
+            async for sym, conv_chain in self._build_conv_chains(light_syms)
+        }
+
+        async for light_sym, sym in self._get_full_symbols(light_syms):
+            yield SymbolInfoWithConvChains(light_sym, sym, conv_chains[light_sym])
+
+    async def _get_full_symbols(
+        self, light_syms: Set[ProtoOALightSymbol]
+    ) -> AsyncIterator[tuple[ProtoOALightSymbol, ProtoOASymbol]]:
+        sym_ids = {sym.symbolId for sym in light_syms}
+
+        found_syms, missing_sym_ids = self._get_saved_and_missing(
+            self._id_to_full_symbol_map, sym_ids
         )
-        return {sym.symbolId: sym for sym in light_sym_list_res.symbol}
 
-    async def _get_symbols_map(
-        self, account_id: int, symbol_ids: Iterable[int]
-    ) -> Mapping[int, ProtoOASymbol]:
+        light_symbol_map = await self._get_light_symbol_map()
+
+        for sym_id, sym in found_syms.items():
+            yield light_symbol_map[sym_id], sym
+
         sym_list_req = ProtoOASymbolByIdReq(
-            ctidTraderAccountId=account_id,
-            symbolId=symbol_ids,
+            ctidTraderAccountId=self._trader.ctidTraderAccountId,
+            symbolId=missing_sym_ids,
         )
         sym_list_res = await self.client.send_and_wait_response(
             sym_list_req, ProtoOASymbolByIdRes
         )
-        return {sym.symbolId: sym for sym in sym_list_res.symbol}
 
-    async def _get_symbols(
-        self,
-        trader: ProtoOATrader,
-        subset: Optional[Set[str]] = None,
-        conv_chains: bool = False,
-    ) -> Sequence[SymbolInfo]:
-        account_id = trader.ctidTraderAccountId
+        for sym in sym_list_res.symbol:
+            self._id_to_full_symbol_map[sym.symbolId] = sym
+            yield light_symbol_map[sym.symbolId], sym
 
-        if self._light_symbols_map is None:
-            self._light_symbols_map = await self._get_light_symbols_map(account_id)
-
-        light_symbols_map: Mapping[int, ProtoOALightSymbol] = self._light_symbols_map
-
-        if subset is not None:
-            light_symbols_map = {
-                sym.symbolId: sym
-                for sym in self._get_symbols_subset(light_symbols_map.values(), subset)
-            }
-
-        symbol_ids = light_symbols_map.keys()
-
-        missing_ids = symbol_ids - self._symbols_map.keys()
-
-        if missing_ids:
-            self._symbols_map.update(
-                await self._get_symbols_map(account_id, missing_ids)
-            )
-
-        assert symbol_ids <= self._symbols_map.keys()
-
-        if not conv_chains:
-            return [
-                SymbolInfo(
-                    sym,
-                    self._symbols_map[sym_id],
-                )
-                for sym_id, sym in light_symbols_map.items()
-            ]
-
+    async def _build_conv_chains(
+        self, light_syms: Set[ProtoOALightSymbol]
+    ) -> AsyncIterator[tuple[ProtoOALightSymbol, ConvChains]]:
         id_to_convlist_req = {
             asset_id: ProtoOASymbolsForConversionReq(
                 # it's firstAssetId / lastAssetId
-                ctidTraderAccountId=account_id,
+                ctidTraderAccountId=self._trader.ctidTraderAccountId,
                 firstAssetId=asset_id,
-                lastAssetId=trader.depositAssetId,
+                lastAssetId=self._trader.depositAssetId,
             )
-            for sym in light_symbols_map.values()
+            for sym in light_syms
             for asset_id in (sym.baseAssetId, sym.quoteAssetId)
         }
 
-        id_to_convlist = {
+        id_to_convchain = {
             asset_id: res.symbol
             async for asset_id, res in self.client.send_and_wait_responses(
                 id_to_convlist_req,
                 ProtoOASymbolsForConversionRes,
+                # TODO: verify this is correct
                 lambda res: res.symbol[0].quoteAssetId,
             )
         }
 
-        return [
-            SymbolInfo(
-                sym,
-                self._symbols_map[sym_id],
-                ConvChains(
-                    id_to_convlist[sym.baseAssetId], id_to_convlist[sym.quoteAssetId]
-                ),
+        conv_chains_sym_names = {
+            sym.symbolName for chain in id_to_convchain.values() for sym in chain
+        }
+
+        light_sym_to_sym_info = {
+            sym_info.light_symbol: sym_info
+            async for sym_info in self.get_sym_infos(conv_chains_sym_names)
+        }
+
+        id_to_sym_info_convchain = {
+            asset_id: [light_sym_to_sym_info[sym] for sym in convchain]
+            for asset_id, convchain in id_to_convchain.items()
+        }
+
+        for sym in light_syms:
+            yield sym, ConvChains(
+                base_asset=id_to_sym_info_convchain[sym.baseAssetId],
+                quote_asset=id_to_sym_info_convchain[sym.quoteAssetId],
             )
-            for sym_id, sym in light_symbols_map.items()
-        ]
+
+    async def _get_light_symbol_map(
+        self,
+    ) -> Mapping[Union[int, str], ProtoOALightSymbol]:
+        if self._light_symbol_map is None:
+            light_sym_list_req = ProtoOASymbolsListReq(
+                ctidTraderAccountId=self._trader.ctidTraderAccountId
+            )
+            light_sym_list_res = await self.client.send_and_wait_response(
+                light_sym_list_req, ProtoOASymbolsListRes
+            )
+            self._light_symbol_map = {
+                cast(Union[int, str], id_or_name): sym
+                for sym in light_sym_list_res.symbol
+                for id_or_name in (sym.symbolId, sym.symbolName)
+            }
+
+        return self._light_symbol_map

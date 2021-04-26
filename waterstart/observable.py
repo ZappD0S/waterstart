@@ -15,8 +15,9 @@ from typing import (
 T = TypeVar("T")
 U = TypeVar("U")
 
-
-class Observabe(ABC, Generic[T]):
+# TODO: maybe pass to the constructor a series of coroutines (or tasks?)
+# that are scheduled and when we close are canceled and awaited?
+class Observable(ABC, Generic[T]):
     def __init__(self, maxsize: int = 1) -> None:
         super().__init__()
         self._maxsize = maxsize
@@ -33,6 +34,7 @@ class Observabe(ABC, Generic[T]):
             for setter in self._setters:
                 setter(value)
 
+    # TODO: maybe rename this to `subscribe`?
     @overload
     def register(self) -> AsyncContextManager[AsyncIterator[T]]:
         ...
