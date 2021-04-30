@@ -16,11 +16,11 @@ class BasePriceAggregator(Generic[T], ABC):
     @abstractmethod
     def aggregate(
         self,
-        # NOTE: the two arrays are price and spread
-        data_map: Mapping[int, Sequence[PriceSnapshot]],
+        data_map: Mapping[SymbolInfo, Sequence[PriceSnapshot]],
+        traded_symbols: Sequence[SymbolInfoWithConvChains],
         time_of_day: float,
         time_delta: float,
-    ) -> Iterable[tuple[int, Mapping[T, float]]]:
+    ) -> Mapping[SymbolInfoWithConvChains, Mapping[T, float]]:
         ...
 
 
@@ -46,21 +46,8 @@ class TrendBarData(Enum):
 
 
 class PriceAggregator(BasePriceAggregator[TrendBarData]):
-    def __init__(self, symbol_map: Mapping[int, SymbolInfoWithConvChains]) -> None:
-        self._symbol_map = symbol_map
-        self._id_to_index = {sym_id: index for index, sym_id in enumerate(symbol_map)}
+    def __init__(self) -> None:
         self._data_type = np.dtype([("bid", "f4"), ("ask", "f4"), ("time", "f4")])
-
-        def _build_index_list(sym_infos: Sequence[SymbolInfo]):
-            return [self._id_to_index[sym_info.id] for sym_info in sym_infos]
-
-        self._conv_chains_index_map = {
-            sym_id: (
-                _build_index_list(sym_info.conv_chains.base_asset),
-                _build_index_list(sym_info.conv_chains.quote_asset),
-            )
-            for sym_id, sym_info in self._symbol_map.items()
-        }
 
     def _build_interp_data(
         self, data: Sequence[PriceSnapshot]
@@ -104,29 +91,55 @@ class PriceAggregator(BasePriceAggregator[TrendBarData]):
 
     def aggregate(
         self,
-        data_map: Mapping[int, Sequence[PriceSnapshot]],
+        data_map: Mapping[SymbolInfo, Sequence[PriceSnapshot]],
+        traded_symbols: Sequence[SymbolInfoWithConvChains],
         time_of_day: float,
         time_delta: float,
-    ) -> Iterator[tuple[int, Mapping[TrendBarData, float]]]:
-        if not data_map.keys() == self._symbol_map.keys():
+    ) -> Mapping[SymbolInfoWithConvChains, Mapping[TrendBarData, float]]:
+        if not 0.0 <= time_of_day < 1.0:
             raise ValueError()
 
-        if not 0 <= time_of_day < 1:
+        if time_delta <= 0.0:
             raise ValueError()
 
-        if time_delta <= 0:
-            raise ValueError()
-
+        sym_to_index: dict[SymbolInfo, int] = {}
         index_to_interp: dict[int, interp1d] = {}
+        conv_chain_inds_map: dict[SymbolInfo, tuple[list[int], list[int]]] = {}
         dt = np.inf
+        count = 0
 
-        for sym_id, data in data_map.items():
-            xp, yp = self._build_interp_data(data)
+        def update(sym: SymbolInfo) -> int:
+            if sym in sym_to_index:
+                return sym_to_index[sym]
+
+            try:
+                sym_data = data_map[sym]
+            except KeyError:
+                raise ValueError()
+
+            nonlocal count, dt
+
+            index = count
+            count += 1
+            sym_to_index[sym] = index
+
+            xp, yp = self._build_interp_data(sym_data)
+
             interp = interp1d(xp, yp, copy=False, assume_sorted=True)
-            index = self._id_to_index[sym_id]
             index_to_interp[index] = interp
 
             dt = min(dt, np.diff(xp).min())
+
+            return index
+
+        for sym in traded_symbols:
+            _ = update(sym)
+
+            chains = sym.conv_chains
+            base_asset_inds = [update(sym) for sym in chains.base_asset]
+            quote_asset_inds = [update(sym) for sym in chains.quote_asset]
+
+            conv_chain_inds_map[sym] = (base_asset_inds, quote_asset_inds)
 
         assert dt != np.inf
         steps = round(2 / dt)
@@ -141,11 +154,10 @@ class PriceAggregator(BasePriceAggregator[TrendBarData]):
         hlc_data = self._compute_hlc_array(interpolated)
         hlc_fields: list[tuple[TrendBarData, TrendBarData, TrendBarData]]
 
-        for sym_id, (
-            base_asset_inds,
-            quote_asset_inds,
-        ) in self._conv_chains_index_map.items():
-            res: dict[TrendBarData, float] = {
+        res: Mapping[SymbolInfoWithConvChains, Mapping[TrendBarData, float]] = {}
+
+        for sym in traded_symbols:
+            sym_tb_data: dict[TrendBarData, float] = {
                 TrendBarData.TIME_OF_DAY: time_of_day,
                 TrendBarData.TIME_DELTA: time_delta,
             }
@@ -158,8 +170,10 @@ class PriceAggregator(BasePriceAggregator[TrendBarData]):
                     TrendBarData.SPREAD_CLOSE,
                 ),
             ]
-            index = self._id_to_index[sym_id]
-            res.update(self._build_hlc_map(hlc_data[index], hlc_fields))
+            index = sym_to_index[sym]
+            sym_tb_data.update(self._build_hlc_map(hlc_data[index], hlc_fields))
+
+            base_asset_inds, quote_asset_inds = conv_chain_inds_map[sym]
 
             base_to_dep_data = interpolated[base_asset_inds, 0].prod(axis=0)
             base_to_dep_hlc_data = self._compute_hlc_array(base_to_dep_data)
@@ -170,7 +184,7 @@ class PriceAggregator(BasePriceAggregator[TrendBarData]):
                     TrendBarData.BASE_DEP_CLOSE,
                 )
             ]
-            res.update(self._build_hlc_map(base_to_dep_hlc_data, hlc_fields))
+            sym_tb_data.update(self._build_hlc_map(base_to_dep_hlc_data, hlc_fields))
 
             quote_to_dep_data = interpolated[quote_asset_inds, 0].prod(axis=0)
             quote_to_dep_hlc_data = self._compute_hlc_array(quote_to_dep_data)
@@ -181,9 +195,11 @@ class PriceAggregator(BasePriceAggregator[TrendBarData]):
                     TrendBarData.QUOTE_DEP_CLOSE,
                 )
             ]
-            res.update(self._build_hlc_map(quote_to_dep_hlc_data, hlc_fields))
+            sym_tb_data.update(self._build_hlc_map(quote_to_dep_hlc_data, hlc_fields))
 
             # res[TrendBarData.TIME_OF_DAY] = time_of_day
             # res[TrendBarData.TIME_DELTA] = time_delta
 
-            yield sym_id, res
+            res[sym] = sym_tb_data
+
+        return res

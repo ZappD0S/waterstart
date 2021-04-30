@@ -18,16 +18,16 @@ from waterstart.openapi import (
 
 @dataclass(frozen=True)
 class SymbolInfo:
-    light_symbol: ProtoOALightSymbol
-    symbol: ProtoOASymbol
+    light_symbol: ProtoOALightSymbol = field(hash=False)
+    symbol: ProtoOASymbol = field(hash=False)
+    id: int = field(init=False, hash=True)
+
+    def __post_init__(self):
+        super().__setattr__("id", self.symbol.symbolId)
 
     @property
     def name(self):
         return self.light_symbol.symbolName.lower()
-
-    @property
-    def id(self):
-        return self.symbol.symbolId
 
 
 @dataclass(frozen=True)

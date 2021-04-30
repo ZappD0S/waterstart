@@ -1,8 +1,8 @@
-from abc import ABC, abstractmethod
 from collections.abc import Iterator, Mapping, MutableSet, Set
-from dataclasses import dataclass
-from enum import Enum
-from typing import Generic, Optional, TypeVar, Union, cast
+from dataclasses import dataclass, field
+from typing import Generic, Optional, Sequence, TypeVar, Union
+
+# TODO: rename file
 
 
 @dataclass(frozen=True)
@@ -10,32 +10,13 @@ class Field:
     index: int
 
 
-@dataclass(frozen=True)
-class PriceField(Field):
-    is_close: bool = False
-    price_group: Optional[str] = None
+T = TypeVar("T")
+U = TypeVar("U")
 
 
-T = TypeVar("T", bound=Enum)
-
-
-# class ValuesMapBuilder(ABC, Generic[T]):
-#     @abstractmethod
-#     def build(self) -> Mapping[T, float]:
-#         ...
-
-
-class FeauturesSpec(Generic[T]):
-    def __init__(self, enum_type: type[T], fields_map: Mapping[T, Field]) -> None:
+class KeyIndexMapper(Generic[T]):
+    def __init__(self, fields_map: Mapping[T, Field]) -> None:
         super().__init__()
-
-        # TODO: without the cast it would be Set[Enum]. Is this a bug?
-        self._enum_values = cast(Set[T], set(enum_type))
-        if not self._enum_values:
-            raise ValueError()
-
-        if not fields_map.keys() == self._enum_values:
-            raise ValueError()
 
         self._fields_map = fields_map
 
@@ -45,26 +26,67 @@ class FeauturesSpec(Generic[T]):
         if fields_set != fields:
             raise ValueError()
 
-        # TODO: make a property for this
-        self._price_groups = list(self._get_price_groups(fields_set))
+        self._key_to_index_map = {key: field.index for key, field in fields_map.items()}
 
-        indices = sorted(field.index for field in fields)
+        indices = list(self._key_to_index_map.values())
+
+        if not indices:
+            raise ValueError()
 
         if indices[0] != 0:
             raise ValueError()
-
-        if len(indices) < 2:
-            return
 
         if not all(b - a == 1 for a, b in zip(indices[:-1], indices[1:])):
             raise ValueError()
 
     @property
-    def price_groups(self):
-        return self._price_groups
+    def keys(self) -> Set[T]:
+        return self._fields_map.keys()
+
+    def map_inds_to_keys(self, values_map: Mapping[int, U]) -> Iterator[tuple[T, U]]:
+        for key, index in self._key_to_index_map.items():
+
+            try:
+                value = values_map[index]
+            except KeyError:
+                raise ValueError()
+
+            yield key, value
+
+    def map_keys_to_inds(self, values_map: Mapping[T, U]) -> Iterator[tuple[int, U]]:
+        for key, index in self._key_to_index_map.items():
+
+            try:
+                value = values_map[key]
+            except KeyError:
+                raise ValueError()
+
+            yield index, value
+
+
+@dataclass(frozen=True)
+class PriceField(Field):
+    is_close: bool = field(default=False, hash=False)
+    price_group: Optional[str] = field(default=None, hash=False)
+
+
+class FeautureVectorMapper(KeyIndexMapper[T]):
+    def __init__(self, fields_map: Mapping[T, Field]) -> None:
+        super().__init__(fields_map)
+
+        self._price_index_groups = [
+            (close_price_field.index, [field.index for field in fields_group])
+            for close_price_field, fields_group in self._get_price_field_groups(
+                set(fields_map.values())
+            )
+        ]
+
+    @property
+    def price_index_groups(self) -> Sequence[tuple[int, list[int]]]:
+        return self._price_index_groups
 
     @staticmethod
-    def _get_price_groups(
+    def _get_price_field_groups(
         fields_set: Set[Field],
     ) -> Iterator[tuple[PriceField, Set[PriceField]]]:
 
@@ -99,16 +121,3 @@ class FeauturesSpec(Generic[T]):
 
             assert close_price in group_prices
             yield close_price, group_prices
-
-    def get_inds_and_values(
-        self, values_map: Mapping[T, float]
-    ) -> Iterator[tuple[int, float]]:
-        for enum_val in self._enum_values:
-            index = self._fields_map[enum_val].index
-
-            try:
-                value = values_map[enum_val]
-            except KeyError:
-                raise ValueError()
-
-            yield index, value
