@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from typing import Final, Iterator
 from zoneinfo import ZoneInfo
 
-from .symbols import SymbolInfo, SymbolInfoWithConvChains
+from .symbols import SymbolInfo, TradedSymbolInfo
 
 
 def get_midnight(date: datetime.date) -> datetime.datetime:
@@ -228,7 +228,7 @@ class ExecutionSchedule(BaseSchedule):
     def __init__(
         self,
         # TODO: should this be a set?
-        symbols: Sequence[SymbolInfoWithConvChains],
+        symbols: Sequence[TradedSymbolInfo],
         trading_interval: datetime.timedelta,
         skip_day_open: bool = False,
         skip_day_close: bool = True,
@@ -246,7 +246,7 @@ class ExecutionSchedule(BaseSchedule):
         self._offset_date: datetime.date = datetime.date.min
 
     @property
-    def traded_symbols(self) -> Sequence[SymbolInfoWithConvChains]:
+    def traded_symbols(self) -> Sequence[TradedSymbolInfo]:
         return self._symbols
 
     @property

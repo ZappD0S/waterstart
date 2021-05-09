@@ -4,7 +4,7 @@ import asyncio
 import time
 from asyncio import StreamReader, StreamWriter
 from collections.abc import AsyncIterator, Callable, Mapping
-from typing import AsyncContextManager, Optional, TypeVar, Union, overload
+from typing import Any, AsyncContextManager, Optional, TypeVar, Union, overload
 
 from google.protobuf.message import Message
 
@@ -17,6 +17,7 @@ U = TypeVar("U", bound=Message)
 V = TypeVar("V", bound=Message)
 
 
+# TODO: we need a system for reconnection
 class OpenApiClient(Observable[Message]):
     def __init__(
         self,
@@ -28,7 +29,7 @@ class OpenApiClient(Observable[Message]):
         self.reader = reader
         self.writer = writer
         self._last_sent_message_time = 0.0
-        self._payloadtype_to_messageproto = {
+        self._payloadtype_to_messageproto: Mapping[int, type[Message]] = {
             proto.payloadType.DESCRIPTOR.default_value: proto  # type: ignore
             for proto in messages_dict.values()
             if hasattr(proto, "payloadType")
@@ -134,7 +135,9 @@ class OpenApiClient(Observable[Message]):
     ) -> AsyncContextManager[AsyncIterator[Union[T, U, V]]]:
         ...
 
-    def register_types(self, message_type) -> AsyncContextManager[AsyncIterator]:
+    def register_types(
+        self, message_type: Any
+    ) -> AsyncContextManager[AsyncIterator[Any]]:
         def func(x: Message):
             return x if isinstance(x, message_type) else None
 

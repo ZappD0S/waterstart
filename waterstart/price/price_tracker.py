@@ -1,10 +1,9 @@
 import asyncio
 import datetime
 import time
-from collections.abc import AsyncIterator, Mapping, MutableSequence
+from collections.abc import AsyncIterator, MutableSequence
 from contextlib import asynccontextmanager
-from enum import Enum
-from typing import Final, Generic, MutableMapping, NamedTuple, Sequence, TypeVar, cast
+from typing import Final, Generic, MutableMapping, Sequence, TypeVar, cast
 
 from ..client import OpenApiClient
 from ..observable import Observable
@@ -17,22 +16,15 @@ from ..openapi import (
     ProtoOAUnsubscribeSpotsRes,
 )
 from ..schedule import ExecutionSchedule
-from ..symbols import SymbolInfo, SymbolInfoWithConvChains
-from .price_aggregation import BasePriceAggregator
+from ..symbols import SymbolInfo
+from . import BasePriceAggregator, PriceSnapshot
 
 
-class PriceSnapshot(NamedTuple):
-    bid: float
-    ask: float
-    time: float
+T = TypeVar("T")
 
-
-T = TypeVar("T", bound=Enum)
-
-
-class PriceTracker(
-    Generic[T], Observable[Mapping[SymbolInfoWithConvChains, Mapping[T, float]]]
-):
+# TODO: maybe instead of returing directly the Mapping return a composite object
+# that constains both the Mapping and a timestamp
+class PriceTracker(Generic[T], Observable[T]):
     PRICE_CONV_FACTOR: Final[int] = 10 ** 5
     ONE_DAY: Final[datetime.timedelta] = datetime.timedelta(days=1)
 
@@ -75,9 +67,7 @@ class PriceTracker(
         )
         return time_of_day / cls.ONE_DAY
 
-    async def _get_async_iterator(
-        self,
-    ) -> AsyncIterator[Mapping[SymbolInfoWithConvChains, Mapping[T, float]]]:
+    async def _get_async_iterator(self) -> AsyncIterator[T]:
         now = datetime.datetime.now()
         next_trading_time = self._exec_schedule.next_valid_time(now)
         last_trading_time = self._exec_schedule.last_valid_time(now)
@@ -106,6 +96,8 @@ class PriceTracker(
             if skip:
                 continue
 
+            # TODO: instead of aggregating data once every trading period
+            #  we should do it as soon as we receive the data.
             yield self._price_aggregator.aggregate(
                 data_map, self._traded_symbols, time_of_day, delta_to_last
             )
@@ -123,12 +115,6 @@ class PriceTracker(
         _ = await self._client.send_and_wait_response(
             spot_sub_req, ProtoOASubscribeSpotsRes
         )
-
-        # ProtoOASubscribeLiveTrendbarReq(
-        #     ctidTraderAccountId=self._trader.ctidTraderAccountId,
-        #     period=M30,
-        #     symbolId=...
-        # )
 
         try:
             yield

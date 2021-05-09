@@ -37,7 +37,7 @@ class ConvChains:
 
 
 @dataclass(frozen=True)
-class SymbolInfoWithConvChains(SymbolInfo):
+class TradedSymbolInfo(SymbolInfo):
     conv_chains: ConvChains = field(hash=False)
 
 
@@ -71,14 +71,14 @@ class SymbolsList:
             self._name_to_sym_info_map[sym_info.name] = sym_info
             yield sym_info
 
-    async def get_sym_infos_with_conv_chains(
+    async def get_traded_sym_infos(
         self, subset: Optional[Set[str]] = None
-    ) -> AsyncIterator[SymbolInfoWithConvChains]:
+    ) -> AsyncIterator[TradedSymbolInfo]:
         found_sym_infos, missing_syms = await self._get_saved_sym_infos(
             {
                 name: sym_info
                 for name, sym_info in self._name_to_sym_info_map.items()
-                if isinstance(sym_info, SymbolInfoWithConvChains)
+                if isinstance(sym_info, TradedSymbolInfo)
             },
             subset,
         )
@@ -86,7 +86,7 @@ class SymbolsList:
         for sym_info in found_sym_infos:
             yield sym_info
 
-        async for sym_info in self._build_sym_info_with_conv_chains(missing_syms):
+        async for sym_info in self._build_traded_sym_info(missing_syms):
             self._name_to_sym_info_map[sym_info.name] = sym_info
             yield sym_info
 
@@ -122,16 +122,16 @@ class SymbolsList:
         async for light_sym, sym in self._get_full_symbols(light_syms):
             yield SymbolInfo(light_sym, sym)
 
-    async def _build_sym_info_with_conv_chains(
+    async def _build_traded_sym_info(
         self, light_syms: Set[ProtoOALightSymbol]
-    ) -> AsyncIterator[SymbolInfoWithConvChains]:
+    ) -> AsyncIterator[TradedSymbolInfo]:
         conv_chains = {
             sym: conv_chain
             async for sym, conv_chain in self._build_conv_chains(light_syms)
         }
 
         async for light_sym, sym in self._get_full_symbols(light_syms):
-            yield SymbolInfoWithConvChains(light_sym, sym, conv_chains[light_sym])
+            yield TradedSymbolInfo(light_sym, sym, conv_chains[light_sym])
 
     async def _get_full_symbols(
         self, light_syms: Set[ProtoOALightSymbol]

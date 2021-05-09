@@ -2,6 +2,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import (
+    Any,
     AsyncContextManager,
     AsyncIterator,
     Callable,
@@ -45,13 +46,12 @@ class Observable(ABC, Generic[T]):
     ) -> AsyncContextManager[AsyncIterator[U]]:
         ...
 
-    def register(self, func=None):
-        queue = asyncio.Queue(self._maxsize)
+    def register(
+        self, func: Optional[Callable[[T], Any]] = None
+    ) -> AsyncContextManager[AsyncIterator[Any]]:
+        queue: asyncio.Queue[T] = asyncio.Queue(self._maxsize)
 
-        if func is None:
-            func = lambda x: x
-
-        def set_result(val):
+        def set_result(val: T):
             if queue.full():
                 _ = queue.get_nowait()
 
@@ -61,13 +61,13 @@ class Observable(ABC, Generic[T]):
             while True:
                 raw = await queue.get()
 
-                val = func(raw)
+                val = func(raw) if func is not None else raw
 
                 if val is not None:
                     yield val
 
         @asynccontextmanager
-        async def _get_contextmanager() -> AsyncIterator:
+        async def _get_contextmanager() -> AsyncIterator[Any]:
             self._setters.append(set_result)
             try:
                 yield gen
