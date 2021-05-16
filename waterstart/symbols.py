@@ -1,9 +1,9 @@
 from collections.abc import AsyncIterator, Mapping, MutableMapping, Sequence, Set
 from dataclasses import dataclass, field
-from typing import Collection, Optional, TypeVar, Union, cast
+from typing import Collection, Optional, TypeVar, Union
 
-from waterstart.client import OpenApiClient
-from waterstart.openapi import (
+from .client import OpenApiClient
+from .openapi import (
     ProtoOALightSymbol,
     ProtoOASymbol,
     ProtoOASymbolByIdReq,
@@ -214,7 +214,7 @@ class SymbolsList:
                 light_sym_list_req, ProtoOASymbolsListRes
             )
             self._light_symbol_map = {
-                cast(Union[int, str], id_or_name): sym
+                id_or_name: sym
                 for sym in light_sym_list_res.symbol
                 for id_or_name in (sym.symbolId, sym.symbolName)
             }
