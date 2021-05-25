@@ -1,34 +1,32 @@
 from collections.abc import Mapping, Sequence
 
 import numpy as np
-from scipy.interpolate import interp1d  # type: ignore
 
 from ..symbols import SymbolInfo, TradedSymbolInfo
-from . import PriceSnapshot, SymbolData, TrendBar, AggregationData
+from . import AggregationData, SymbolData, Tick, BidAskTicks, TrendBar
 
 
 class PriceAggregator:
     def __init__(self) -> None:
-        self._data_type = np.dtype([("bid", "f4"), ("ask", "f4"), ("time", "f4")])
+        self._data_type = np.dtype([("time", "f4"), ("price", "f4")])
 
-    def _build_interp_data(
-        self, data: Sequence[PriceSnapshot]
-    ) -> tuple[np.ndarray, np.ndarray]:
+    @staticmethod
+    def _rescale(arr: np.ndarray, min: float, max: float) -> np.ndarray:
+        return (arr - min) / (max - min)
+
+    def _build_interp_data(self, data: Sequence[Tick]) -> tuple[np.ndarray, np.ndarray]:
         if not data:
             raise ValueError()
 
         data_arr = np.array(data, dtype=self._data_type)  # type: ignore
 
-        price = (data_arr["bid"] + data_arr["ask"]) / 2
-        spread = data_arr["ask"] - data_arr["bid"]
         time = data_arr["time"]
+        price = data_arr["price"]
 
         if not np.all(time[:-1] <= time[1:]):
             raise ValueError()
 
-        xp = time
-        yp = np.stack([price, spread])
-        return xp, yp
+        return time, price
 
     @staticmethod
     def _compute_hlc_array(data: np.ndarray) -> np.ndarray:
@@ -41,10 +39,22 @@ class PriceAggregator:
             axis=-1,
         )
 
+    def _update_trendbar(self, tb: TrendBar[float], hlc: np.ndarray) -> TrendBar[float]:
+        new_tb: TrendBar[float] = TrendBar(
+            high=max(tb.high, hlc[0]),
+            low=min(tb.low, hlc[1]),
+            close=hlc[2],
+        )
+        return new_tb
+
     def aggregate(self, aggreg_data: AggregationData) -> AggregationData:
 
         sym_to_index: dict[SymbolInfo, int] = {}
-        sym_to_data_points: dict[SymbolInfo, tuple[np.ndarray, np.ndarray]] = {}
+        # TODO: find better name
+        sym_to_data_points: dict[
+            SymbolInfo,
+            tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]],
+        ] = {}
         dt = np.inf
         count = 0
         start, end = -np.inf, np.inf
@@ -59,12 +69,14 @@ class PriceAggregator:
             count += 1
             sym_to_index[sym] = index
 
-            xp, yp = self._build_interp_data(raw_data_map[sym])
-            sym_to_data_points[sym] = (xp, yp)
+            tick_data = tick_data_map[sym]
+            bid_times, bid_prices = self._build_interp_data(tick_data.bid)
+            ask_times, ask_prices = self._build_interp_data(tick_data.ask)
+            sym_to_data_points[sym] = ((bid_times, bid_prices), (ask_times, ask_prices))
 
-            start = max(start, xp[0])
-            end = min(end, xp[-1])
-            dt = min(dt, np.diff(xp).min())
+            start = max(start, bid_times[0], ask_times[0])
+            end = min(end, bid_times[-1], ask_times[-1])
+            dt = min(dt, np.diff(bid_prices).min(), np.diff(bid_prices).min())
 
             return index
 
@@ -73,14 +85,14 @@ class PriceAggregator:
         conv_chain_sym_inds: list[int] = []
         max_chain_len = 0
 
-        raw_data_map = aggreg_data.raw_data_map
+        tick_data_map = aggreg_data.tick_data_map
         sym_tb_data_map = aggreg_data.tb_data_map
 
         traded_symbols = sym_tb_data_map.keys()
 
         for sym in traded_symbols:
-            index = update(sym)
-            traded_sym_inds.append(index)
+            sym_index = update(sym)
+            traded_sym_inds.append(sym_index)
 
             chains = sym.conv_chains
             for i, chain in enumerate([chains.base_asset, chains.quote_asset]):
@@ -91,29 +103,44 @@ class PriceAggregator:
                 conv_chain_sym_inds.extend(inds)
 
                 conv_chains_inds[0].extend(range(chain_len))
-                conv_chains_inds[1].extend([index] * chain_len)
+                conv_chains_inds[1].extend([sym_index] * chain_len)
                 conv_chains_inds[2].extend([i] * chain_len)
 
         assert dt != np.inf
         assert max_chain_len != 0
         steps = round(2 / dt)
         x = np.linspace(0, 1, steps, endpoint=True)  # type: ignore
-        n_symbols = len(raw_data_map)
+        n_symbols = len(tick_data_map)
         n_traded_symbols = len(traded_symbols)
         interp_arr = np.full((n_symbols, 2, x.size), np.nan)  # type: ignore
 
-        new_raw_data_map: Mapping[SymbolInfo, Sequence[PriceSnapshot]] = {}
+        new_tick_data_map: Mapping[SymbolInfo, BidAskTicks] = {}
 
-        for sym, sym_raw_data in raw_data_map.items():
-            xp, yp = sym_to_data_points[sym]
+        for sym, data_points in tick_data_map.items():
+            sym_index = sym_to_index[sym]
+            data_points = sym_to_data_points[sym]
 
-            last_used_index: int = xp.searchsorted(end)  # type: ignore
-            new_raw_data_map[sym] = sym_raw_data[last_used_index:]
+            interp_bid_ask_prices: tuple[np.ndarray, np.ndarray] = (np.empty_like(x), np.empty_like(x))  # type: ignore
 
-            index = sym_to_index[sym]
-            xp = (xp - start) / (end - start)
-            interp = interp1d(xp, yp, copy=False, assume_sorted=True)
-            interp_arr[index] = interp(x)  # type: ignore
+            for i, (times, prices) in enumerate(data_points):
+                times = self._rescale(times, start, end)
+                interp_bid_ask_prices[i][...] = np.interp(x, times, prices)
+
+            interp_bid_prices, interp_ask_prices = interp_bid_ask_prices
+            avg_prices = (interp_bid_prices + interp_ask_prices) / 2
+            spreads = interp_ask_prices - interp_bid_prices
+            assert np.all(spreads >= 0)
+            interp_arr[sym_index, 0] = avg_prices
+            interp_arr[sym_index, 1] = spreads
+
+            left_tick_data: tuple[list[Tick], list[Tick]] = ([], [])
+            tick_data = tick_data_map[sym]
+
+            for i, (times, _) in enumerate(data_points):
+                last_used_index: int = times.searchsorted(end)  # type: ignore
+                left_tick_data[i].extend(tick_data[i][last_used_index:])
+
+            new_tick_data_map[sym] = BidAskTicks(*left_tick_data)
 
         assert not np.isnan(interp_arr).any()
 
@@ -127,30 +154,24 @@ class PriceAggregator:
 
         new_sym_tb_data: Mapping[TradedSymbolInfo, SymbolData[float]] = {}
 
-        def update_trendbar(tb: TrendBar[float], hlc: np.ndarray) -> TrendBar[float]:
-            new_tb: TrendBar[float] = TrendBar(
-                high=max(tb.high, hlc[0]),
-                low=min(cur_price_tb.low, hlc[1]),
-                close=hlc[2],
-            )
-            return new_tb
-
         for sym, sym_tb_data in sym_tb_data_map.items():
-            index = sym_to_index[sym]
+            sym_index = sym_to_index[sym]
 
             cur_price_tb = sym_tb_data.price_trendbar
             cur_spread_tb = sym_tb_data.spread_trendbar
-            price_hlc, spread_hlc = price_spread_hlc[index]
+            price_hlc, spread_hlc = price_spread_hlc[sym_index]
 
-            new_price_tb = update_trendbar(cur_price_tb, price_hlc)
-            new_spread_tb = update_trendbar(cur_spread_tb, spread_hlc)
+            new_price_tb = self._update_trendbar(cur_price_tb, price_hlc)
+            new_spread_tb = self._update_trendbar(cur_spread_tb, spread_hlc)
 
             dep_to_base_tb = sym_tb_data.dep_to_base_trendbar
             dep_to_quote_tb = sym_tb_data.dep_to_quote_trendbar
-            dep_to_base_hlc, dep_to_quote_hlc = conv_chains_hlc[index]
+            dep_to_base_hlc, dep_to_quote_hlc = conv_chains_hlc[sym_index]
 
-            new_dep_to_base_tb = update_trendbar(dep_to_base_tb, dep_to_base_hlc)
-            new_dep_to_quote_tb = update_trendbar(dep_to_quote_tb, dep_to_quote_hlc)
+            new_dep_to_base_tb = self._update_trendbar(dep_to_base_tb, dep_to_base_hlc)
+            new_dep_to_quote_tb = self._update_trendbar(
+                dep_to_quote_tb, dep_to_quote_hlc
+            )
 
             new_sym_data: SymbolData[float] = SymbolData(
                 price_trendbar=new_price_tb,
@@ -161,4 +182,4 @@ class PriceAggregator:
 
             new_sym_tb_data[sym] = new_sym_data
 
-        return AggregationData(new_raw_data_map, new_sym_tb_data)
+        return AggregationData(new_tick_data_map, new_sym_tb_data)

@@ -5,7 +5,6 @@ ipython
 mypy
 mypy-protobuf
 numpy
-scipy
 onnx
 pip
 protobuf

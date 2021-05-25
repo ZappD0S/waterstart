@@ -1,62 +1,49 @@
 import asyncio
 import datetime
-import time
-from collections.abc import AsyncIterator, MutableSequence
-from contextlib import asynccontextmanager
-from typing import Final, Iterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping
+from typing import Final, Optional
 
 from ..client import OpenApiClient
 from ..observable import Observable
-from ..openapi import (
-    ProtoOASpotEvent,
-    ProtoOASubscribeSpotsReq,
-    ProtoOASubscribeSpotsRes,
-    ProtoOATrader,
-    ProtoOAUnsubscribeSpotsReq,
-    ProtoOAUnsubscribeSpotsRes,
-)
-from ..schedule import ExecutionSchedule
 from ..symbols import SymbolInfo, TradedSymbolInfo
-
 from . import (
+    AggregationData,
+    BaseTickDataGenerator,
+    BidAskTicks,
     LatestMarketData,
     MarketFeatures,
-    PriceSnapshot,
     SymbolData,
-    AggregationData,
 )
 from .price_aggregation import PriceAggregator
-
 
 MAX_LEN = 1000
 
 
-class PriceTracker(Observable[LatestMarketData]):
+# TODO: rename
+class LiveMarketTracker(Observable[LatestMarketData]):
     PRICE_CONV_FACTOR: Final[int] = 10 ** 5
     ONE_DAY: Final[datetime.timedelta] = datetime.timedelta(days=1)
 
     def __init__(
         self,
         client: OpenApiClient,
-        trader: ProtoOATrader,
-        exec_schedule: ExecutionSchedule,
+        tick_data_gen: BaseTickDataGenerator,
         price_aggregator: PriceAggregator,
     ) -> None:
         # TODO: make maxsize bigger than 1 for safety?
         super().__init__()
         self._client = client
-        self._trader = trader
-        self._traded_symbols = list(exec_schedule.traded_symbols)
-        self._symbols = list(set(self._get_all_symbols(self._traded_symbols)))
-        self._raw_data_map: Mapping[SymbolInfo, MutableSequence[PriceSnapshot]] = {
-            sym: [] for sym in self._symbols
+        self._ask_bid_ticks_map: Mapping[SymbolInfo, BidAskTicks] = {
+            sym: BidAskTicks([], []) for sym in tick_data_gen.symbols
         }
-        self._tb_data_map: Mapping[TradedSymbolInfo, SymbolData[float]] = {
-            sym: SymbolData.build_default() for sym in self._traded_symbols
+        self._tb_data_map: Optional[Mapping[TradedSymbolInfo, SymbolData[float]]] = None
+
+        self._default_data_map: Mapping[TradedSymbolInfo, SymbolData[float]] = {
+            sym: SymbolData.build_default() for sym in tick_data_gen.traded_symbols
         }
 
-        self._id_to_sym = {sym.id: sym for sym in self._symbols}
-        self._exec_schedule = exec_schedule
+        self._tick_data_gen = tick_data_gen
+        self._exec_schedule = tick_data_gen.exec_schedule
         self._price_aggregator = price_aggregator
         self._data_lock = asyncio.Lock()
 
@@ -69,97 +56,85 @@ class PriceTracker(Observable[LatestMarketData]):
         return time_of_day / cls.ONE_DAY
 
     @staticmethod
-    def _get_all_symbols(
-        traded_symbols: Sequence[TradedSymbolInfo],
-    ) -> Iterator[SymbolInfo]:
-        for traded_sym in traded_symbols:
-            yield traded_sym
+    def _build_latest_market_data(
+        tb_data_map: Mapping[TradedSymbolInfo, SymbolData[float]],
+        time_of_day: float,
+        delta_to_last: float,
+    ) -> LatestMarketData:
+        market_feat = MarketFeatures(tb_data_map, time_of_day, delta_to_last)
+        sym_prices: dict[TradedSymbolInfo, float] = {}
+        margin_rates: dict[TradedSymbolInfo, float] = {}
 
-            chains = (
-                traded_sym.conv_chains.base_asset,
-                traded_sym.conv_chains.quote_asset,
-            )
+        for sym, sym_data in tb_data_map.items():
+            sym_prices[sym] = sym_data.price_trendbar.close
+            margin_rates[sym] = sym_data.dep_to_base_trendbar.close
 
-            for chain in chains:
-                for sym in chain:
-                    yield sym
+        return LatestMarketData(market_feat, sym_prices, margin_rates)
 
-    async def _get_async_iterator(self) -> AsyncIterator[LatestMarketData]:
-        now = datetime.datetime.now()
-        next_trading_time = self._exec_schedule.next_valid_time(now)
-        last_trading_time = self._exec_schedule.last_valid_time(now)
+    async def _generate_market_data(
+        self, start_time: datetime.datetime
+    ) -> AsyncIterator[LatestMarketData]:
+        next_trading_time = self._exec_schedule.next_valid_time(start_time)
+        last_trading_time = self._exec_schedule.last_valid_time(
+            next_trading_time - self._exec_schedule.trading_interval
+        )
 
         while True:
-            await asyncio.sleep((next_trading_time - now).total_seconds())
+            tb_data_map = await self._get_tb_data_map(next_trading_time)
 
             time_of_day = self._compute_time_of_day(next_trading_time)
             delta_to_last = (next_trading_time - last_trading_time) / self.ONE_DAY
-
-            await self._update_symbols_data()
-
-            market_feat = MarketFeatures(self._tb_data_map, time_of_day, delta_to_last)
-            sym_prices: dict[TradedSymbolInfo, float] = {}
-            margin_rates: dict[TradedSymbolInfo, float] = {}
-
-            for sym, sym_data in self._tb_data_map.items():
-                sym_prices[sym] = sym_data.price_trendbar.close
-                margin_rates[sym] = sym_data.dep_to_base_trendbar.close
-
-            yield LatestMarketData(market_feat, sym_prices, margin_rates)
+            if tb_data_map is not None:
+                yield self._build_latest_market_data(
+                    tb_data_map, time_of_day, delta_to_last
+                )
 
             last_trading_time = next_trading_time
-            now = datetime.datetime.now()
-            next_trading_time = self._exec_schedule.next_valid_time(now)
+            next_trading_time = self._exec_schedule.next_valid_time(
+                last_trading_time + self._exec_schedule.trading_interval
+            )
+
+    async def _get_async_iterator(self) -> AsyncIterator[LatestMarketData]:
+        now = datetime.datetime.now()
+        async for market_data in self._generate_market_data(now):
+            yield market_data
+
+    async def _get_tb_data_map(
+        self, next_trading_time: datetime.datetime
+    ) -> Optional[Mapping[TradedSymbolInfo, SymbolData[float]]]:
+        now = datetime.datetime.now()
+        await asyncio.sleep((next_trading_time - now).total_seconds())
+        await self._update_symbols_data()
+        tb_data_map = self._tb_data_map
+        self._tb_data_map = None
+        return tb_data_map
 
     async def _update_symbols_data(self) -> None:
         async with self._data_lock:
-            aggreg_data = AggregationData(self._raw_data_map, self._tb_data_map)
+            tb_data_map = self._tb_data_map or self._default_data_map
+            aggreg_data = AggregationData(self._ask_bid_ticks_map, tb_data_map)
 
-            # TODO: what do we do if this fails?
-            aggreg_data = self._price_aggregator.aggregate(aggreg_data)
+            try:
+                aggreg_data = self._price_aggregator.aggregate(aggreg_data)
+            except ValueError:
+                # TODO: is this ok?
+                return
 
             self._tb_data_map = aggreg_data.tb_data_map
-            self._raw_data_map = {
-                sym: list(data) for sym, data in aggreg_data.raw_data_map.items()
-            }
-
-    @asynccontextmanager
-    async def _spot_event_subscription(self):
-        spot_sub_req = ProtoOASubscribeSpotsReq(
-            ctidTraderAccountId=self._trader.ctidTraderAccountId,
-            symbolId=self._id_to_sym,
-        )
-        # TODO: capture also the proto error and check?
-        _ = await self._client.send_and_wait_response(
-            spot_sub_req, ProtoOASubscribeSpotsRes
-        )
-
-        try:
-            yield
-        finally:
-            spot_unsub_req = ProtoOAUnsubscribeSpotsReq(
-                ctidTraderAccountId=self._trader.ctidTraderAccountId,
-                symbolId=[sym.id for sym in self._exec_schedule.traded_symbols],
-            )
-            _ = await self._client.send_and_wait_response(
-                spot_unsub_req, ProtoOAUnsubscribeSpotsRes
-            )
+            self._ask_bid_ticks_map = aggreg_data.tick_data_map
 
     async def _track_prices(self) -> None:
-        async with self._spot_event_subscription():
-            async with self._client.register_types(ProtoOASpotEvent) as gen:
-                async for event in gen:
-                    t = time.time()
-                    bid = event.bid / self.PRICE_CONV_FACTOR
-                    ask = event.ask / self.PRICE_CONV_FACTOR
-                    snapshot = PriceSnapshot(bid=bid, ask=ask, time=t)
+        ticks_gen = self._tick_data_gen.generate_ticks()
+        try:
+            async for tick_data in ticks_gen:
+                async with self._data_lock:
+                    ask_bid_ticks = self._ask_bid_ticks_map[tick_data.sym]
+                    ticks = ask_bid_ticks[tick_data.type]
+                    ticks.append(tick_data.tick)
+                    ticks_len = len(ticks)
 
-                    sym = self._id_to_sym[event.symbolId]
-
-                    async with self._data_lock:
-                        raw_data = self._raw_data_map[sym]
-                        raw_data.append(snapshot)
-                        raw_data_len = len(raw_data)
-
-                    if raw_data_len > MAX_LEN:
-                        await self._update_symbols_data()
+                # TODO: take this from  aggreg_data
+                if ticks_len > MAX_LEN:
+                    await self._update_symbols_data()
+        finally:
+            await ticks_gen.aclose()

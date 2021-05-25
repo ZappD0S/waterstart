@@ -13,10 +13,6 @@ class DictBasedArrayMapper(BaseArrayMapper[Mapping[T, float]]):
         super().__init__(set(fields_map.values()))
         self._inds_map = {key: field.index for key, field in fields_map.items()}
 
-    # @property
-    # def inds_map(self) -> Mapping[T, int]:
-    #     return self._inds_map
-
     @property
     def keys(self) -> Set[T]:
         return self._inds_map.keys()
@@ -92,4 +88,8 @@ class DictBasedArrayMapper(BaseArrayMapper[Mapping[T, float]]):
     def build_from_index_to_value_map_partial(
         self, mapping: Mapping[int, Any]
     ) -> Mapping[T, Any]:
-        return {key: mapping[index] for key, index in self._inds_map.items() if index in mapping}
+        return {
+            key: mapping[index]
+            for key, index in self._inds_map.items()
+            if index in mapping
+        }
