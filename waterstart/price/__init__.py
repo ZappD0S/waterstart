@@ -92,6 +92,7 @@ class BaseTickDataGenerator(ABC):
         trader: ProtoOATrader,
         exec_schedule: ExecutionSchedule,
     ):
+        # TODO: make these properties?
         self.trader = trader
         self.exec_schedule = exec_schedule
         self.traded_symbols = list(exec_schedule.traded_symbols)

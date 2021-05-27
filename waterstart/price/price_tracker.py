@@ -47,13 +47,12 @@ class LiveMarketTracker(Observable[LatestMarketData]):
         self._price_aggregator = price_aggregator
         self._data_lock = asyncio.Lock()
 
-    @classmethod
-    def _compute_time_of_day(cls, dt: datetime.datetime) -> float:
-        time_of_day = (
+    @staticmethod
+    def _compute_time_of_day(dt: datetime.datetime) -> datetime.timedelta:
+        return (
             datetime.datetime.combine(datetime.date.min, dt.time())
             - datetime.datetime.min
         )
-        return time_of_day / cls.ONE_DAY
 
     @staticmethod
     def _build_latest_market_data(
@@ -82,7 +81,7 @@ class LiveMarketTracker(Observable[LatestMarketData]):
         while True:
             tb_data_map = await self._get_tb_data_map(next_trading_time)
 
-            time_of_day = self._compute_time_of_day(next_trading_time)
+            time_of_day = self._compute_time_of_day(next_trading_time) / self.ONE_DAY
             delta_to_last = (next_trading_time - last_trading_time) / self.ONE_DAY
             if tb_data_map is not None:
                 yield self._build_latest_market_data(
@@ -133,7 +132,7 @@ class LiveMarketTracker(Observable[LatestMarketData]):
                     ticks.append(tick_data.tick)
                     ticks_len = len(ticks)
 
-                # TODO: take this from  aggreg_data
+                # TODO: take this from  _price_aggregator
                 if ticks_len > MAX_LEN:
                     await self._update_symbols_data()
         finally:

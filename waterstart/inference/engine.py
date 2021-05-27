@@ -2,61 +2,27 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from functools import cached_property
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import numpy as np
 import torch
 import torch.distributions as dist
 import torch.jit as jit
 import torch.nn as nn
+from waterstart.inference.model import CNN, Emitter, GatedTransition
 
-from .array_mapping import DictBasedArrayMapper, MarketDataArrayMapper
-from .array_mapping.base_mapper import BaseArrayMapper
-from .price import LatestMarketData
-from .symbols import TradedSymbolInfo
-
-
-@dataclass
-class TradesState:
-    trades_sizes: torch.Tensor
-    trades_prices: torch.Tensor
-
-    @cached_property
-    def pos_sizes(self) -> torch.Tensor:
-        return self.trades_sizes.sum(dim=0)
-
-
-@dataclass
-class ModelState:
-    trades_state: TradesState
-    balance: torch.Tensor
-    hidden_state: torch.Tensor
-
-
-@dataclass
-class MarketState:
-    prev_market_data_arr: torch.Tensor
-    latest_market_data: LatestMarketData
-
-
-@dataclass
-class RawMarketState:
-    market_data: torch.Tensor
-    sym_prices: torch.Tensor
-    margin_rate: torch.Tensor
-
-
-T = TypeVar("T", MarketState, RawMarketState)
-U = TypeVar("U", MarketState, RawMarketState)
-
-
-@dataclass
-class ModelInput(Generic[T]):
-    market_state: T
-    trades_state: TradesState
-    hidden_state: torch.Tensor
-    balance: torch.Tensor
+from ..array_mapping import DictBasedArrayMapper, MarketDataArrayMapper
+from ..array_mapping.base_mapper import BaseArrayMapper
+from ..symbols import TradedSymbolInfo
+from . import (
+    MarketState,
+    ModelInferenceWithMap,
+    ModelInferenceWithRawOutput,
+    ModelInput,
+    RawMarketState,
+    RawModelOutput,
+    TradesState,
+)
 
 
 @dataclass
@@ -76,33 +42,6 @@ class MaskedTensor:
 
 
 @dataclass
-class ModelInference:
-    pos_sizes: torch.Tensor
-
-
-# TODO: we need a better name..
-@dataclass
-class ModelInferenceWithMap(ModelInference):
-    pos_sizes_map: Mapping[TradedSymbolInfo, float]
-    market_data_arr: torch.Tensor
-    hidden_state: torch.Tensor
-
-
-@dataclass
-class RawModelOutput:
-    z_samples: torch.Tensor
-    z_logprobs: torch.Tensor
-    exec_samples: torch.Tensor
-    exec_logprobs: torch.Tensor
-    fractions: torch.Tensor
-
-
-@dataclass
-class ModelInferenceWithRawOutput(ModelInference):
-    raw_model_output: RawModelOutput
-
-
-@dataclass
 class MinStepMax:
     min: torch.Tensor
     step: torch.Tensor
@@ -113,28 +52,34 @@ class MinStepMax:
             raise ValueError()
 
 
-V = TypeVar("V")
+T = TypeVar("T")
 
 
-class Model:
+class InferenceEngine:
     def __init__(
         self,
         # TODO: maybe group the modules in a dataclass?
-        cnn: nn.Module,
-        gated_trans: nn.Module,
+        cnn: CNN,
+        gated_trans: GatedTransition,
         iafs: Sequence[nn.Module],
-        emitter: nn.Module,
+        emitter: Emitter,
         market_data_arr_mapper: MarketDataArrayMapper,
         traded_sym_arr_mapper: DictBasedArrayMapper[TradedSymbolInfo],
     ) -> None:
+        if market_data_arr_mapper.n_fields != cnn.market_features:
+            raise ValueError()
+
+        if traded_sym_arr_mapper.n_fields != cnn.n_sym:
+            raise ValueError()
+
         self._cnn = cnn
         self._gated_trans = gated_trans
         self._iafs = iafs
         self._emitter = emitter
-        # TODO: these need to be taken from the modules
-        self.win_len: int = ...
-        self.max_trades: int = ...
-        self.hidden_dim: int = ...
+        self.n_sym = cnn.n_sym
+        self.window_size = cnn.window_size
+        self.max_trades = cnn.max_trades
+        self.hidden_dim = gated_trans.z_dim
 
         self._market_data_arr_mapper = market_data_arr_mapper
         self._traded_sym_arr_mapper = traded_sym_arr_mapper
@@ -166,11 +111,14 @@ class Model:
         )
 
         inds: np.ndarray = rec_arr["inds"]
-        min_step_max: np.ndarray = rec_arr["vals"]
-        min_step_max = min_step_max[inds]
+        vals: np.ndarray = rec_arr["vals"]
+        min_step_max = np.empty_like(vals)  # type: ignore
+        min_step_max[inds] = vals
 
         return MinStepMax(
-            min=min_step_max["min"], step=min_step_max["step"], max=min_step_max["max"]
+            min=torch.from_numpy(min_step_max["min"]),  # type: ignore
+            step=torch.from_numpy(min_step_max["step"]),  # type: ignore
+            max=torch.from_numpy(min_step_max["max"]),  # type: ignore
         )
 
     def _partial_map_to_masked_tensor(
@@ -201,7 +149,7 @@ class Model:
             dict(zip(inds_list, new_pos_sizes_list))
         )
 
-    def _obj_to_tensor(self, mapper: BaseArrayMapper[V], obj: V) -> torch.Tensor:
+    def _obj_to_tensor(self, mapper: BaseArrayMapper[T], obj: T) -> torch.Tensor:
         rec_arr: np.ndarray = np.fromiter(
             mapper.iterate_index_to_value(obj), dtype=[("inds", int), ("vals", float)]
         )
@@ -216,7 +164,7 @@ class Model:
 
         return arr
 
-    def _tensor_to_obj(self, mapper: BaseArrayMapper[V], arr: torch.Tensor) -> V:
+    def _tensor_to_obj(self, mapper: BaseArrayMapper[T], arr: torch.Tensor) -> T:
         l: list[float] = arr.tolist()  # type: ignore
         return mapper.build_from_index_to_value_map(dict(enumerate(l)))
 
@@ -266,7 +214,7 @@ class Model:
         exec_mask = exec_mask.squeeze(1)
 
         new_pos_sizes = model_infer.pos_sizes.squeeze(1)
-        hidden_state = model_infer.raw_model_output.z_samples.squeeze(0)
+        hidden_state = model_infer.raw_model_output.z_sample.squeeze(0)
 
         new_pos_sizes_map = self._masked_tensor_to_partial_map(
             MaskedTensor(new_pos_sizes, exec_mask)
@@ -286,15 +234,14 @@ class Model:
         exec_mask: torch.Tensor,
         dep_cur_pos_sizes: torch.Tensor,
         margin_rate: torch.Tensor,
-        unused: torch.Tensor,
+        unused_margin: torch.Tensor,
     ) -> torch.Tensor:
         new_pos_sizes = torch.empty_like(dep_cur_pos_sizes)  # type: ignore
-        remaining = unused
 
-        for i in range(len(new_pos_sizes)):
-            available = dep_cur_pos_sizes[i].abs() + remaining
+        for i in range(self.n_sym):
+            available_margin = dep_cur_pos_sizes[i].abs() + unused_margin
             dep_cur_new_pos_size: torch.Tensor = torch.where(
-                exec_mask[i], fractions[i] * available, dep_cur_pos_sizes[i]
+                exec_mask[i], fractions[i] * available_margin, dep_cur_pos_sizes[i]
             )
 
             new_pos_size = dep_cur_new_pos_size * margin_rate[i]
@@ -309,11 +256,11 @@ class Model:
                 abs_new_pos_size < self._min_step_max.min[i], abs_new_pos_size
             )
             abs_new_pos_size = self._min_step_max.max[i].where(
-                abs_new_pos_size > self._min_step_max.max[i], self._min_step_max.max[i]
+                abs_new_pos_size > self._min_step_max.max[i], abs_new_pos_size
             )
 
             new_pos_sizes[i] = new_pos_sign * abs_new_pos_size
-            remaining = available - new_pos_sizes[i].abs()
+            unused_margin = available_margin - abs_new_pos_size
 
         return new_pos_sizes
 
@@ -339,13 +286,13 @@ class Model:
         assert torch.all(unused >= 0)
 
         # NOTE: the leverage cancels out so we obtain the margin
-        rel_margins = torch.cat([dep_cur_trade_sizes.flatten(0, 1), unused]) / balance
-        trades_data = torch.cat([rel_margins, rel_prices.flatten(0, 1)])
+        rel_margins = torch.cat((dep_cur_trade_sizes.flatten(0, 1), unused)) / balance
+        trades_data = torch.cat((rel_margins, rel_prices.flatten(0, 1)))
 
         model_output = self._evaluate(
             trades_data, scaled_market_data, model_input.hidden_state
         )
-        exec_mask = model_output.z_samples == 1
+        exec_mask = model_output.z_sample == 1
 
         new_pos_sizes = self._compute_new_pos_sizes(
             model_output.fractions,
@@ -374,7 +321,7 @@ class Model:
 
         z_dist = dist.TransformedDistribution(dist.Normal(z_loc, z_scale), self._iafs)
         z_sample: torch.Tensor = z_dist.rsample()  # type: ignore
-        z_logprobs: torch.Tensor = z_dist.log_prob(z_sample)  # type: ignore
+        z_logprob: torch.Tensor = z_dist.log_prob(z_sample)  # type: ignore
 
         exec_logits: torch.Tensor
         fractions: torch.Tensor
@@ -388,8 +335,8 @@ class Model:
         exec_logprobs: torch.Tensor = exec_dist.log_prob(exec_samples)  # type: ignore
 
         return RawModelOutput(
-            z_samples=z_sample,
-            z_logprobs=z_logprobs,
+            z_sample=z_sample,
+            z_logprob=z_logprob,
             exec_samples=exec_samples,
             exec_logprobs=exec_logprobs,
             fractions=fractions,
@@ -401,62 +348,87 @@ class Model:
         new_pos_sizes: Mapping[TradedSymbolInfo, float],
         open_prices: Mapping[TradedSymbolInfo, float],
     ) -> TradesState:
+        # TODO
         ...
+
+    @staticmethod
+    def _add_case_update_trades(
+        trades_state: TradesState,
+        new_trade_size: torch.Tensor,
+        open_prices: torch.Tensor,
+    ) -> TradesState:
+        trades_sizes = trades_state.trades_sizes
+        new_trades_sizes = trades_sizes.clone()
+        new_trades_sizes[:-1] = trades_sizes[1:]
+        new_trades_sizes[-1] = new_trade_size
+
+        trades_prices = trades_state.trades_prices
+        new_trades_prices = trades_prices.clone()
+        new_trades_prices[:-1] = trades_prices[1:]
+        new_trades_prices[-1] = open_prices
+
+        return TradesState(new_trades_sizes, new_trades_prices)
+
+    @staticmethod
+    def _remove_case_update_trades(
+        trades_state: TradesState,
+        new_pos_size: torch.Tensor,
+        close_trade_size: torch.Tensor,
+        open_prices: torch.Tensor,
+    ) -> TradesState:
+        trades_sizes = trades_state.trades_sizes
+
+        cum_trades_sizes = trades_sizes.cumsum(dim=0)
+        left_diffs = close_trade_size + cum_trades_sizes
+
+        right_diffs = torch.empty_like(left_diffs)
+        right_diffs[1:] = left_diffs[:-1]
+        right_diffs[0] = close_trade_size
+
+        close_trade_mask = new_pos_size * left_diffs <= 0
+        reduce_trade_mask = left_diffs * right_diffs < 0
+        open_pos_mask = trades_state.pos_size * new_pos_size < 0
+
+        new_trades_sizes = trades_sizes.clone()
+
+        new_trades_sizes[close_trade_mask] = 0.0
+        new_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
+        new_trades_sizes[-1, open_pos_mask] = new_pos_size[open_pos_mask]
+
+        trades_prices = trades_state.trades_prices
+        new_trades_prices = trades_prices.clone()
+        new_trades_prices[close_trade_mask] = 0.0
+        new_trades_prices[-1, open_pos_mask] = open_prices[open_pos_mask]
+
+        return TradesState(new_trades_sizes, new_trades_prices)
 
     def update_trades_raw(
         self,
         trades_state: TradesState,
-        new_pos_sizes: torch.Tensor,
+        new_pos_size: torch.Tensor,
         open_prices: torch.Tensor,
     ) -> TradesState:
+        pos_size = trades_state.pos_size
+        new_trade_size = close_trade_size = new_pos_size - pos_size
 
-        # new_pos_sizes = np.where(success_mask, self._new_pos_sizes, pos_sizes)
-        pos_sizes = trades_state.pos_sizes
-
-        trades_sizes = trades_state.trades_sizes
-        trades_prices = trades_state.trades_prices
-
-        new_trade_sizes = new_pos_sizes - pos_sizes
-
-        add_trades_sizes = trades_sizes.clone()
-        add_trades_sizes[:-1] = trades_sizes[1:]
-        add_trades_sizes[-1] = new_trade_sizes
-
-        add_trades_prices = trades_prices.clone()
-        add_trades_prices[:-1] = trades_prices[1:]
-        add_trades_prices[-1] = open_prices
-
-        close_trade_sizes = new_trade_sizes
-        cum_trades_sizes = trades_sizes.cumsum(dim=0)
-        left_diffs = close_trade_sizes + cum_trades_sizes
-
-        right_diffs = torch.empty_like(left_diffs)
-        right_diffs[1:] = left_diffs[:-1]
-        right_diffs[0] = close_trade_sizes
-
-        close_trade_mask = new_pos_sizes * left_diffs <= 0
-        reduce_trade_mask = left_diffs * right_diffs < 0
-        open_pos_mask = pos_sizes * new_pos_sizes < 0
-
-        remove_trades_sizes = trades_sizes.clone()
-
-        remove_trades_sizes[close_trade_mask] = 0.0
-        remove_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
-        remove_trades_sizes[-1, open_pos_mask] = new_pos_sizes[open_pos_mask]
-
-        remove_trades_prices = trades_prices.clone()
-        remove_trades_prices[close_trade_mask] = 0.0
-        remove_trades_prices[-1, open_pos_mask] = open_prices[open_pos_mask]
-
-        latest_trade_sizes = trades_sizes[-1]
-        add_mask = (latest_trade_sizes * new_trade_sizes > 0) | (
-            latest_trade_sizes == 0
+        add_case_trade_state = self._add_case_update_trades(
+            trades_state, new_trade_size, open_prices
         )
-        new_trades_sizes = torch.where(add_mask, add_trades_sizes, remove_trades_sizes)
+        remove_case_trade_state = self._remove_case_update_trades(
+            trades_state, new_pos_size, close_trade_size, open_prices
+        )
+
+        no_open_trade_mask = trades_state.trades_sizes[-1] == 0
+        add_mask = no_open_trade_mask | (pos_size.abs() < new_pos_size.abs())
+        new_trades_sizes = torch.where(
+            add_mask,
+            add_case_trade_state.trades_sizes,
+            remove_case_trade_state.trades_sizes,
+        )
         new_trades_prices = torch.where(
-            add_mask, add_trades_prices, remove_trades_prices
+            add_mask,
+            add_case_trade_state.trades_prices,
+            remove_case_trade_state.trades_prices,
         )
 
-        return TradesState(
-            trades_sizes=new_trades_sizes, trades_prices=new_trades_prices
-        )
+        return TradesState(new_trades_sizes, new_trades_prices)

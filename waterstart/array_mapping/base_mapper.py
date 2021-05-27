@@ -3,6 +3,8 @@ from collections.abc import Iterator, Mapping, Set
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
+from ..utils import is_contiguous
+
 T = TypeVar("T")
 
 
@@ -23,7 +25,7 @@ class BaseArrayMapper(ABC, Generic[T]):
         if indices[0] != 0:
             raise ValueError()
 
-        if not all(b - a == 1 for a, b in zip(indices[:-1], indices[1:])):
+        if not is_contiguous(indices):
             raise ValueError()
 
     @property

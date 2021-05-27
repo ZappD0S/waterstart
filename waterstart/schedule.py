@@ -1,11 +1,12 @@
 import datetime
 from abc import ABC, abstractmethod
 from bisect import bisect_right
-from collections.abc import Sequence, Iterator
+from collections.abc import Iterator, Sequence
 from typing import Final, Optional
 from zoneinfo import ZoneInfo
 
 from .symbols import SymbolInfo, TradedSymbolInfo
+from .utils import is_sorted
 
 
 def get_midnight(date: datetime.date) -> datetime.datetime:
@@ -73,14 +74,14 @@ class HolidaySchedule(BaseSchedule):
         if start >= end:
             raise ValueError()
 
-        self.start = start
-        self.end = end
-        self.timezone = self.start.tzinfo
+        self._year = start.year
+        self._times = (start, end)
+        self.timezone = start.tzinfo
         self.is_recurring = is_recurring
 
     @property
     def year(self) -> int:
-        return self.start.year
+        return self._year
 
     def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=True)
@@ -103,17 +104,15 @@ class HolidaySchedule(BaseSchedule):
                 # on a non-leap year so it's safe to assume this it's not a holiday
                 return orig_dt
 
-        times = [self.start, self.end]
-        index = bisect_right(times, dt)
+        index = bisect_right(self._times, dt)
 
         if index % 2 == 0:
             return orig_dt
 
-        # TODO: check that this part is correct
         if reverse:
             index -= 1
 
-        return times[index].replace(year=orig_dt.year).astimezone(orig_dt.tzinfo)
+        return self._times[index].replace(year=orig_dt.year).astimezone(orig_dt.tzinfo)
 
 
 class WeeklySchedule(BaseSchedule):
@@ -130,7 +129,7 @@ class WeeklySchedule(BaseSchedule):
         if len(timetable) % 2 != 0:
             raise ValueError()
 
-        if not all(a < b for a, b in zip(timetable[:-1], timetable[1:])):
+        if not is_sorted(timetable):
             raise ValueError()
 
         self.timetable = timetable
@@ -204,7 +203,7 @@ class SymbolSchedule(ScheduleCombinator):
         for interval in sym_info.symbol.schedule:
             start = datetime.timedelta(seconds=interval.startSecond)
             end = datetime.timedelta(seconds=interval.endSecond)
-            timetable += [start, end]
+            timetable += (start, end)
 
         timezone = ZoneInfo(sym_info.symbol.scheduleTimeZone)
         return WeeklySchedule(timetable, timezone)
