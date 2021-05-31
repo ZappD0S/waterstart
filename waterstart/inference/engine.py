@@ -85,6 +85,7 @@ class InferenceEngine:
         self._traded_sym_arr_mapper = traded_sym_arr_mapper
         self._min_step_max = self._compute_min_step_max_arr()
 
+    # TODO: put the following conversion methods in a separate file
     def _compute_min_step_max_arr(self) -> MinStepMax:
         min_step_max_map = {
             key: (
@@ -190,8 +191,8 @@ class InferenceEngine:
 
         raw_market_state = RawMarketState(
             market_data=market_data_arr.unsqueeze(0),
-            sym_prices=sym_prices.unsqueeze(1),
-            margin_rate=margin_rate.unsqueeze(1),
+            sym_prices=sym_prices.unsqueeze(-1),
+            margin_rate=margin_rate.unsqueeze(-1),
         )
 
         trades_state = model_input.trades_state
@@ -199,21 +200,20 @@ class InferenceEngine:
         raw_model_input = ModelInput(
             raw_market_state,
             TradesState(
-                trades_state.trades_sizes.unsqueeze(2),
-                trades_state.trades_prices.unsqueeze(2),
+                trades_state.trades_sizes.unsqueeze(-1),
+                trades_state.trades_prices.unsqueeze(-1),
             ),
             model_input.hidden_state.unsqueeze(0),
-            model_input.balance.unsqueeze(0),
+            model_input.balance.unsqueeze(-1),
         )
 
         with torch.no_grad():
             model_infer = self.evaluate_raw(raw_model_input)
 
         exec_mask = model_infer.raw_model_output.exec_samples == 1
+        exec_mask = exec_mask.squeeze(-1)
 
-        exec_mask = exec_mask.squeeze(1)
-
-        new_pos_sizes = model_infer.pos_sizes.squeeze(1)
+        new_pos_sizes = model_infer.pos_sizes.squeeze(-1)
         hidden_state = model_infer.raw_model_output.z_sample.squeeze(0)
 
         new_pos_sizes_map = self._masked_tensor_to_partial_map(
@@ -240,7 +240,7 @@ class InferenceEngine:
 
         for i in range(self.n_sym):
             available_margin = dep_cur_pos_sizes[i].abs() + unused_margin
-            dep_cur_new_pos_size: torch.Tensor = torch.where(
+            dep_cur_new_pos_size = torch.where(
                 exec_mask[i], fractions[i] * available_margin, dep_cur_pos_sizes[i]
             )
 
@@ -273,11 +273,14 @@ class InferenceEngine:
 
         scaled_market_data = market_state.market_data.clone()
         for src_ind, dst_inds in self._market_data_arr_mapper.scaling_inds:
-            scaled_market_data[:, dst_inds] /= scaled_market_data[:, src_ind, -1]  # type: ignore
+            scaled_market_data[:, dst_inds] /= scaled_market_data[  # type: ignore
+                :, src_ind, None, -1, None
+            ]
 
         trades_state = model_input.trades_state
         rel_prices = trades_state.trades_prices / market_state.sym_prices
 
+        # TODO: make dep_cur_trade_sizes this a cached property?
         dep_cur_trade_sizes = trades_state.trades_sizes / market_state.margin_rate
         dep_cur_pos_sizes = dep_cur_trade_sizes.sum(dim=0)
 
@@ -313,7 +316,6 @@ class InferenceEngine:
     ) -> RawModelOutput:
 
         out: torch.Tensor = self._cnn(scaled_market_data, trades_data.movedim(0, -1))
-        out = out.movedim(1, 0).unflatten(1, trades_data[0].shape)  # type: ignore
 
         z_loc: torch.Tensor
         z_scale: torch.Tensor
@@ -358,14 +360,20 @@ class InferenceEngine:
         open_prices: torch.Tensor,
     ) -> TradesState:
         trades_sizes = trades_state.trades_sizes
+        reached_max_trades_mask = trades_sizes[0] != 0
+
         new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[:-1] = trades_sizes[1:]
         new_trades_sizes[-1] = new_trade_size
+        new_trades_sizes = trades_sizes.where(reached_max_trades_mask, new_trades_sizes)
 
         trades_prices = trades_state.trades_prices
         new_trades_prices = trades_prices.clone()
         new_trades_prices[:-1] = trades_prices[1:]
         new_trades_prices[-1] = open_prices
+        new_trades_prices = trades_prices.where(
+            reached_max_trades_mask, new_trades_prices
+        )
 
         return TradesState(new_trades_sizes, new_trades_prices)
 

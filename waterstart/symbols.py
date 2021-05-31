@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Mapping, MutableMapping, Sequence, Set
+from collections.abc import AsyncIterator, Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from typing import Collection, Optional, TypeVar, Union
 
@@ -52,10 +52,10 @@ class SymbolsList:
         self.client = client
         self._trader = trader
         self._light_symbol_map: Optional[
-            Mapping[Union[int, str], ProtoOALightSymbol]
+            dict[Union[int, str], ProtoOALightSymbol]
         ] = None
-        self._name_to_sym_info_map: MutableMapping[str, SymbolInfo] = {}
-        self._id_to_full_symbol_map: MutableMapping[int, ProtoOASymbol] = {}
+        self._name_to_sym_info_map: dict[str, SymbolInfo] = {}
+        self._id_to_full_symbol_map: dict[int, ProtoOASymbol] = {}
 
     async def get_sym_infos(
         self, subset: Optional[Set[str]] = None
@@ -216,7 +216,7 @@ class SymbolsList:
             self._light_symbol_map = {
                 id_or_name: sym
                 for sym in light_sym_list_res.symbol
-                for id_or_name in (sym.symbolId, sym.symbolName)
+                for id_or_name in (sym.symbolId, sym.symbolName.lower())
             }
 
         return self._light_symbol_map

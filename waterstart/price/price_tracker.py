@@ -110,7 +110,9 @@ class LiveMarketTracker(Observable[LatestMarketData]):
 
     async def _update_symbols_data(self) -> None:
         async with self._data_lock:
-            tb_data_map = self._tb_data_map or self._default_data_map
+            if (tb_data_map := self._tb_data_map) is None:
+                tb_data_map = self._default_data_map
+
             aggreg_data = AggregationData(self._ask_bid_ticks_map, tb_data_map)
 
             try:

@@ -238,7 +238,11 @@ class ExecutionSchedule(BaseSchedule):
         self._symbols = symbols
         self._trading_interval_schedule = IntervalSchedule(trading_interval)
         self._trading_interval = trading_interval
-        self._min_delta_to_close = min_delta_to_close or datetime.timedelta.min
+        self._min_delta_to_close = (
+            min_delta_to_close
+            if min_delta_to_close is not None
+            else datetime.timedelta.min
+        )
         self._offset: datetime.timedelta = datetime.timedelta.min
         self._offset_date: datetime.date = datetime.date.min
 
