@@ -1,8 +1,11 @@
 #!/bin/bash
 
+files=(Open-API-2.0-protobuf-messages/*/)
+proto_path="${files[0]}"
+
 protoc \
     --plugin=protoc-gen-mypy="$(which protoc-gen-mypy)" \
-    -I=Open-API-2.0-protobuf-messages/7.1 \
+    -I="$proto_path" \
     --python_out=waterstart/openapi \
     --mypy_out=waterstart/openapi \
-    Open-API-2.0-protobuf-messages/7.1/*.proto
+    "$proto_path"/*.proto

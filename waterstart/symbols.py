@@ -206,17 +206,20 @@ class SymbolsList:
     async def _get_light_symbol_map(
         self,
     ) -> Mapping[Union[int, str], ProtoOALightSymbol]:
-        if self._light_symbol_map is None:
-            light_sym_list_req = ProtoOASymbolsListReq(
-                ctidTraderAccountId=self._trader.ctidTraderAccountId
-            )
-            light_sym_list_res = await self.client.send_and_wait_response(
-                light_sym_list_req, ProtoOASymbolsListRes
-            )
-            self._light_symbol_map = {
-                id_or_name: sym
-                for sym in light_sym_list_res.symbol
-                for id_or_name in (sym.symbolId, sym.symbolName.lower())
-            }
+        if (light_symbol_map := self._light_symbol_map) is not None:
+            return light_symbol_map
 
-        return self._light_symbol_map
+        light_sym_list_req = ProtoOASymbolsListReq(
+            ctidTraderAccountId=self._trader.ctidTraderAccountId
+        )
+        light_sym_list_res = await self.client.send_and_wait_response(
+            light_sym_list_req, ProtoOASymbolsListRes
+        )
+
+        light_symbol_map = self._light_symbol_map = {
+            id_or_name: sym
+            for sym in light_sym_list_res.symbol
+            for id_or_name in (sym.symbolId, sym.symbolName.lower())
+        }
+
+        return light_symbol_map
