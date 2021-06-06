@@ -2,7 +2,7 @@ import time
 from collections import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from ..client import OpenApiClient
+from ..client.app import AppClient
 from ..openapi import (
     ProtoOASpotEvent,
     ProtoOASubscribeSpotsReq,
@@ -20,7 +20,7 @@ class LiveTickDataGenerator(BaseTickDataGenerator):
     def __init__(
         self,
         trader: ProtoOATrader,
-        client: OpenApiClient,
+        client: AppClient,
         exec_schedule: ExecutionSchedule,
     ):
         super().__init__(trader, exec_schedule)
@@ -33,7 +33,7 @@ class LiveTickDataGenerator(BaseTickDataGenerator):
             ctidTraderAccountId=self.trader.ctidTraderAccountId,
             symbolId=self._id_to_sym,
         )
-        _ = await self._client.send_and_wait_response(
+        _ = await self._client.send_request(
             spot_sub_req, ProtoOASubscribeSpotsRes
         )
 
@@ -44,13 +44,13 @@ class LiveTickDataGenerator(BaseTickDataGenerator):
                 ctidTraderAccountId=self.trader.ctidTraderAccountId,
                 symbolId=self._id_to_sym,
             )
-            _ = await self._client.send_and_wait_response(
+            _ = await self._client.send_request(
                 spot_unsub_req, ProtoOAUnsubscribeSpotsRes
             )
 
     async def _generate_ticks(self) -> AsyncGenerator[TickData, None]:
         async with self._spot_event_subscription():
-            async with self._client.register_types(ProtoOASpotEvent) as gen:
+            async with self._client.register_type(ProtoOASpotEvent) as gen:
                 async for event in gen:
                     t = time.time()
                     sym = self._id_to_sym[event.symbolId]

@@ -1,16 +1,15 @@
 import asyncio
 from abc import ABC, abstractmethod
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from typing import (
-    Any,
     AsyncContextManager,
     AsyncIterator,
     Callable,
+    ContextManager,
     Generic,
-    MutableSequence,
+    Iterator,
     Optional,
     TypeVar,
-    overload,
 )
 
 T = TypeVar("T")
@@ -22,33 +21,62 @@ class Observable(ABC, Generic[T]):
     def __init__(self, maxsize: int = 1) -> None:
         super().__init__()
         self._maxsize = maxsize
-        self._setters: MutableSequence[Callable[[T], None]] = []
-        self._dispatch_task = asyncio.create_task(self._dispatch_messages())
+        self._setters: list[Callable[[T], None]] = []
+        self._call_setters_task: Optional[asyncio.Task[None]] = None
 
     @abstractmethod
     def _get_async_iterator(self) -> AsyncIterator[T]:
         ...
 
-    async def _dispatch_messages(self) -> None:
+    async def _call_setters(self) -> None:
         # TODO: do we need to close the generator explicitly?
         async for value in self._get_async_iterator():
             for setter in self._setters:
                 setter(value)
 
-    # TODO: maybe rename this to `subscribe`?
-    @overload
-    def register(self) -> AsyncContextManager[AsyncIterator[T]]:
-        ...
+    @contextmanager
+    def _add_setter(self, setter: Callable[[T], None]) -> Iterator[None]:
+        if self._call_setters_task is None:
+            self._call_setters_task = asyncio.create_task(self._call_setters())
 
-    @overload
+        self._setters.append(setter)
+        try:
+            yield
+        finally:
+            self._setters.remove(setter)
+            if not self._setters:
+                self._call_setters_task.cancel()
+                self._call_setters_task = None
+
+    # TODO: maybe rename these to `subscribe`?
+
+    def _register_with_iterable(
+        self, func: Callable[[T], Optional[U]], it: AsyncIterator[T]
+    ) -> AsyncContextManager[AsyncIterator[U]]:
+        async def call_setter(setter: Callable[[T], None]) -> None:
+            async for value in it:
+                setter(value)
+
+        @contextmanager
+        def add_setter(setter: Callable[[T], None]) -> Iterator[None]:
+            call_setters_task = asyncio.create_task(call_setter(setter))
+            try:
+                yield
+            finally:
+                call_setters_task.cancel()
+
+        return self._register(func, add_setter)
+
     def register(
         self, func: Callable[[T], Optional[U]]
     ) -> AsyncContextManager[AsyncIterator[U]]:
-        ...
+        return self._register(func, self._add_setter)
 
-    def register(
-        self, func: Optional[Callable[[T], Any]] = None
-    ) -> AsyncContextManager[AsyncIterator[Any]]:
+    def _register(
+        self,
+        func: Callable[[T], Optional[U]],
+        add_setter: Callable[[Callable[[T], None]], ContextManager[None]],
+    ) -> AsyncContextManager[AsyncIterator[U]]:
         queue: asyncio.Queue[T] = asyncio.Queue(self._maxsize)
 
         def set_result(val: T):
@@ -61,26 +89,24 @@ class Observable(ABC, Generic[T]):
             while True:
                 raw = await queue.get()
 
-                val = func(raw) if func is not None else raw
-
-                if val is not None:
+                if (val := func(raw)) is not None:
                     yield val
 
         @asynccontextmanager
-        async def _get_contextmanager() -> AsyncIterator[Any]:
-            self._setters.append(set_result)
+        async def get_contextmanager():
+            gen = get_generator()
+
             try:
-                yield gen
+                with add_setter(set_result):
+                    yield gen
             finally:
                 await gen.aclose()
-                self._setters.remove(set_result)
 
-        gen = get_generator()
-        return _get_contextmanager()
+        return get_contextmanager()
 
-    async def close(self) -> None:
-        self._dispatch_task.cancel()
-        try:
-            await self._dispatch_task
-        except asyncio.CancelledError:
-            pass
+    # async def close(self) -> None:
+    #     self._call_setters_task.cancel()
+    #     try:
+    #         await self._call_setters_task
+    #     except asyncio.CancelledError:
+    #         pass

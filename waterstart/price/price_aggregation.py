@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -112,11 +112,11 @@ class PriceAggregator:
         x = np.linspace(0, 1, steps, endpoint=True)  # type: ignore
         interp_arr = np.full((n_symbols, 2, x.size), np.nan)  # type: ignore
 
-        new_tick_data_map: Mapping[SymbolInfo, BidAskTicks] = {}
+        new_tick_data_map: dict[SymbolInfo, BidAskTicks] = {}
 
-        for traded_sym, bid_ask_ticks in tick_data_map.items():
-            traded_sym_ind = sym_to_index[traded_sym]
-            data_points = sym_to_data_points[traded_sym]
+        for sym, bid_ask_ticks in tick_data_map.items():
+            traded_sym_ind = sym_to_index[sym]
+            data_points = sym_to_data_points[sym]
 
             interp_bid_ask_prices = (np.empty_like(x), np.empty_like(x))  # type: ignore
 
@@ -138,7 +138,7 @@ class PriceAggregator:
                 last_used_index: int = times.searchsorted(end)  # type: ignore
                 left_tick_data[i].extend(ticks[last_used_index:])
 
-            new_tick_data_map[traded_sym] = BidAskTicks(*left_tick_data)
+            new_tick_data_map[sym] = BidAskTicks(*left_tick_data)
 
         assert not np.isnan(interp_arr).any()
 
@@ -147,10 +147,14 @@ class PriceAggregator:
         conv_chains_arr[conv_chains_inds] = interp_arr[conv_chain_sym_inds, 0]
         conv_chains_arr: np.ndarray = conv_chains_arr.prod(axis=0)  # type: ignore
 
+        # TODO: finish this..
+        dep_to_base_quote_arr = conv_chains_arr.copy()
+        dep_to_base_quote_arr[:, 0]
+
         price_spread_hlc = self._compute_hlc_array(interp_arr[:n_traded_symbols])
         conv_chains_hlc = self._compute_hlc_array(conv_chains_arr)
 
-        new_sym_tb_data: Mapping[TradedSymbolInfo, SymbolData[float]] = {}
+        new_sym_tb_data: dict[TradedSymbolInfo, SymbolData[float]] = {}
 
         for traded_sym, sym_tb_data in sym_tb_data_map.items():
             traded_sym_ind = sym_to_index[traded_sym]

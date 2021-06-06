@@ -8,7 +8,7 @@ from enum import IntEnum
 from math import log2
 from typing import Final, Iterable, Iterator, Mapping, Sequence, Union
 
-from ..client import OpenApiClient
+from ..client.app import AppClient
 from ..openapi import (
     ASK,
     BID,
@@ -60,12 +60,12 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
     def __init__(
         self,
         trader: ProtoOATrader,
-        client: OpenApiClient,
+        client: AppClient,
         exec_schedule: ExecutionSchedule,
         start_time: datetime.datetime,
         n_intervals: int,
     ):
-        super().__init__(trader,exec_schedule)
+        super().__init__(trader, exec_schedule)
         self._client = client
         # self._trader = trader
         self._first_trading_time, self._last_trading_time = self._compute_time_range(
@@ -117,24 +117,20 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
             self._req_count = 0
             self._last_req_time = now
 
-        await self._client.send_message(
+        res = await self._client.send_request_using_gen(
             ProtoOAGetTickDataReq(
                 ctidTraderAccountId=self.trader.ctidTraderAccountId,
                 symbolId=sym.id,
                 type=self.TICK_TYPE_MAP[tick_type],
                 fromTimestamp=chunk_start,
                 toTimestamp=chunk_end,
-            )
+            ),
+            ProtoOAGetTickDataRes,
+            gen,
         )
         self._req_count += 1
 
-        async for res in gen:
-            if isinstance(res, ProtoOAErrorRes):
-                raise RuntimeError()
-
-            return res
-
-        raise RuntimeError()
+        return res
 
     async def _download_initial(
         self,
@@ -256,9 +252,7 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
                 break
 
     async def generate_ticks(self) -> AsyncGenerator[TickData, None]:
-        async with self._client.register_types(
-            (ProtoOAGetTickDataRes, ProtoOAErrorRes)
-        ) as gen:
+        async with self._client.register_type(ProtoOAGetTickDataRes) as gen:
             queue: asyncio.Queue[Iterable[TickData]] = asyncio.Queue()
             download_task = asyncio.create_task(self._download_tick_data(queue, gen))
 

@@ -3,7 +3,6 @@ import datetime
 from collections.abc import AsyncIterator, Mapping
 from typing import Final, Optional
 
-from ..client import OpenApiClient
 from ..observable import Observable
 from ..symbols import SymbolInfo, TradedSymbolInfo
 from . import (
@@ -26,13 +25,11 @@ class LiveMarketTracker(Observable[LatestMarketData]):
 
     def __init__(
         self,
-        client: OpenApiClient,
         tick_data_gen: BaseTickDataGenerator,
         price_aggregator: PriceAggregator,
     ) -> None:
         # TODO: make maxsize bigger than 1 for safety?
         super().__init__()
-        self._client = client
         self._ask_bid_ticks_map: Mapping[SymbolInfo, BidAskTicks] = {
             sym: BidAskTicks([], []) for sym in tick_data_gen.symbols
         }

@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from typing import Collection, Optional, TypeVar, Union
 
-from .client import OpenApiClient
+from .client.app import AppClient
 from .openapi import (
     ProtoOALightSymbol,
     ProtoOASymbol,
@@ -31,9 +31,14 @@ class SymbolInfo:
 
 
 @dataclass(frozen=True)
+class ChainSymbolInfo(SymbolInfo):
+    reciprocal: bool
+
+
+@dataclass(frozen=True)
 class ConvChains:
-    base_asset: Sequence[SymbolInfo]
-    quote_asset: Sequence[SymbolInfo]
+    base_asset: Sequence[ChainSymbolInfo]
+    quote_asset: Sequence[ChainSymbolInfo]
 
 
 @dataclass(frozen=True)
@@ -48,8 +53,8 @@ T_SymInfo = TypeVar("T_SymInfo", bound=SymbolInfo)
 # TODO: have a loop that subscribes to ProtoOASymbolChangedEvent and updates the
 # changed symbols
 class SymbolsList:
-    def __init__(self, client: OpenApiClient, trader: ProtoOATrader) -> None:
-        self.client = client
+    def __init__(self, client: AppClient, trader: ProtoOATrader) -> None:
+        self._client = client
         self._trader = trader
         self._light_symbol_map: Optional[
             dict[Union[int, str], ProtoOALightSymbol]
@@ -151,7 +156,7 @@ class SymbolsList:
             ctidTraderAccountId=self._trader.ctidTraderAccountId,
             symbolId=missing_sym_ids,
         )
-        sym_list_res = await self.client.send_and_wait_response(
+        sym_list_res = await self._client.send_request(
             sym_list_req, ProtoOASymbolByIdRes
         )
 
@@ -175,7 +180,7 @@ class SymbolsList:
 
         id_to_convchain = {
             asset_id: res.symbol
-            async for asset_id, res in self.client.send_and_wait_responses(
+            async for asset_id, res in self._client.send_requests(
                 id_to_convlist_req,
                 ProtoOASymbolsForConversionRes,
                 # TODO: verify this is correct
@@ -212,7 +217,7 @@ class SymbolsList:
         light_sym_list_req = ProtoOASymbolsListReq(
             ctidTraderAccountId=self._trader.ctidTraderAccountId
         )
-        light_sym_list_res = await self.client.send_and_wait_response(
+        light_sym_list_res = await self._client.send_request(
             light_sym_list_req, ProtoOASymbolsListRes
         )
 
