@@ -125,7 +125,6 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
                 fromTimestamp=chunk_start,
                 toTimestamp=chunk_end,
             ),
-            ProtoOAGetTickDataRes,
             gen,
         )
         self._req_count += 1
@@ -262,3 +261,8 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
                         yield tick
             finally:
                 download_task.cancel()
+
+                try:
+                    await download_task
+                except asyncio.CancelledError:
+                    pass
