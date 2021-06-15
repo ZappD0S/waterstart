@@ -37,6 +37,7 @@ class BaseClient(Observable[Message], ABC):
     def __init__(self) -> None:
         super().__init__()
         self._lock_map: dict[type[Message], asyncio.Lock] = {}
+        self._global_lock = asyncio.Lock()
 
     def register_type(
         self, message_type: type[T], pred: Optional[Callable[[T], bool]] = None
@@ -94,7 +95,7 @@ class BaseClient(Observable[Message], ABC):
             found = True
 
         try:
-            async with lock:
+            async with lock, self._global_lock:
                 yield
         finally:
             if not found:
@@ -106,13 +107,20 @@ class BaseClient(Observable[Message], ABC):
         res_type: type[T],
         pred: Optional[Callable[[T], bool]] = None,
     ) -> T:
-        async with self._type_lock(res_type), self.register_types(
-            (res_type, ProtoOAErrorRes), pred
-        ) as gen:
-            return await self.send_request_using_gen(req, gen)
+        async with self.register_types((res_type, ProtoOAErrorRes), pred) as gen:
+            return await self.send_request_using_gen(req, res_type, gen)
 
     # TODO: find better name
     async def send_request_using_gen(
+        self,
+        req: Message,
+        res_type: type[T],
+        gen: AsyncIterator[Union[T, ProtoOAErrorRes]],
+    ) -> T:
+        async with self._type_lock(res_type):
+            return await self._send_request_using_gen(req, gen)
+
+    async def _send_request_using_gen(
         self,
         req: Message,
         gen: AsyncIterator[Union[T, ProtoOAErrorRes]],
@@ -138,37 +146,40 @@ class BaseClient(Observable[Message], ABC):
         get_key: Callable[[T], S],
         pred: Optional[Callable[[T], bool]] = None,
     ) -> AsyncIterator[tuple[S, T]]:
-        async with self._type_lock(res_type), self.register_types(
-            (res_type, ProtoOAErrorRes), pred
-        ) as gen:
-            return self.send_requests_using_gen(key_to_req, get_key, gen)
+        async with self.register_types((res_type, ProtoOAErrorRes), pred) as gen:
+            async for key_res in self.send_requests_using_gen(
+                key_to_req, res_type, get_key, gen
+            ):
+                yield key_res
 
     async def send_requests_using_gen(
         self,
         key_to_req: Mapping[S, Message],
+        res_type: type[T],
         get_key: Callable[[T], S],
         gen: AsyncIterator[Union[T, ProtoOAErrorRes]],
     ) -> AsyncIterator[tuple[S, T]]:
         seen_keys: set[S] = set()
 
-        tasks_left: Set[asyncio.Future[T]] = {
-            asyncio.create_task(self.send_request_using_gen(req, gen))
-            for req in key_to_req.values()
-        }
+        async with self._type_lock(res_type):
+            tasks_left: Set[asyncio.Future[T]] = {
+                asyncio.create_task(self._send_request_using_gen(req, gen))
+                for req in key_to_req.values()
+            }
 
-        while tasks_left:
-            [done_task], tasks_left = await asyncio.wait(
-                tasks_left, return_when=asyncio.FIRST_COMPLETED
-            )
+            while tasks_left:
+                [done_task], tasks_left = await asyncio.wait(
+                    tasks_left, return_when=asyncio.FIRST_COMPLETED
+                )
 
-            res = await done_task
-            key = get_key(res)
+                res = await done_task
+                key = get_key(res)
 
-            if key in seen_keys:
-                raise RuntimeError()
+                if key in seen_keys:
+                    raise RuntimeError()
 
-            yield key, res
-            seen_keys.add(key)
+                yield key, res
+                seen_keys.add(key)
 
 
 class HelperClient(BaseClient):
@@ -220,8 +231,11 @@ class HelperClient(BaseClient):
         await self._writer.wait_closed()
 
 
+# TODO: add task that listens to ProtoOAClientDisconnectEvent and
+# reconnects when it happens..
 class AppClient(BaseClient):
     HEARTBEAT_INTERVAL: Final[float] = 10.0
+    RECONNECTION_DELAY: Final[float] = 1.0
 
     def __init__(
         self,
@@ -234,10 +248,11 @@ class AppClient(BaseClient):
         self._client_id = client_id
         self._client_secret = client_secret
 
-        self._create_connect_task: Callable[
-            [], asyncio.Task[HelperClient]
-        ] = lambda: asyncio.create_task(self._connect(open_connection))
-        self._connect_task: asyncio.Task[HelperClient] = self._create_connect_task()
+        def create_connect_task() -> asyncio.Task[HelperClient]:
+            return asyncio.create_task(self._connect(open_connection))
+
+        self._create_connect_task = create_connect_task
+        self._connect_task: asyncio.Task[HelperClient] = create_connect_task()
 
         self._last_sent_t = 0.0
         self._heartbeat_task = asyncio.create_task(self._send_heatbeat())
@@ -246,23 +261,23 @@ class AppClient(BaseClient):
         self,
         open_connection: Callable[[], Awaitable[tuple[StreamReader, StreamWriter]]],
     ) -> HelperClient:
+        async def get_reader_writer() -> tuple[StreamReader, StreamWriter]:
+            while True:
+                try:
+                    return await open_connection()
+                except:  # TODO: correct exception
+                    await asyncio.sleep(self.RECONNECTION_DELAY)
+
+        # TODO: this functions should never fail, so here we should handle all exceptions
+        reader, writer = await get_reader_writer()
+        helper_client = HelperClient(reader, writer)
         auth_req = ProtoOAApplicationAuthReq(
             clientId=self._client_id,
             clientSecret=self._client_secret,
         )
+        _ = await helper_client.send_request(auth_req, ProtoOAApplicationAuthRes)
 
-        while True:
-            try:
-                reader, writer = await open_connection()
-                helper_client = HelperClient(reader, writer)
-
-                _ = await helper_client.send_request(
-                    auth_req, ProtoOAApplicationAuthRes
-                )
-            except:  # TODO: correct exception
-                continue
-
-            return helper_client
+        return helper_client
 
     async def _write_message(self, message: Message) -> None:
         while True:

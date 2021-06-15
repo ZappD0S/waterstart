@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Iterator, Mapping, MutableSequence, Sequence
+from collections import AsyncGenerator, Iterator, Mapping, MutableSequence, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Final, Generic, NamedTuple, TypeVar
@@ -28,7 +28,7 @@ class TrendBar(Generic[T]):
 
     @staticmethod
     def build_default() -> TrendBar[float]:
-        tb: TrendBar[float] = TrendBar(high=float("-inf"), low=float("inf"), close=0)
+        tb: TrendBar[float] = TrendBar(high=float("-inf"), low=float("inf"), close=0.0)
         return tb
 
 

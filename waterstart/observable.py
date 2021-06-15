@@ -1,11 +1,9 @@
 import asyncio
 from abc import ABC, abstractmethod
+from collections import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from typing import (
     AsyncContextManager,
-    AsyncGenerator,
-    AsyncIterator,
-    Callable,
     Generic,
     Optional,
     TypeVar,
@@ -17,9 +15,8 @@ U = TypeVar("U")
 # TODO: maybe pass to the constructor a series of coroutines (or tasks?)
 # that are scheduled and when we close are canceled and awaited?
 class Observable(ABC, Generic[T]):
-    def __init__(self, maxsize: int = 1) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._maxsize = maxsize
         self._setters: list[Callable[[T], None]] = []
         self._call_setters_task: Optional[asyncio.Task[None]] = None
 
@@ -61,7 +58,7 @@ class Observable(ABC, Generic[T]):
     # TODO: maybe rename these to `subscribe`?
 
     def _register_with_iterable(
-        self, func: Callable[[T], Optional[U]], it: AsyncIterator[T]
+        self, func: Callable[[T], Optional[U]], it: AsyncIterator[T], maxsize: int = 0
     ) -> AsyncContextManager[AsyncIterator[U]]:
         async def call_setter(setter: Callable[[T], None]) -> None:
             async for value in it:
@@ -80,19 +77,20 @@ class Observable(ABC, Generic[T]):
                 except asyncio.CancelledError:
                     pass
 
-        return self._register(func, add_setter)
+        return self._register(func, add_setter, maxsize)
 
     def register(
-        self, func: Callable[[T], Optional[U]]
+        self, func: Callable[[T], Optional[U]], maxsize: int = 0
     ) -> AsyncContextManager[AsyncIterator[U]]:
-        return self._register(func, self._add_setter)
+        return self._register(func, self._add_setter, maxsize)
 
     def _register(
         self,
         func: Callable[[T], Optional[U]],
         add_setter: Callable[[Callable[[T], None]], AsyncContextManager[None]],
+        maxsize: int,
     ) -> AsyncContextManager[AsyncIterator[U]]:
-        queue: asyncio.Queue[T] = asyncio.Queue(self._maxsize)
+        queue: asyncio.Queue[T] = asyncio.Queue(maxsize)
 
         def set_result(val: T):
             if queue.full():
@@ -100,7 +98,7 @@ class Observable(ABC, Generic[T]):
 
             queue.put_nowait(val)
 
-        async def get_generator():
+        async def get_generator() -> AsyncGenerator[U, None]:
             while True:
                 raw = await queue.get()
 

@@ -28,7 +28,6 @@ class LiveMarketTracker(Observable[LatestMarketData]):
         tick_data_gen: BaseTickDataGenerator,
         price_aggregator: PriceAggregator,
     ) -> None:
-        # TODO: make maxsize bigger than 1 for safety?
         super().__init__()
         self._ask_bid_ticks_map: Mapping[SymbolInfo, BidAskTicks] = {
             sym: BidAskTicks([], []) for sym in tick_data_gen.symbols

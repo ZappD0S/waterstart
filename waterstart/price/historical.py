@@ -6,7 +6,14 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from enum import IntEnum
 from math import log2
-from typing import Final, Iterable, Iterator, Mapping, Sequence, Union
+from typing import (
+    Final,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+    Union,
+)
 
 from ..client.app import AppClient
 from ..openapi import (
@@ -30,11 +37,6 @@ class SizeType(IntEnum):
     TooShort = 1
 
 
-class Direction(IntEnum):
-    Left = -1
-    Right = 1
-
-
 @dataclass
 class State:
     step: int
@@ -49,8 +51,7 @@ class State:
 
 
 class HistoricalTickDataGenerator(BaseTickDataGenerator):
-    REQUESTS_PER_INTERVAL: Final[int] = 5
-    INTERVAL: Final[float] = 1.0  # in seconds
+    MAX_REQUESTS_PER_SECOND: Final[int] = 5
     MAX_SAME_SIDE_SEARCHES: Final[int] = 4
     TICK_TYPE_MAP: Final[Mapping[TickType, ProtoOAQuoteType.V]] = {
         TickType.BID: BID,
@@ -67,7 +68,6 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
     ):
         super().__init__(trader, exec_schedule)
         self._client = client
-        # self._trader = trader
         self._first_trading_time, self._last_trading_time = self._compute_time_range(
             start_time, n_intervals
         )
@@ -111,13 +111,16 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
         chunk_start: int,
         chunk_end: int,
     ) -> ProtoOAGetTickDataRes:
-        if self._req_count == self.REQUESTS_PER_INTERVAL:
-            now = time.time()
-            await asyncio.sleep(self._last_req_time + self.INTERVAL - now)
-            self._req_count = 0
-            self._last_req_time = now
+        now = time.time()
 
-        res = await self._client.send_request_using_gen(
+        if self._req_count == self.MAX_REQUESTS_PER_SECOND:
+            await asyncio.sleep(self._last_req_time + 1.0 - now)
+            self._req_count = 0
+
+        self._last_req_time = now
+        self._req_count += 1
+
+        return await self._client.send_request_using_gen(
             ProtoOAGetTickDataReq(
                 ctidTraderAccountId=self.trader.ctidTraderAccountId,
                 symbolId=sym.id,
@@ -127,9 +130,6 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
             ),
             gen,
         )
-        self._req_count += 1
-
-        return res
 
     async def _download_initial(
         self,
@@ -190,14 +190,17 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
                     continue
 
                 same_side_count = state.same_side_count
-                assert not state.narrowing or same_side_count == 0
+                narrowing = state.narrowing
+                size_type = state.size_type
+
+                assert not narrowing or same_side_count == 0
 
                 reached_max_same_side = same_side_count == self.MAX_SAME_SIDE_SEARCHES
 
-                size_type = state.size_type
-                factor = 2 ** (-1 if state.narrowing else size_type)
+                factor = 2 ** (-1 if narrowing else size_type)
 
                 # TODO: check bounds
+                # also, if step is 1 it should not be further divided
                 step = int(state.step * factor)
                 search_pos = state.ref_pos + (
                     0 if reached_max_same_side else size_type * step
@@ -231,7 +234,7 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
                 # TODO: is this always right?
                 state.step = step
 
-                if state.narrowing:
+                if narrowing:
                     if new_size_type == size_type:
                         state.ref_pos = search_pos
                     else:
@@ -251,7 +254,9 @@ class HistoricalTickDataGenerator(BaseTickDataGenerator):
                 break
 
     async def generate_ticks(self) -> AsyncGenerator[TickData, None]:
-        async with self._client.register_type(ProtoOAGetTickDataRes) as gen:
+        async with self._client.register_types(
+            (ProtoOAGetTickDataRes, ProtoOAErrorRes)
+        ) as gen:
             queue: asyncio.Queue[Iterable[TickData]] = asyncio.Queue()
             download_task = asyncio.create_task(self._download_tick_data(queue, gen))
 

@@ -71,8 +71,25 @@ class PriceAggregator:
         )
         assert is_contiguous(sorted(sym_to_index.values()))
 
-        conv_chains_inds: tuple[list[int], list[int], list[int]] = ([], [], [])
+        assets_set = {
+            asset_id
+            for sym in traded_symbols_set
+            for asset_id in (
+                sym.conv_chains.base_asset.asset_id,
+                sym.conv_chains.quote_asset.asset_id,
+            )
+        }
+        n_assets = len(assets_set)
+
+        asset_to_index = {asset_id: ind for ind, asset_id in enumerate(assets_set)}
+
+        conv_chains_inds: tuple[list[int], list[int]] = ([], [])
         conv_chain_sym_inds: list[int] = []
+        reciprocal_mask_inds: tuple[list[int], list[int]] = ([], [])
+
+        dep_to_base_quote_inds: tuple[list[int], list[int]] = ([], [])
+        dep_to_base_quote_asset_inds: list[int] = []
+
         longest_chain_len = 0
 
         for traded_sym in sym_tb_data_map:
@@ -82,12 +99,19 @@ class PriceAggregator:
             for i, chain in enumerate((chains.base_asset, chains.quote_asset)):
                 chain_len = len(chain)
                 longest_chain_len = max(longest_chain_len, chain_len)
+                asset_ind = asset_to_index[chain.asset_id]
 
                 conv_chain_sym_inds.extend(sym_to_index[sym] for sym in chain)
-
                 conv_chains_inds[0].extend(range(chain_len))
-                conv_chains_inds[1].extend((traded_sym_ind,) * chain_len)
-                conv_chains_inds[2].extend((i,) * chain_len)
+                conv_chains_inds[1].extend((asset_ind,) * chain_len)
+
+                reciprocal_inds = [i for i, sym in enumerate(chain) if sym.reciprocal]
+                reciprocal_mask_inds[0].extend(reciprocal_inds)
+                reciprocal_mask_inds[1].extend((asset_ind,) * len(reciprocal_inds))
+
+                dep_to_base_quote_asset_inds.append(asset_ind)
+                dep_to_base_quote_inds[0].append(traded_sym_ind)
+                dep_to_base_quote_inds[1].append(i)
 
         # TODO: find better name
         sym_to_data_points: dict[
@@ -142,17 +166,21 @@ class PriceAggregator:
 
         assert not np.isnan(interp_arr).any()
 
-        conv_chains_arr = np.ones((longest_chain_len, n_traded_symbols, 2, x.size))  # type: ignore
+        reciprocal_mask = np.zeros((longest_chain_len, n_assets), dtype=bool)  # type: ignore
+        reciprocal_mask[reciprocal_mask_inds] = True
 
+        conv_chains_arr = np.ones((longest_chain_len, n_assets, x.size))  # type: ignore
         conv_chains_arr[conv_chains_inds] = interp_arr[conv_chain_sym_inds, 0]
-        conv_chains_arr: np.ndarray = conv_chains_arr.prod(axis=0)  # type: ignore
+        conv_chains_arr[reciprocal_mask] **= -1
 
-        # TODO: finish this..
-        dep_to_base_quote_arr = conv_chains_arr.copy()
-        dep_to_base_quote_arr[:, 0]
+        dep_to_base_quote_arr = np.full((n_traded_symbols, 2, x.size), np.nan)  # type: ignore
+        dep_to_base_quote_arr[dep_to_base_quote_inds] = conv_chains_arr.prod(axis=0)[  # type: ignore
+            dep_to_base_quote_asset_inds
+        ]
+        assert not np.isnan(dep_to_base_quote_arr).any()
 
         price_spread_hlc = self._compute_hlc_array(interp_arr[:n_traded_symbols])
-        conv_chains_hlc = self._compute_hlc_array(conv_chains_arr)
+        conv_chains_hlc = self._compute_hlc_array(dep_to_base_quote_arr)
 
         new_sym_tb_data: dict[TradedSymbolInfo, SymbolData[float]] = {}
 

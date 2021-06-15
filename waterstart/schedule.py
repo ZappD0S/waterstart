@@ -1,7 +1,7 @@
 import datetime
 from abc import ABC, abstractmethod
 from bisect import bisect_right
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Sequence, Set
 from typing import Final, Optional
 from zoneinfo import ZoneInfo
 
@@ -226,8 +226,7 @@ class IntervalSchedule(BaseSchedule):
 class ExecutionSchedule(BaseSchedule):
     def __init__(
         self,
-        # TODO: should this be a set?
-        symbols: Sequence[TradedSymbolInfo],
+        symbols: Set[TradedSymbolInfo],
         trading_interval: datetime.timedelta,
         min_delta_to_close: Optional[datetime.timedelta] = None,
     ) -> None:
@@ -247,7 +246,7 @@ class ExecutionSchedule(BaseSchedule):
         self._offset_date: datetime.date = datetime.date.min
 
     @property
-    def traded_symbols(self) -> Sequence[TradedSymbolInfo]:
+    def traded_symbols(self) -> Set[TradedSymbolInfo]:
         return self._symbols
 
     @property
