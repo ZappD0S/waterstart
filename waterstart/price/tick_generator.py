@@ -100,6 +100,12 @@ class LiveTicksProducer(BaseTicksProducer):
         self._id_to_sym = id_to_sym
         self._start = start
 
+    async def _next_event(self) -> ProtoOASpotEvent:
+        async for event in self._gen:
+            return event
+
+        raise RuntimeError()
+
     async def generate_ticks_up_to(self, end: float) -> AsyncIterator[TickData]:
         now = time.time()
         await asyncio.sleep(self._start - now)
@@ -107,7 +113,7 @@ class LiveTicksProducer(BaseTicksProducer):
         timeout_task = asyncio.create_task(timeout)
 
         while True:
-            event_task = asyncio.create_task(self._gen.__anext__())
+            event_task = asyncio.create_task(self._next_event())
             [done], _ = await asyncio.wait(
                 (timeout_task, event_task), return_when=asyncio.FIRST_COMPLETED
             )

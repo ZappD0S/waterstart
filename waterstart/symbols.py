@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence, Set
 from dataclasses import dataclass, field
-from typing import Collection, Counter, Iterator, Optional, TypeVar, Union
+from typing import Collection, Counter, Iterator, Optional, TypeVar
 
 from .client.trader import TraderClient
 from .openapi import (
@@ -66,19 +66,18 @@ T = TypeVar("T")
 U = TypeVar("U")
 T_SymInfo = TypeVar("T_SymInfo", bound=SymbolInfo)
 
+
 # TODO: have a loop that subscribes to ProtoOASymbolChangedEvent and updates the
 # changed symbols
 class SymbolsList:
     def __init__(self, client: TraderClient, dep_asset_id: int) -> None:
         self._client = client
-        # self._trader = trader
         self._dep_asset_id = dep_asset_id
         self._name_to_sym_info_map: dict[str, SymbolInfo] = {}
         self._id_to_full_symbol_map: dict[int, ProtoOASymbol] = {}
 
-        self._light_symbol_map: Optional[
-            dict[Union[int, str], ProtoOALightSymbol]
-        ] = None
+        self._sym_name_to_id: Optional[dict[str, int]] = None
+        self._id_to_lightsym: Optional[dict[int, ProtoOALightSymbol]] = None
         self._asset_pair_to_symbol_map: Optional[
             Mapping[tuple[int, int], ProtoOALightSymbol]
         ] = None
@@ -86,21 +85,21 @@ class SymbolsList:
     async def get_sym_infos(
         self, subset: Optional[Set[str]] = None
     ) -> AsyncIterator[SymbolInfo]:
-        found_sym_infos, missing_syms = await self._get_saved_sym_infos(
+        found_sym_infos, missing_sym_ids = await self._get_saved_sym_infos(
             self._name_to_sym_info_map, subset
         )
 
         for sym_info in found_sym_infos:
             yield sym_info
 
-        async for sym_info in self._build_sym_info(missing_syms):
+        async for sym_info in self._build_sym_info(missing_sym_ids):
             self._name_to_sym_info_map[sym_info.name] = sym_info
             yield sym_info
 
     async def get_traded_sym_infos(
         self, subset: Optional[Set[str]] = None
     ) -> AsyncIterator[TradedSymbolInfo]:
-        found_sym_infos, missing_syms = await self._get_saved_sym_infos(
+        found_sym_infos, missing_sym_ids = await self._get_saved_sym_infos(
             {
                 name: sym_info
                 for name, sym_info in self._name_to_sym_info_map.items()
@@ -112,7 +111,7 @@ class SymbolsList:
         for sym_info in found_sym_infos:
             yield sym_info
 
-        async for sym_info in self._build_traded_sym_info(missing_syms):
+        async for sym_info in self._build_traded_sym_info(missing_sym_ids):
             self._name_to_sym_info_map[sym_info.name] = sym_info
             yield sym_info
 
@@ -120,58 +119,61 @@ class SymbolsList:
         self,
         saved_sym_info_map: Mapping[str, T_SymInfo],
         subset: Optional[Set[str]],
-    ) -> tuple[Collection[T_SymInfo], Set[ProtoOALightSymbol]]:
-        light_symbol_map = await self._get_light_symbol_map()
+    ) -> tuple[Collection[T_SymInfo], Set[int]]:
+        sym_name_to_id = await self._get_sym_name_to_id_map()
 
         if subset is None:
-            subset = {name for name in light_symbol_map if isinstance(name, str)}
+            subset = sym_name_to_id.keys()
 
         found_sym_infos, missing_names = self._get_saved_and_missing(
             saved_sym_info_map, subset
         )
 
-        missing_symbols = {light_symbol_map[name] for name in missing_names}
-        return found_sym_infos.values(), missing_symbols
+        missing_sym_ids = {sym_name_to_id[name] for name in missing_names}
+        return found_sym_infos.values(), missing_sym_ids
 
     @staticmethod
     def _get_saved_and_missing(
         saved_map: Mapping[T, U],
         keys: Set[T],
     ) -> tuple[Mapping[T, U], Set[T]]:
-        missing_keys = keys - saved_map.keys()
-        saved_map = {key: saved_map[key] for key in keys}
-        return saved_map, missing_keys
+        saved_keys = saved_map.keys()
+        found_keys = keys & saved_keys
 
-    async def _build_sym_info(
-        self, light_syms: Set[ProtoOALightSymbol]
-    ) -> AsyncIterator[SymbolInfo]:
-        async for light_sym, sym in self._get_full_symbols(light_syms):
-            yield SymbolInfo(light_sym, sym)
+        found_map = {key: saved_map[key] for key in found_keys}
+        missing_keys = keys - found_keys
+
+        return found_map, missing_keys
+
+    async def _build_sym_info(self, sym_ids: Set[int]) -> AsyncIterator[SymbolInfo]:
+        id_to_lightsym = await self._get_id_to_lightsym_map()
+
+        async for sym_id, sym in self._get_full_symbols(sym_ids):
+            yield SymbolInfo(id_to_lightsym[sym_id], sym)
 
     async def _build_traded_sym_info(
-        self, light_syms: Set[ProtoOALightSymbol]
+        self, sym_ids: Set[int]
     ) -> AsyncIterator[TradedSymbolInfo]:
-        conv_chains = {
-            sym: conv_chain
-            async for sym, conv_chain in self._build_conv_chains(light_syms)
+        id_to_lightsym = await self._get_id_to_lightsym_map()
+        id_to_conv_chain = {
+            sym_id: conv_chain
+            async for sym_id, conv_chain in self._build_conv_chains(sym_ids)
         }
 
-        async for light_sym, sym in self._get_full_symbols(light_syms):
-            yield TradedSymbolInfo(light_sym, sym, conv_chains[light_sym])
+        async for sym_id, sym in self._get_full_symbols(sym_ids):
+            yield TradedSymbolInfo(
+                id_to_lightsym[sym_id], sym, id_to_conv_chain[sym_id]
+            )
 
     async def _get_full_symbols(
-        self, light_syms: Set[ProtoOALightSymbol]
-    ) -> AsyncIterator[tuple[ProtoOALightSymbol, ProtoOASymbol]]:
-        sym_ids = {sym.symbolId for sym in light_syms}
-
+        self, sym_ids: Set[int]
+    ) -> AsyncIterator[tuple[int, ProtoOASymbol]]:
         found_syms, missing_sym_ids = self._get_saved_and_missing(
             self._id_to_full_symbol_map, sym_ids
         )
 
-        light_symbol_map = await self._get_light_symbol_map()
-
         for sym_id, sym in found_syms.items():
-            yield light_symbol_map[sym_id], sym
+            yield sym_id, sym
 
         sym_list_res = await self._client.send_request_from_trader(
             lambda trader_id: ProtoOASymbolByIdReq(
@@ -182,25 +184,26 @@ class SymbolsList:
         )
 
         for sym in sym_list_res.symbol:
-            self._id_to_full_symbol_map[sym.symbolId] = sym
-            yield light_symbol_map[sym.symbolId], sym
+            sym_id = sym.symbolId
+            self._id_to_full_symbol_map[sym_id] = sym
+            yield sym_id, sym
 
     def _build_chainsyminfos(
         self,
         lightsym_chain: Sequence[ProtoOALightSymbol],
-        lightsym_to_sym: Mapping[ProtoOALightSymbol, ProtoOASymbol],
+        id_to_sym: Mapping[int, ProtoOASymbol],
     ) -> Iterator[ChainSymbolInfo]:
         first = lightsym_chain[0]
         reciprocal = self._dep_asset_id != first.quoteAssetId
-        yield ChainSymbolInfo(first, lightsym_to_sym[first], reciprocal)
+        yield ChainSymbolInfo(first, id_to_sym[first.symbolId], reciprocal)
 
         for first, second in zip(lightsym_chain[:-1], lightsym_chain[1:]):
             reciprocal = first.baseAssetId != second.quoteAssetId
-            yield ChainSymbolInfo(second, lightsym_to_sym[second], reciprocal)
+            yield ChainSymbolInfo(second, id_to_sym[second.symbolId], reciprocal)
 
     async def _build_conv_chains(
-        self, light_syms: Set[ProtoOALightSymbol]
-    ) -> AsyncIterator[tuple[ProtoOALightSymbol, DepositConvChains]]:
+        self, sym_ids: Set[int]
+    ) -> AsyncIterator[tuple[int, DepositConvChains]]:
         def get_key(res: ProtoOASymbolsForConversionRes) -> int:
             counter = Counter(
                 asset_id
@@ -230,14 +233,30 @@ class SymbolsList:
 
             raise ValueError()
 
+        id_to_lightsym = await self._get_id_to_lightsym_map()
+
+        # TODO: the following listcomps are equivalent, which is better?
+        sym_and_assets_id = [
+            (sym_id, ((sym := id_to_lightsym[sym_id]).baseAssetId, sym.quoteAssetId))
+            for sym_id in sym_ids
+        ]
+
+        sym_and_assets_id = [
+            (sym_id, (sym.baseAssetId, sym.quoteAssetId))
+            for sym_id, sym in ((sym_id, id_to_lightsym[sym_id]) for sym_id in sym_ids)
+        ]
+
         asset_pair_to_symbol_map = await self._get_asset_pair_to_symbol_map()
         dep_asset_id = self._dep_asset_id
 
         convchain_to_download_asset_ids: set[int] = set()
         asset_id_to_convchain: dict[int, Sequence[ProtoOALightSymbol]] = {}
 
-        for sym in light_syms:
-            for asset_id in (sym.baseAssetId, sym.quoteAssetId):
+        for sym_id, asset_ids in sym_and_assets_id:
+            for asset_id in asset_ids:
+                if asset_id == dep_asset_id:
+                    continue
+
                 asset_pair = (asset_id, dep_asset_id)
                 if asset_pair in asset_pair_to_symbol_map:
                     asset_id_to_convchain[asset_id] = [
@@ -265,56 +284,56 @@ class SymbolsList:
             )
         }
 
-        conv_chains_lightsyms = {
-            sym for chain in asset_id_to_convchain.values() for sym in chain
+        conv_chains_sym_ids = {
+            sym.symbolId for chain in asset_id_to_convchain.values() for sym in chain
         }
 
-        lightsym_to_sym = {
-            light_sym: sym
-            async for light_sym, sym in self._get_full_symbols(conv_chains_lightsyms)
+        id_to_sym = {
+            sym_id: sym
+            async for sym_id, sym in self._get_full_symbols(conv_chains_sym_ids)
         }
 
         asset_id_to_syminfo_convchain = {
-            asset_id: list(self._build_chainsyminfos(convchain, lightsym_to_sym))
+            asset_id: list(self._build_chainsyminfos(convchain, id_to_sym))
             for asset_id, convchain in asset_id_to_convchain.items()
         }
 
-        for sym in light_syms:
-            yield sym, DepositConvChains(
+        for sym_id, (base_asset_id, quote_asset_id) in sym_and_assets_id:
+            yield sym_id, DepositConvChains(
                 base_asset=ConvChain(
-                    sym.baseAssetId, asset_id_to_syminfo_convchain[sym.baseAssetId]
+                    base_asset_id, asset_id_to_syminfo_convchain[base_asset_id]
                 ),
                 quote_asset=ConvChain(
-                    sym.quoteAssetId, asset_id_to_syminfo_convchain[sym.quoteAssetId]
+                    quote_asset_id, asset_id_to_syminfo_convchain[quote_asset_id]
                 ),
             )
 
-    async def _get_light_symbol_map(
-        self,
-    ) -> Mapping[Union[int, str], ProtoOALightSymbol]:
-        light_symbol_map: Optional[dict[Union[int, str], ProtoOALightSymbol]]
+    async def _get_sym_name_to_id_map(self) -> Mapping[str, int]:
+        if (sym_name_to_id := self._sym_name_to_id) is not None:
+            return sym_name_to_id
 
-        if (light_symbol_map := self._light_symbol_map) is not None:
-            return light_symbol_map
+        id_to_lightsym = await self._get_id_to_lightsym_map()
 
-        light_sym_list_res = await self._client.send_request_from_trader(
+        sym_name_to_id = self._sym_name_to_id = {
+            sym.symbolName.lower(): sym_id for sym_id, sym in id_to_lightsym.items()
+        }
+
+        return sym_name_to_id
+
+    async def _get_id_to_lightsym_map(self) -> Mapping[int, ProtoOALightSymbol]:
+        if (id_to_lightsym := self._id_to_lightsym) is not None:
+            return id_to_lightsym
+
+        lightsym_list_res = await self._client.send_request_from_trader(
             lambda trader_id: ProtoOASymbolsListReq(ctidTraderAccountId=trader_id),
             ProtoOASymbolsListRes,
         )
-        light_symbols = light_sym_list_res.symbol
 
-        light_symbol_map = self._light_symbol_map = {}
-        light_symbol_map.update((sym.symbolId, sym) for sym in light_symbols)
-        light_symbol_map.update((sym.symbolName.lower(), sym) for sym in light_symbols)
+        id_to_lightsym = self._light_symbol_map = {
+            sym.symbolId: sym for sym in lightsym_list_res.symbol
+        }
 
-        # TODO: mypy complains about this, but it's correct
-        # light_symbol_map = self._light_symbol_map = {
-        #     id_or_name: sym
-        #     for sym in light_sym_list_res.symbol
-        #     for id_or_name in (sym.symbolId, sym.symbolName.lower())
-        # }
-
-        return light_symbol_map
+        return id_to_lightsym
 
     async def _get_asset_pair_to_symbol_map(
         self,
@@ -322,7 +341,7 @@ class SymbolsList:
         if (asset_pair_to_symbol_map := self._asset_pair_to_symbol_map) is not None:
             return asset_pair_to_symbol_map
 
-        light_symbol_map = await self._get_light_symbol_map()
+        light_symbol_map = await self._get_id_to_lightsym_map()
 
         asset_pair_to_symbol_map = self._asset_pair_to_symbol_map = {
             asset_pair: sym

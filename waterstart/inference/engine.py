@@ -155,7 +155,9 @@ class InferenceEngine:
             mapper.iterate_index_to_value(obj), dtype=[("inds", int), ("vals", float)]
         )
 
-        arr: torch.Tensor = torch.full(rec_arr.shape, np.nan, dtype=float)  # type: ignore
+        arr: torch.Tensor = torch.full(  # type: ignore
+            rec_arr.shape, np.nan, dtype=float
+        )
         inds = torch.from_numpy(rec_arr["inds"])  # type: ignore
         vals = torch.from_numpy(rec_arr["vals"])  # type: ignore
         arr[inds] = vals

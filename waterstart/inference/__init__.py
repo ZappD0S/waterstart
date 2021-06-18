@@ -53,6 +53,7 @@ class ModelInput(Generic[T]):
     hidden_state: torch.Tensor
     balance: torch.Tensor
 
+
 @dataclass
 class ModelInference:
     pos_sizes: torch.Tensor

@@ -1,25 +1,29 @@
-from asyncio import StreamReader, StreamWriter
+from __future__ import annotations
+
 import asyncio
+from asyncio import StreamReader, StreamWriter
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import TypeVar
-from waterstart.openapi.OpenApiMessages_pb2 import (
-    ProtoOAAccountAuthReq,
-    ProtoOAAccountAuthRes,
-    ProtoOAAccountsTokenInvalidatedEvent,
-    ProtoOARefreshTokenReq,
-    ProtoOARefreshTokenRes,
-)
 
 from google.protobuf.message import Message
 
-from .app import AppClient, HelperClient
+from ..openapi import (
+    ProtoOAAccountAuthReq,
+    ProtoOAAccountAuthRes,
+    ProtoOAAccountsTokenInvalidatedEvent,
+    ProtoOAApplicationAuthReq,
+    ProtoOAApplicationAuthRes,
+    ProtoOARefreshTokenReq,
+    ProtoOARefreshTokenRes,
+)
+from .base import BaseReconnectingClient, HelperClient
 
 S = TypeVar("S")
 T = TypeVar("T", bound=Message)
 
 
 # TODO: implement token refresh
-class TraderClient(AppClient):
+class TraderClient(BaseReconnectingClient):
     def __init__(
         self,
         open_connection: Callable[[], Awaitable[tuple[StreamReader, StreamWriter]]],
@@ -29,9 +33,11 @@ class TraderClient(AppClient):
         auth_token: str,
         refresh_token: str,
     ) -> None:
-        super().__init__(open_connection, client_id, client_secret)
-        self._trader_id = trader_id
+        super().__init__(open_connection)
 
+        self._trader_id = trader_id
+        self._client_id = client_id
+        self._client_secret = client_secret
         self._access_token = auth_token
         self._refresh_token = refresh_token
 
@@ -49,19 +55,30 @@ class TraderClient(AppClient):
         self,
         open_connection: Callable[[], Awaitable[tuple[StreamReader, StreamWriter]]],
     ) -> HelperClient:
-        helper_client = await self._connect(open_connection)
-
-        req = ProtoOAAccountAuthReq(
+        account_auth_req = ProtoOAAccountAuthReq(
             ctidTraderAccountId=self._trader_id, accessToken=self._access_token
         )
-
-        _ = await helper_client.send_request(
-            req,
-            ProtoOAAccountAuthRes,
-            lambda res: res.ctidTraderAccountId == self._trader_id,
+        app_auth_req = ProtoOAApplicationAuthReq(
+            clientId=self._client_id,
+            clientSecret=self._client_secret,
         )
 
-        return helper_client
+        while True:
+            helper_client = await super()._connect(open_connection)
+
+            try:
+                _ = await helper_client.send_request(
+                    app_auth_req, ProtoOAApplicationAuthRes
+                )
+                _ = await helper_client.send_request(
+                    account_auth_req,
+                    ProtoOAAccountAuthRes,
+                    lambda res: res.ctidTraderAccountId == self._trader_id,
+                )
+            except Exception:  # TODO: correct exception...
+                continue
+
+            return helper_client
 
     async def _refresh_token_on_expiry(self) -> None:
         async with self.register_type(
@@ -108,3 +125,22 @@ class TraderClient(AppClient):
             await self._refresh_token_on_expiry_task
         except asyncio.CancelledError:
             pass
+
+    @staticmethod
+    async def create(
+        host: str,
+        port: int,
+        client_id: str,
+        client_secret: str,
+        trader_id: int,
+        auth_token: str,
+        refresh_token: str,
+    ) -> TraderClient:
+        return TraderClient(
+            lambda: asyncio.open_connection(host, port, ssl=True),
+            client_id,
+            client_secret,
+            trader_id,
+            auth_token,
+            refresh_token,
+        )
