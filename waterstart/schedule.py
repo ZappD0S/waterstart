@@ -79,10 +79,6 @@ class HolidaySchedule(BaseSchedule):
         self.timezone = start.tzinfo
         self.is_recurring = is_recurring
 
-    @property
-    def year(self) -> int:
-        return self._year
-
     def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=True)
 
@@ -98,7 +94,7 @@ class HolidaySchedule(BaseSchedule):
 
         if self.is_recurring:
             try:
-                dt = dt.replace(year=self.year)
+                dt = dt.replace(year=self._year)
             except ValueError:
                 # NOTE: it's probably february 29th and the recurring holiday was set
                 # on a non-leap year so it's safe to assume this it's not a holiday
@@ -226,15 +222,15 @@ class IntervalSchedule(BaseSchedule):
 class ExecutionSchedule(BaseSchedule):
     def __init__(
         self,
-        symbols: Set[TradedSymbolInfo],
+        traded_symbols: Set[TradedSymbolInfo],
         trading_interval: datetime.timedelta,
         min_delta_to_close: Optional[datetime.timedelta] = None,
     ) -> None:
         super().__init__()
         self._symbols_schedule = ScheduleCombinator(
-            [SymbolSchedule(sym_info) for sym_info in symbols]
+            [SymbolSchedule(sym_info) for sym_info in traded_symbols]
         )
-        self._symbols = symbols
+        self._traded_symbols = traded_symbols
         self._trading_interval_schedule = IntervalSchedule(trading_interval)
         self._trading_interval = trading_interval
         self._min_delta_to_close = (
@@ -247,7 +243,7 @@ class ExecutionSchedule(BaseSchedule):
 
     @property
     def traded_symbols(self) -> Set[TradedSymbolInfo]:
-        return self._symbols
+        return self._traded_symbols
 
     @property
     def trading_interval(self) -> datetime.timedelta:

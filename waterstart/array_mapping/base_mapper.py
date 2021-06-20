@@ -12,10 +12,12 @@ T = TypeVar("T")
 class FieldData:
     index: int
 
+
 class BaseArrayMapper(ABC, Generic[T]):
     def __init__(self, fields_set: Set[FieldData]) -> None:
         super().__init__()
 
+        self._n_fields = len(fields_set)
         self._fields_set: Set[FieldData] = fields_set
         indices = [field.index for field in fields_set]
 
@@ -30,7 +32,7 @@ class BaseArrayMapper(ABC, Generic[T]):
 
     @property
     def n_fields(self) -> int:
-        return len(self._fields_set)
+        return self._n_fields
 
     @abstractmethod
     def iterate_index_to_value(self, value: T) -> Iterator[tuple[int, float]]:

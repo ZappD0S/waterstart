@@ -159,6 +159,9 @@ class BaseClient(Observable[Message], ABC):
         get_key: Callable[[T], S],
         gen: AsyncIterator[Union[T, ProtoOAErrorRes]],
     ) -> AsyncIterator[tuple[S, T]]:
+        if not key_to_req:
+            return
+
         keys_left = set(key_to_req)
 
         async with self._type_lock(res_type):

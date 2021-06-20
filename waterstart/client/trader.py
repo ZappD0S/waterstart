@@ -22,7 +22,6 @@ S = TypeVar("S")
 T = TypeVar("T", bound=Message)
 
 
-# TODO: implement token refresh
 class TraderClient(BaseReconnectingClient):
     def __init__(
         self,
@@ -104,22 +103,23 @@ class TraderClient(BaseReconnectingClient):
             self._belongs_to_trader,
         )
 
-    async def send_requests_from_trader(
+    def send_requests_from_trader(
         self,
         build_key_to_req: Callable[[int], Mapping[S, Message]],
         res_type: type[T],
         get_key: Callable[[T], S],
     ) -> AsyncIterator[tuple[S, T]]:
-        async for key_res in self.send_requests(
+        return self.send_requests(
             build_key_to_req(self._trader_id),
             res_type,
             get_key,
             self._belongs_to_trader,
-        ):
-            yield key_res
+        )
 
     async def close(self) -> None:
         self._refresh_token_on_expiry_task.cancel()
+
+        await super().close()
 
         try:
             await self._refresh_token_on_expiry_task

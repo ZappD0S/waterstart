@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Mapping, Sequence, Set
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import cached_property
 from typing import Collection, Counter, Iterator, Optional, TypeVar
 
 from .client.trader import TraderClient
@@ -19,15 +20,15 @@ from .openapi import (
 
 @dataclass(frozen=True)
 class SymbolInfo:
-    light_symbol: ProtoOALightSymbol = field(hash=False)
-    symbol: ProtoOASymbol = field(hash=False)
-    id: int = field(init=False, hash=True)
+    light_symbol: ProtoOALightSymbol
+    symbol: ProtoOASymbol
 
-    def __post_init__(self):
-        super().__setattr__("id", self.symbol.symbolId)
+    @cached_property
+    def id(self) -> int:
+        return self.symbol.symbolId
 
-    @property
-    def name(self):
+    @cached_property
+    def name(self) -> str:
         return self.light_symbol.symbolName.lower()
 
 
@@ -59,7 +60,7 @@ class DepositConvChains:
 
 @dataclass(frozen=True)
 class TradedSymbolInfo(SymbolInfo):
-    conv_chains: DepositConvChains = field(hash=False)
+    conv_chains: DepositConvChains
 
 
 T = TypeVar("T")
@@ -193,6 +194,9 @@ class SymbolsList:
         lightsym_chain: Sequence[ProtoOALightSymbol],
         id_to_sym: Mapping[int, ProtoOASymbol],
     ) -> Iterator[ChainSymbolInfo]:
+        if not lightsym_chain:
+            return
+
         first = lightsym_chain[0]
         reciprocal = self._dep_asset_id != first.quoteAssetId
         yield ChainSymbolInfo(first, id_to_sym[first.symbolId], reciprocal)
@@ -219,51 +223,45 @@ class SymbolsList:
             [asset_id] = asset_id_set
             return asset_id
 
-        def get_key2(res: ProtoOASymbolsForConversionRes) -> int:
-            symbols = res.symbol
-            first, second = symbols[0], symbols[1]
-            first_assets = (first.baseAssetId, first.quoteAssetId)
-            second_assets = {second.baseAssetId, second.quoteAssetId}
+        # def get_key(res: ProtoOASymbolsForConversionRes) -> int:
+        #     symbols = res.symbol
+        #     first, second = symbols[0], symbols[1]
+        #     first_assets = (first.baseAssetId, first.quoteAssetId)
+        #     second_assets = {second.baseAssetId, second.quoteAssetId}
 
-            for i, asset_id in enumerate(first_assets):
-                if asset_id in second_assets:
-                    other = first_assets[1 - i]
-                    assert other not in second_assets
-                    return other
+        #     for i, asset_id in enumerate(first_assets):
+        #         if asset_id in second_assets:
+        #             other = first_assets[1 - i]
+        #             assert other not in second_assets
+        #             return other
 
-            raise ValueError()
+        #     raise ValueError()
 
         id_to_lightsym = await self._get_id_to_lightsym_map()
+        lightsyms = [id_to_lightsym[sym_id] for sym_id in sym_ids]
 
-        # TODO: the following listcomps are equivalent, which is better?
-        sym_and_assets_id = [
-            (sym_id, ((sym := id_to_lightsym[sym_id]).baseAssetId, sym.quoteAssetId))
-            for sym_id in sym_ids
-        ]
+        assets_set = {
+            asset_id
+            for sym in lightsyms
+            for asset_id in (sym.baseAssetId, sym.quoteAssetId)
+        }
 
-        sym_and_assets_id = [
-            (sym_id, (sym.baseAssetId, sym.quoteAssetId))
-            for sym_id, sym in ((sym_id, id_to_lightsym[sym_id]) for sym_id in sym_ids)
-        ]
-
-        asset_pair_to_symbol_map = await self._get_asset_pair_to_symbol_map()
+        asset_id_to_convchain: dict[int, Sequence[ProtoOALightSymbol]] = {}
         dep_asset_id = self._dep_asset_id
 
+        if dep_asset_id in assets_set:
+            asset_id_to_convchain[dep_asset_id] = []
+            assets_set.remove(dep_asset_id)
+
+        asset_pair_to_symbol_map = await self._get_asset_pair_to_symbol_map()
         convchain_to_download_asset_ids: set[int] = set()
-        asset_id_to_convchain: dict[int, Sequence[ProtoOALightSymbol]] = {}
 
-        for sym_id, asset_ids in sym_and_assets_id:
-            for asset_id in asset_ids:
-                if asset_id == dep_asset_id:
-                    continue
-
-                asset_pair = (asset_id, dep_asset_id)
-                if asset_pair in asset_pair_to_symbol_map:
-                    asset_id_to_convchain[asset_id] = [
-                        asset_pair_to_symbol_map[asset_pair]
-                    ]
-                else:
-                    convchain_to_download_asset_ids.add(asset_id)
+        for asset_id in assets_set:
+            asset_pair = (asset_id, dep_asset_id)
+            if asset_pair in asset_pair_to_symbol_map:
+                asset_id_to_convchain[asset_id] = [asset_pair_to_symbol_map[asset_pair]]
+            else:
+                convchain_to_download_asset_ids.add(asset_id)
 
         def get_asset_id_to_convlist_req(trader_id: int):
             return {
@@ -298,13 +296,13 @@ class SymbolsList:
             for asset_id, convchain in asset_id_to_convchain.items()
         }
 
-        for sym_id, (base_asset_id, quote_asset_id) in sym_and_assets_id:
-            yield sym_id, DepositConvChains(
+        for sym in lightsyms:
+            yield sym.symbolId, DepositConvChains(
                 base_asset=ConvChain(
-                    base_asset_id, asset_id_to_syminfo_convchain[base_asset_id]
+                    sym.baseAssetId, asset_id_to_syminfo_convchain[sym.baseAssetId]
                 ),
                 quote_asset=ConvChain(
-                    quote_asset_id, asset_id_to_syminfo_convchain[quote_asset_id]
+                    sym.quoteAssetId, asset_id_to_syminfo_convchain[sym.quoteAssetId]
                 ),
             )
 
