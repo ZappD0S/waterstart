@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections import AsyncGenerator, Iterator, Mapping, MutableSequence, Sequence
+from collections import AsyncGenerator, Iterator, Mapping, MutableSequence
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Final, Generic, NamedTuple, TypeVar
+from typing import Collection, Final, Generic, Iterable, NamedTuple, TypeVar
 
 from ..openapi import ProtoOATrader
 from ..schedule import ExecutionSchedule
@@ -92,15 +92,18 @@ class BaseTickDataGenerator(ABC):
         trader: ProtoOATrader,
         exec_schedule: ExecutionSchedule,
     ):
-        # TODO: make these properties?
+        # TODO: this will not be necessary anymore..
         self.trader = trader
+        # TODO: make these properties?
         self.exec_schedule = exec_schedule
-        self.traded_symbols = list(exec_schedule.traded_symbols)
-        self.symbols = list(set(self._get_all_symbols(self.traded_symbols)))
+        traded_symbols = exec_schedule.traded_symbols
+        id_to_symbol = {sym.id: sym for sym in self._get_all_symbols(traded_symbols)}
+        self.symbols: Collection[SymbolInfo] = id_to_symbol.values()
+        self.traded_symbols = traded_symbols
 
     @staticmethod
     def _get_all_symbols(
-        traded_symbols: Sequence[TradedSymbolInfo],
+        traded_symbols: Iterable[TradedSymbolInfo],
     ) -> Iterator[SymbolInfo]:
         for traded_sym in traded_symbols:
             yield traded_sym

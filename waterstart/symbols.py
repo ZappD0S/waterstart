@@ -198,11 +198,11 @@ class SymbolsList:
             return
 
         first = lightsym_chain[0]
-        reciprocal = self._dep_asset_id != first.quoteAssetId
+        reciprocal = self._dep_asset_id != first.baseAssetId
         yield ChainSymbolInfo(first, id_to_sym[first.symbolId], reciprocal)
 
         for first, second in zip(lightsym_chain[:-1], lightsym_chain[1:]):
-            reciprocal = first.baseAssetId != second.quoteAssetId
+            reciprocal = first.quoteAssetId != second.baseAssetId
             yield ChainSymbolInfo(second, id_to_sym[second.symbolId], reciprocal)
 
     async def _build_conv_chains(

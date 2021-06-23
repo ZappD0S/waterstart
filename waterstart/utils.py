@@ -1,5 +1,10 @@
-from _typeshed import SupportsLessThan
+from __future__ import annotations
+
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsLessThan
 
 
 def is_sorted(seq: Sequence[SupportsLessThan]) -> bool:

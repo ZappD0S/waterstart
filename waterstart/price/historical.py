@@ -50,7 +50,32 @@ class State:
 # TODO: create aliases the long types
 
 
-class HistoricalTickDataGenerator(BaseTickDataGenerator):
+
+    def update(self, new_size_type: SizeType, latest_downloaded: int) -> None:
+        if (search_pos := self._search_pos) is None:
+            raise RuntimeError()
+
+        if self._narrowing:
+            if new_size_type == self._size_type:
+                self._ref_pos = search_pos
+            else:
+                if self._reached_max_same_side():
+                    self._narrowing = False
+                    self._same_side_count = 0
+                    self._size_type = new_size_type
+                else:
+                    self._same_side_count += 1
+        else:
+            if new_size_type == self._size_type:
+                self._ref_pos = search_pos
+            else:
+                self._narrowing = True
+
+        assert not self._narrowing or self._same_side_count == 0
+        self._search_pos = None
+
+
+class HistoricalTickDataGenerator(BaseTicksProducerFactory):
     MAX_REQUESTS_PER_SECOND: Final[int] = 5
     MAX_SAME_SIDE_SEARCHES: Final[int] = 4
     TICK_TYPE_MAP: Final[Mapping[TickType, ProtoOAQuoteType.V]] = {

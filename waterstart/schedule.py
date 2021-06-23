@@ -1,7 +1,7 @@
 import datetime
 from abc import ABC, abstractmethod
 from bisect import bisect_right
-from collections.abc import Iterator, Sequence, Set
+from collections.abc import Iterator, Sequence, Collection
 from typing import Final, Optional
 from zoneinfo import ZoneInfo
 
@@ -14,14 +14,14 @@ def get_midnight(date: datetime.date) -> datetime.datetime:
 
 
 def to_timedelta(dt: datetime.datetime) -> datetime.timedelta:
-    return dt - datetime.datetime.min
+    return dt - datetime.datetime.min.replace(tzinfo=dt.tzinfo)
 
 
 # TODO: add a bool parameter that tells wether the output should have the same
 # timezone of the input
 class BaseSchedule(ABC):
     @abstractmethod
-    def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
+    def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
         ...
 
     @abstractmethod
@@ -34,17 +34,18 @@ class ScheduleCombinator(BaseSchedule):
         super().__init__()
         self._schedules = schedules
 
-    def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
-        new_dt = dt
+    def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
+        return max(schedule.last_invalid_time(dt) for schedule in self._schedules)
+        # new_dt = dt
 
-        while True:
-            for schedule in self._schedules:
-                new_dt = schedule.last_valid_time(new_dt)
+        # while True:
+        #     for schedule in self._schedules:
+        #         new_dt = schedule.last_valid_time(new_dt)
 
-            if new_dt == dt:
-                return dt
+        #     if new_dt == dt:
+        #         return dt
 
-            dt = new_dt
+        #     dt = new_dt
 
     def next_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
         new_dt = dt
@@ -71,7 +72,7 @@ class HolidaySchedule(BaseSchedule):
         if start.date() != end.date():
             raise ValueError()
 
-        if start >= end:
+        if start > end:
             raise ValueError()
 
         self._year = start.year
@@ -79,7 +80,7 @@ class HolidaySchedule(BaseSchedule):
         self.timezone = start.tzinfo
         self.is_recurring = is_recurring
 
-    def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
+    def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=True)
 
     def next_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
@@ -102,13 +103,25 @@ class HolidaySchedule(BaseSchedule):
 
         index = bisect_right(self._times, dt)
 
-        if index % 2 == 0:
+        if index % 2 == (1 if reverse else 0):
             return orig_dt
 
         if reverse:
             index -= 1
 
-        return self._times[index].replace(year=orig_dt.year).astimezone(orig_dt.tzinfo)
+        sign, index = divmod(index, len(self._times))
+        assert sign in (-1, 0)
+
+        if not self.is_recurring and sign == -1:
+            return datetime.datetime.min.replace(tzinfo=orig_dt.tzinfo)
+
+        first_valid_time = self._times[index].replace(year=orig_dt.year)
+        first_valid_time = first_valid_time.replace(year=first_valid_time.year + sign)
+        first_valid_time = first_valid_time.astimezone(orig_dt.tzinfo)
+        if orig_dt.tzinfo is None:
+            first_valid_time = first_valid_time.replace(tzinfo=None)
+
+        return first_valid_time
 
 
 class WeeklySchedule(BaseSchedule):
@@ -134,7 +147,7 @@ class WeeklySchedule(BaseSchedule):
     def next_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=False)
 
-    def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
+    def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=True)
 
     def _get_valid_time(
@@ -145,29 +158,28 @@ class WeeklySchedule(BaseSchedule):
 
         days_since_last_sunday = (dt.weekday() + 1) % 7
         last_sunday = dt.date() - datetime.timedelta(days=days_since_last_sunday)
-        last_sunday_midnight = get_midnight(last_sunday)
+        last_sunday_midnight = get_midnight(last_sunday).replace(tzinfo=self.timezone)
 
         delta_to_lsm = dt - last_sunday_midnight
 
         index = bisect_right(self.timetable, delta_to_lsm)
-        offset: datetime.timedelta = datetime.timedelta.min
 
-        if index % 2 != 0:
+        if index % 2 == (0 if reverse else 1):
             return orig_dt
 
         if reverse:
             index -= 1
-            if index == 0:
-                index == len(self.timetable)
-                offset -= self.ONE_WEEK
-        else:
-            index += 1
-            if index == len(self.timetable):
-                index = 0
-                offset += self.ONE_WEEK
 
-        first_trading_time = last_sunday_midnight + offset + self.timetable[index]
-        return first_trading_time.astimezone(orig_dt.tzinfo)
+        sign, index = divmod(index, len(self.timetable))
+        assert sign in (-1, 0, 1)
+        offset = sign * self.ONE_WEEK
+
+        first_valid_time = last_sunday_midnight + offset + self.timetable[index]
+        first_valid_time = first_valid_time.astimezone(orig_dt.tzinfo)
+        if orig_dt.tzinfo is None:
+            first_valid_time = first_valid_time.replace(tzinfo=None)
+
+        return first_valid_time
 
 
 class SymbolSchedule(ScheduleCombinator):
@@ -210,7 +222,7 @@ class IntervalSchedule(BaseSchedule):
         super().__init__()
         self.interval = interval
 
-    def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
+    def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return dt - to_timedelta(dt) % self.interval
 
     def next_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
@@ -222,15 +234,23 @@ class IntervalSchedule(BaseSchedule):
 class ExecutionSchedule(BaseSchedule):
     def __init__(
         self,
-        traded_symbols: Set[TradedSymbolInfo],
+        traded_symbols: Collection[TradedSymbolInfo],
         trading_interval: datetime.timedelta,
         min_delta_to_close: Optional[datetime.timedelta] = None,
     ) -> None:
         super().__init__()
+
+        id_to_traded_sym = {sym.id: sym for sym in traded_symbols}
+        unique_traded_symbols = id_to_traded_sym.values()
+
+        if len(unique_traded_symbols) < len(traded_symbols):
+            # TODO: log warning
+            ...
+
         self._symbols_schedule = ScheduleCombinator(
-            [SymbolSchedule(sym_info) for sym_info in traded_symbols]
+            [SymbolSchedule(sym_info) for sym_info in unique_traded_symbols]
         )
-        self._traded_symbols = traded_symbols
+        self._traded_symbols = unique_traded_symbols
         self._trading_interval_schedule = IntervalSchedule(trading_interval)
         self._trading_interval = trading_interval
         self._min_delta_to_close = (
@@ -242,14 +262,14 @@ class ExecutionSchedule(BaseSchedule):
         self._offset_date: datetime.date = datetime.date.min
 
     @property
-    def traded_symbols(self) -> Set[TradedSymbolInfo]:
+    def traded_symbols(self) -> Collection[TradedSymbolInfo]:
         return self._traded_symbols
 
     @property
     def trading_interval(self) -> datetime.timedelta:
         return self._trading_interval
 
-    def last_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
+    def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
         # TODO: if skip_day_close and the trading time coincides with the
         # day close time,
         ...
@@ -259,7 +279,7 @@ class ExecutionSchedule(BaseSchedule):
             open_time = self._symbols_schedule.next_valid_time(dt)
 
             if open_time == dt:
-                open_time = self._symbols_schedule.last_valid_time(dt)
+                open_time = self._symbols_schedule.last_invalid_time(dt)
                 new_dt = dt
             else:
                 new_dt = open_time
