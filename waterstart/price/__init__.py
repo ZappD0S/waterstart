@@ -14,13 +14,6 @@ T = TypeVar("T")
 
 
 @dataclass
-class LatestMarketData:
-    market_feat: MarketFeatures[float]
-    sym_prices_map: Mapping[TradedSymbolInfo, float]
-    margin_rate_map: Mapping[TradedSymbolInfo, float]
-
-
-@dataclass
 class TrendBar(Generic[T]):
     high: T
     low: T
@@ -28,8 +21,7 @@ class TrendBar(Generic[T]):
 
     @staticmethod
     def build_default() -> TrendBar[float]:
-        tb: TrendBar[float] = TrendBar(high=float("-inf"), low=float("inf"), close=0.0)
-        return tb
+        return TrendBar(high=float("-inf"), low=float("inf"), close=0.0)
 
 
 @dataclass
@@ -50,8 +42,8 @@ class SymbolData(Generic[T]):
 
 
 @dataclass
-class MarketFeatures(Generic[T]):
-    symbols_data_map: Mapping[TradedSymbolInfo, SymbolData[T]]
+class MarketData(Generic[T]):
+    symbols_data_map: dict[TradedSymbolInfo, SymbolData[T]]
     time_of_day: T
     delta_to_last: T
 

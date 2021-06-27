@@ -37,10 +37,9 @@ class BaseClient(Observable[Message], ABC):
         self._lock_map: dict[type[Message], asyncio.Lock] = {}
         self._global_lock = asyncio.Lock()
 
-    @asynccontextmanager
-    async def register_type(
+    def register_type(
         self, message_type: type[T], pred: Optional[Callable[[T], bool]] = None
-    ) -> AsyncIterator[AsyncIterator[T]]:
+    ) -> AsyncContextManager[AsyncIterator[T]]:
         def nofilter(_: T) -> bool:
             return True
 
@@ -53,8 +52,7 @@ class BaseClient(Observable[Message], ABC):
         if pred is None:
             pred = nofilter
 
-        async with self.register(get_map_f(pred)) as gen:
-            yield gen
+        return self.register(get_map_f(pred))
 
     async def _get_async_generator(self) -> AsyncGenerator[Message, None]:
         while True:
@@ -111,13 +109,16 @@ class BaseClient(Observable[Message], ABC):
         self,
         req: Message,
         res_type: type[T],
+        gen: Optional[AsyncIterator[Union[T, ProtoOAErrorRes]]] = None,
         pred: Optional[Callable[[T], bool]] = None,
     ) -> T:
-        async with self.register_types((res_type, ProtoOAErrorRes), pred) as gen:
-            return await self.send_request_using_gen(req, res_type, gen)
+        if gen is not None:
+            return await self._send_request(req, res_type, gen)
 
-    # TODO: find better name
-    async def send_request_using_gen(
+        async with self.register_types((res_type, ProtoOAErrorRes), pred) as gen:
+            return await self._send_request(req, res_type, gen)
+
+    async def _send_request(
         self,
         req: Message,
         res_type: type[T],
@@ -144,15 +145,22 @@ class BaseClient(Observable[Message], ABC):
         key_to_req: Mapping[S, Message],
         res_type: type[T],
         get_key: Callable[[T], S],
+        gen: Optional[AsyncIterator[Union[T, ProtoOAErrorRes]]] = None,
         pred: Optional[Callable[[T], bool]] = None,
     ) -> AsyncIterator[tuple[S, T]]:
-        async with self.register_types((res_type, ProtoOAErrorRes), pred) as gen:
-            async for key_res in self.send_requests_using_gen(
-                key_to_req, res_type, get_key, gen
-            ):
-                yield key_res
+        def res_iterator(gen: AsyncIterator[Union[T, ProtoOAErrorRes]]):
+            return self._send_requests(key_to_req, res_type, get_key, gen)
 
-    async def send_requests_using_gen(
+        if gen is not None:
+            async for key_res in res_iterator(gen):
+                yield key_res
+        else:
+            types = (res_type, ProtoOAErrorRes)
+            async with self.register_types(types, pred) as gen:
+                async for key_res in res_iterator(gen):
+                    yield key_res
+
+    async def _send_requests(
         self,
         key_to_req: Mapping[S, Message],
         res_type: type[T],
@@ -165,12 +173,8 @@ class BaseClient(Observable[Message], ABC):
         keys_left = set(key_to_req)
 
         async with self._type_lock(res_type):
-            tasks = {
-                asyncio.create_task(self._write_message(req))
-                for req in key_to_req.values()
-            }
-
-            await asyncio.wait(tasks)
+            aws = (self._write_message(req) for req in key_to_req.values())
+            await asyncio.gather(*aws)
 
             async for res in gen:
                 if isinstance(res, ProtoOAErrorRes):

@@ -7,7 +7,7 @@ from typing import Generic, TypeVar
 
 import torch
 
-from ..price import LatestMarketData
+from ..price import MarketData
 from ..symbols import TradedSymbolInfo
 
 
@@ -32,7 +32,7 @@ class ModelState:
 @dataclass
 class MarketState:
     prev_market_data_arr: torch.Tensor
-    latest_market_data: LatestMarketData
+    latest_market_data: MarketData[float]
 
 
 @dataclass

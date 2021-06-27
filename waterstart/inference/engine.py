@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import numpy as np
+import numpy.typing as npt
 import torch
 import torch.distributions as dist
 import torch.jit as jit
 import torch.nn as nn
-from waterstart.inference.model import CNN, Emitter, GatedTransition
 
 from ..array_mapping import DictBasedArrayMapper, MarketDataArrayMapper
 from ..array_mapping.base_mapper import BaseArrayMapper
+from ..inference.model import CNN, Emitter, GatedTransition
 from ..symbols import TradedSymbolInfo
 from . import (
     MarketState,
@@ -96,7 +97,7 @@ class InferenceEngine:
             for key in self._traded_sym_arr_mapper.keys
         }
 
-        rec_arr = np.fromiter(
+        rec_arr = np.fromiter(  # type: ignore
             self._traded_sym_arr_mapper.iterate_index_to_value(min_step_max_map),
             dtype=[
                 ("inds", int),
@@ -111,8 +112,8 @@ class InferenceEngine:
             ],
         )
 
-        inds: np.ndarray = rec_arr["inds"]
-        vals: np.ndarray = rec_arr["vals"]
+        inds: npt.NDArray[np.int64] = rec_arr["inds"]
+        vals: npt.NDArray[Any] = rec_arr["vals"]
         min_step_max = np.empty_like(vals)  # type: ignore
         min_step_max[inds] = vals
 
@@ -125,7 +126,7 @@ class InferenceEngine:
     def _partial_map_to_masked_tensor(
         self, mapping: Mapping[TradedSymbolInfo, float]
     ) -> MaskedTensor:
-        rec_arr: np.ndarray = np.fromiter(
+        rec_arr: npt.NDArray[Any] = np.fromiter(  # type: ignore
             self._traded_sym_arr_mapper.iterate_index_to_value_partial(mapping),
             dtype=[("inds", int), ("vals", float)],
         )
@@ -151,7 +152,7 @@ class InferenceEngine:
         )
 
     def _obj_to_tensor(self, mapper: BaseArrayMapper[T], obj: T) -> torch.Tensor:
-        rec_arr: np.ndarray = np.fromiter(
+        rec_arr: npt.NDArray[Any] = np.fromiter(  # type: ignore
             mapper.iterate_index_to_value(obj), dtype=[("inds", int), ("vals", float)]
         )
 
@@ -173,22 +174,31 @@ class InferenceEngine:
 
     def evaluate(self, model_input: ModelInput[MarketState]) -> ModelInferenceWithMap:
         market_state = model_input.market_state
-
+        latest_market_data = market_state.latest_market_data
         # TODO: move to device?
 
         latest_market_data_arr = self._obj_to_tensor(
-            self._market_data_arr_mapper, market_state.latest_market_data.market_feat
+            self._market_data_arr_mapper, latest_market_data
         )
 
-        market_data_arr = model_input.market_state.prev_market_data_arr
+        market_data_arr = market_state.prev_market_data_arr
         market_data_arr[:, :-1] = market_data_arr[:, 1:].clone()
         market_data_arr[:, -1] = latest_market_data_arr
 
+        symbols_data_map = latest_market_data.symbols_data_map
         sym_prices = self._obj_to_tensor(
-            self._traded_sym_arr_mapper, market_state.latest_market_data.sym_prices_map
+            self._traded_sym_arr_mapper,
+            {
+                sym: symbols_data_map[sym].price_trendbar.close
+                for sym in self._traded_sym_arr_mapper.keys
+            },
         )
         margin_rate = self._obj_to_tensor(
-            self._traded_sym_arr_mapper, market_state.latest_market_data.margin_rate_map
+            self._traded_sym_arr_mapper,
+            {
+                sym: symbols_data_map[sym].dep_to_base_trendbar.close
+                for sym in self._traded_sym_arr_mapper.keys
+            },
         )
 
         raw_market_state = RawMarketState(

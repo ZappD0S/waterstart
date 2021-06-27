@@ -1,21 +1,19 @@
 import asyncio
-import datetime
+from contextlib import asynccontextmanager
 import time
-from collections import AsyncGenerator
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from collections import AsyncIterator
 from enum import IntEnum
-from math import log2
 from typing import (
+    ClassVar,
+    Collection,
     Final,
-    Iterable,
     Iterator,
     Mapping,
+    Optional,
     Sequence,
     Union,
 )
-
-from ..client.app import AppClient
+from ..client.trader import TraderClient
 from ..openapi import (
     ASK,
     BID,
@@ -24,12 +22,11 @@ from ..openapi import (
     ProtoOAGetTickDataRes,
     ProtoOAQuoteType,
     ProtoOATickData,
-    ProtoOATrader,
 )
 from ..price import TickData
-from ..schedule import ExecutionSchedule
-from ..symbols import SymbolInfo
-from . import BaseTickDataGenerator, Tick, TickType
+from ..symbols import SymbolInfo, TradedSymbolInfo
+from . import Tick, TickType
+from .tick_producer import BaseTicksProducer, BaseTicksProducerFactory
 
 
 class SizeType(IntEnum):
@@ -37,47 +34,78 @@ class SizeType(IntEnum):
     TooShort = 1
 
 
-@dataclass
 class State:
-    step: int
-    ref_pos: int
-    latest_done: int
-    size_type: SizeType
-    narrowing: bool = False
-    same_side_count: int = 0
+    MAX_SAME_SIDE_SEARCHES: ClassVar[int] = 4
 
+    def __init__(self, start_ms: int) -> None:
+        self._latest_done: int = start_ms
+        self._ref_chunk: int = 0
+        self._step: int = 1
+        self._size_type: SizeType = SizeType.TooShort
+        self._narrowing: bool = False
+        self._same_side_count: int = 0
+        self._probe_chunk: Optional[int] = None
 
-# TODO: create aliases the long types
+    @property
+    def latest_done(self) -> int:
+        return self._latest_done
 
+    def next_chunk_end(self) -> int:
+        if (probe_chunk := self._probe_chunk) is not None:
+            return self._latest_done + probe_chunk
 
+        narrowing = self._narrowing
+        size_type = self._size_type
 
-    def update(self, new_size_type: SizeType, latest_downloaded: int) -> None:
-        if (search_pos := self._search_pos) is None:
+        exp = -1 if narrowing else size_type
+
+        if self._step == 1 and exp == -1:
+            exp = 0
+
+        abs_step = self._step = int(self._step * 2 ** exp)
+        step = size_type * abs_step
+
+        if self._ref_chunk == 1 and step < 0:
+            step = 0
+
+        probe_chunk = self._probe_chunk = self._ref_chunk + step
+        return self._latest_done + probe_chunk
+
+    def update(self, has_more: Optional[bool], latest_downloaded: int) -> None:
+        if (probe_chunk := self._probe_chunk) is None:
             raise RuntimeError()
 
-        if self._narrowing:
-            if new_size_type == self._size_type:
-                self._ref_pos = search_pos
-            else:
-                if self._reached_max_same_side():
+        if has_more is None:
+            self._latest_done = latest_downloaded
+            return
+
+        self._probe_chunk = None
+        self._ref_chunk = probe_chunk
+
+        if has_more:
+            new_size_type = SizeType.TooLong
+            self._latest_done = latest_downloaded
+        else:
+            new_size_type = SizeType.TooShort
+            self._latest_done += probe_chunk
+
+        if new_size_type == self._size_type:
+            if self._narrowing:
+                if self._same_side_count == self.MAX_SAME_SIDE_SEARCHES:
                     self._narrowing = False
                     self._same_side_count = 0
-                    self._size_type = new_size_type
                 else:
                     self._same_side_count += 1
         else:
-            if new_size_type == self._size_type:
-                self._ref_pos = search_pos
-            else:
+            self._size_type = new_size_type
+            if not self._narrowing:
                 self._narrowing = True
 
-        assert not self._narrowing or self._same_side_count == 0
-        self._search_pos = None
+        assert self._narrowing or self._same_side_count == 0
 
 
-class HistoricalTickDataGenerator(BaseTicksProducerFactory):
+class HistoricalTicksProducer(BaseTicksProducer):
     MAX_REQUESTS_PER_SECOND: Final[int] = 5
-    MAX_SAME_SIDE_SEARCHES: Final[int] = 4
     TICK_TYPE_MAP: Final[Mapping[TickType, ProtoOAQuoteType.V]] = {
         TickType.BID: BID,
         TickType.ASK: ASK,
@@ -85,35 +113,26 @@ class HistoricalTickDataGenerator(BaseTicksProducerFactory):
 
     def __init__(
         self,
-        trader: ProtoOATrader,
-        client: AppClient,
-        exec_schedule: ExecutionSchedule,
-        start_time: datetime.datetime,
-        n_intervals: int,
+        client: TraderClient,
+        gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
+        symbols: Collection[SymbolInfo],
+        start: float,
     ):
-        super().__init__(trader, exec_schedule)
+        super().__init__()
         self._client = client
-        self._first_trading_time, self._last_trading_time = self._compute_time_range(
-            start_time, n_intervals
-        )
+        self._gen = gen
         self._last_req_time = 0.0
         self._req_count = 0
-
-    def _compute_time_range(
-        self, start_time: datetime.datetime, n_intervals: int
-    ) -> tuple[datetime.datetime, datetime.datetime]:
-        last_trading_time = self.exec_schedule.last_valid_time(start_time)
-        first_trading_time = last_trading_time
-        for _ in range(n_intervals - 1):
-            first_trading_time -= self.exec_schedule.trading_interval
-            first_trading_time = self.exec_schedule.last_valid_time(first_trading_time)
-
-        return first_trading_time, last_trading_time
+        self._start = start
+        start_ms = int(start * 1000)
+        self._sym_to_state = {sym: State(start_ms) for sym in symbols}
 
     @classmethod
     def _convert_to_tick_data(
         cls, ticks: Sequence[ProtoOATickData], sym: SymbolInfo, tick_type: TickType
     ) -> Iterator[TickData]:
+        PRICE_CONV_FACTOR = cls.PRICE_CONV_FACTOR
+
         def iterate_tick_data() -> Iterator[TickData]:
             price = 0
             timestamp = 0
@@ -123,7 +142,7 @@ class HistoricalTickDataGenerator(BaseTicksProducerFactory):
                 yield TickData(
                     sym,
                     tick_type,
-                    Tick(timestamp / 1000, price / cls.PRICE_CONV_FACTOR),
+                    Tick(timestamp / 1000, price / PRICE_CONV_FACTOR),
                 )
 
         return reversed(list(iterate_tick_data()))
@@ -145,154 +164,84 @@ class HistoricalTickDataGenerator(BaseTicksProducerFactory):
         self._last_req_time = now
         self._req_count += 1
 
-        return await self._client.send_request_using_gen(
-            ProtoOAGetTickDataReq(
-                ctidTraderAccountId=self.trader.ctidTraderAccountId,
+        return await self._client.send_request_from_trader(
+            lambda trader_id: ProtoOAGetTickDataReq(
+                ctidTraderAccountId=trader_id,
                 symbolId=sym.id,
                 type=self.TICK_TYPE_MAP[tick_type],
                 fromTimestamp=chunk_start,
                 toTimestamp=chunk_end,
             ),
+            ProtoOAGetTickDataRes,
             gen,
         )
 
-    async def _download_initial(
-        self,
-        queue: asyncio.Queue[Iterable[TickData]],
-        gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
-        start: int,
-        end: int,
-        resolution: int,
-    ) -> dict[SymbolInfo, State]:
-        sym_to_state: dict[SymbolInfo, State] = {}
-        has_more = False
+    async def generate_ticks_up_to(self, end: float) -> AsyncIterator[TickData]:
+        now = time.time()
+        await asyncio.sleep(self._start - now)
 
-        for sym in self.symbols:
-            latest_donwloaded = 0
-            has_more = False
-
-            for tick_type in TickType:
-                chunk = await self._download_chunk(gen, sym, tick_type, start, end)
-
-                await queue.put(
-                    self._convert_to_tick_data(chunk.tickData, sym, tick_type)
-                )
-
-                # NOTE: we take the first element because the list is inverted..
-                latest_donwloaded = max(latest_donwloaded, chunk.tickData[0].timestamp)
-                has_more |= chunk.hasMore
-
-            sym_to_state[sym] = State(
-                resolution,
-                resolution,
-                latest_donwloaded if has_more else end,
-                SizeType.TooLong if has_more else SizeType.TooShort,
-            )
-
-        return sym_to_state
-
-    async def _download_tick_data(
-        self,
-        queue: asyncio.Queue[Iterable[TickData]],
-        gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
-    ) -> None:
-        start_ms = int(self._first_trading_time.timestamp() * 1000)
-        end_ms = int(self._last_trading_time.timestamp() * 1000)
-        period_ms = end_ms - start_ms
-        resolution = int(log2(period_ms))
-
-        sym_to_state = await self._download_initial(
-            queue, gen, start_ms, end_ms, resolution
-        )
+        end_ms = int(end * 1000)
+        tick_types = tuple(TickType)
 
         while True:
             done = True
 
-            for sym, state in sym_to_state.items():
+            for sym, state in self._sym_to_state.items():
                 latest_done = state.latest_done
 
                 if latest_done >= end_ms:
                     continue
 
-                same_side_count = state.same_side_count
-                narrowing = state.narrowing
-                size_type = state.size_type
-
-                assert not narrowing or same_side_count == 0
-
-                reached_max_same_side = same_side_count == self.MAX_SAME_SIDE_SEARCHES
-
-                factor = 2 ** (-1 if narrowing else size_type)
-
-                # TODO: check bounds
-                # also, if step is 1 it should not be further divided
-                step = int(state.step * factor)
-                search_pos = state.ref_pos + (
-                    0 if reached_max_same_side else size_type * step
-                )
-
-                chunk_size = int(period_ms * search_pos / resolution)
                 chunk_start = latest_done
-                chunk_end = latest_done + chunk_size
+                chunk_end = state.next_chunk_end()
 
                 if chunk_end < end_ms:
                     done = False
+                    skip_update = False
                 else:
                     chunk_end = end_ms
+                    skip_update = True
 
-                latest_chunk_timestamp = 0
+                latest_downloaded = 0
                 has_more = False
 
-                for tick_type in TickType:
+                for tick_type in tick_types:
                     res = await self._download_chunk(
-                        gen, sym, tick_type, chunk_start, chunk_end
+                        self._gen, sym, tick_type, chunk_start, chunk_end
                     )
-                    await queue.put(
-                        self._convert_to_tick_data(res.tickData, sym, tick_type)
-                    )
-                    latest_chunk_timestamp = max(
-                        latest_chunk_timestamp, res.tickData[0].timestamp
+                    ticks = res.tickData
+
+                    if ticks:
+                        for tick_data in self._convert_to_tick_data(
+                            ticks, sym, tick_type
+                        ):
+                            yield tick_data
+                    else:
+                        skip_update = True
+
+                    latest_downloaded = max(
+                        latest_downloaded, res.tickData[0].timestamp
                     )
                     has_more |= res.hasMore
 
-                new_size_type = SizeType.TooLong if has_more else SizeType.TooShort
-                # TODO: is this always right?
-                state.step = step
-
-                if narrowing:
-                    if new_size_type == size_type:
-                        state.ref_pos = search_pos
-                    else:
-                        if reached_max_same_side:
-                            state.narrowing = False
-                            state.same_side_count = 0
-                            state.size_type = new_size_type
-                        else:
-                            state.same_side_count += 1
-                else:
-                    if new_size_type == size_type:
-                        state.ref_pos = search_pos
-                    else:
-                        state.narrowing = True
+                state.update(None if skip_update else has_more, latest_downloaded)
 
             if done:
                 break
 
-    async def generate_ticks(self) -> AsyncGenerator[TickData, None]:
+
+class HistoricalTicksProducerFactory(BaseTicksProducerFactory):
+    def __init__(
+        self, client: TraderClient, traded_symbols: Collection[TradedSymbolInfo]
+    ):
+        super().__init__(traded_symbols)
+        self._client = client
+
+    @asynccontextmanager
+    async def get_ticks_generator_starting_from(
+        self, start: float
+    ) -> AsyncIterator[BaseTicksProducer]:
         async with self._client.register_types(
             (ProtoOAGetTickDataRes, ProtoOAErrorRes)
         ) as gen:
-            queue: asyncio.Queue[Iterable[TickData]] = asyncio.Queue()
-            download_task = asyncio.create_task(self._download_tick_data(queue, gen))
-
-            try:
-                while not (download_task.done() and queue.empty()):
-                    for tick in await queue.get():
-                        yield tick
-            finally:
-                download_task.cancel()
-
-                try:
-                    await download_task
-                except asyncio.CancelledError:
-                    pass
+            yield HistoricalTicksProducer(self._client, gen, self._symbols, start)

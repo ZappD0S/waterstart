@@ -4,7 +4,7 @@ from typing import Optional, TypeVar
 
 from ..symbols import TradedSymbolInfo
 
-from ..price import MarketFeatures, SymbolData, TrendBar
+from ..price import MarketData, SymbolData, TrendBar
 from .base_mapper import BaseArrayMapper, FieldData
 
 T = TypeVar("T", float, FieldData)
@@ -22,8 +22,8 @@ class PriceFieldData(FieldData):
 # this method would replace _flatten_fields
 
 
-class MarketDataArrayMapper(BaseArrayMapper[MarketFeatures[float]]):
-    def __init__(self, blueprint: MarketFeatures[FieldData]) -> None:
+class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
+    def __init__(self, blueprint: MarketData[FieldData]) -> None:
         super().__init__(set(self._flatten_fields(blueprint)))
         self._blueprint = blueprint
         self._scaling_inds = list(self._build_scaling_inds(self._fields_set))
@@ -34,7 +34,7 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketFeatures[float]]):
         return self._scaling_inds
 
     def iterate_index_to_value(
-        self, value: MarketFeatures[float]
+        self, value: MarketData[float]
     ) -> Iterator[tuple[int, float]]:
         for sym_info, blueprint_sym_data in self._blueprint.symbols_data_map.items():
             sym_data = value.symbols_data_map[sym_info]
@@ -53,8 +53,8 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketFeatures[float]]):
 
     def build_from_index_to_value_map(
         self, mapping: Mapping[int, float]
-    ) -> MarketFeatures[float]:
-        sym_info_map: Mapping[TradedSymbolInfo, SymbolData[float]] = {}
+    ) -> MarketData[float]:
+        sym_info_map: dict[TradedSymbolInfo, SymbolData[float]] = {}
 
         for sym_info, blueprint_sym_data in self._blueprint.symbols_data_map.items():
             blueprint_tbs: tuple[TrendBar[FieldData], ...] = astuple(blueprint_sym_data)
@@ -69,15 +69,14 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketFeatures[float]]):
             ]
             sym_info_map[sym_info] = SymbolData(*tbs)
 
-        market_data: MarketFeatures[float] = MarketFeatures(
+        return MarketData(
             sym_info_map,
             time_of_day=mapping[self._blueprint.time_of_day.index],
             delta_to_last=mapping[self._blueprint.delta_to_last.index],
         )
-        return market_data
 
     @staticmethod
-    def _flatten_fields(blueprint: MarketFeatures[FieldData]) -> Iterator[FieldData]:
+    def _flatten_fields(blueprint: MarketData[FieldData]) -> Iterator[FieldData]:
         for blueprint_sym_data in blueprint.symbols_data_map.values():
             blueprint_tbs: tuple[TrendBar[FieldData], ...] = astuple(blueprint_sym_data)
 

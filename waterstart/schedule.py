@@ -7,14 +7,7 @@ from zoneinfo import ZoneInfo
 
 from .symbols import SymbolInfo, TradedSymbolInfo
 from .utils import is_sorted
-
-
-def get_midnight(date: datetime.date) -> datetime.datetime:
-    return datetime.datetime.combine(date, datetime.time.min)
-
-
-def to_timedelta(dt: datetime.datetime) -> datetime.timedelta:
-    return dt - datetime.datetime.min.replace(tzinfo=dt.tzinfo)
+from .datetime_utils import get_midnight, to_timedelta
 
 
 # TODO: add a bool parameter that tells wether the output should have the same
