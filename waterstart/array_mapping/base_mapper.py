@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Iterator, Mapping, Set
+from collections import Iterator, Mapping, Set
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 

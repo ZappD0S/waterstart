@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections import Mapping, Sequence, Collection
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -65,12 +65,18 @@ class InferenceEngine:
         iafs: Sequence[nn.Module],
         emitter: Emitter,
         market_data_arr_mapper: MarketDataArrayMapper,
-        traded_sym_arr_mapper: DictBasedArrayMapper[TradedSymbolInfo],
+        traded_sym_arr_mapper: DictBasedArrayMapper[int],
+        traded_symbols: Collection[TradedSymbolInfo],
     ) -> None:
         if market_data_arr_mapper.n_fields != cnn.market_features:
             raise ValueError()
 
-        if traded_sym_arr_mapper.n_fields != cnn.n_sym:
+        id_to_traded_sym = {sym.id: sym for sym in traded_symbols}
+
+        if len(traded_symbols) < len(id_to_traded_sym):
+            raise ValueError()
+
+        if id_to_traded_sym.keys() != traded_sym_arr_mapper.keys:
             raise ValueError()
 
         self._cnn = cnn
@@ -83,18 +89,19 @@ class InferenceEngine:
         self.hidden_dim = gated_trans.z_dim
 
         self._market_data_arr_mapper = market_data_arr_mapper
+        self._id_to_traded_sym = id_to_traded_sym
         self._traded_sym_arr_mapper = traded_sym_arr_mapper
         self._min_step_max = self._compute_min_step_max_arr()
 
     # TODO: put the following conversion methods in a separate file
     def _compute_min_step_max_arr(self) -> MinStepMax:
         min_step_max_map = {
-            key: (
-                key.symbol.minVolume / 100 * key.symbol.lotSize / 100,
-                key.symbol.stepVolume / 100 * key.symbol.lotSize / 100,
-                key.symbol.maxVolume / 100 * key.symbol.lotSize / 100,
+            sym_id: (
+                (sym := syminfo.symbol).minVolume / 100 * sym.lotSize / 100,
+                sym.stepVolume / 100 * sym.lotSize / 100,
+                sym.maxVolume / 100 * sym.lotSize / 100,
             )
-            for key in self._traded_sym_arr_mapper.keys
+            for sym_id, syminfo in self._id_to_traded_sym.items()
         }
 
         rec_arr = np.fromiter(  # type: ignore
@@ -124,7 +131,7 @@ class InferenceEngine:
         )
 
     def _partial_map_to_masked_tensor(
-        self, mapping: Mapping[TradedSymbolInfo, float]
+        self, mapping: Mapping[int, float]
     ) -> MaskedTensor:
         rec_arr: npt.NDArray[Any] = np.fromiter(  # type: ignore
             self._traded_sym_arr_mapper.iterate_index_to_value_partial(mapping),
@@ -142,7 +149,7 @@ class InferenceEngine:
 
     def _masked_tensor_to_partial_map(
         self, masked_arr: MaskedTensor
-    ) -> Mapping[TradedSymbolInfo, float]:
+    ) -> Mapping[int, float]:
         arr, mask = masked_arr.arr, masked_arr.mask
         inds_list: list[int] = torch.arange(arr.numel())[mask].tolist()  # type: ignore
         new_pos_sizes_list: list[float] = arr[mask].tolist()  # type: ignore
@@ -219,7 +226,7 @@ class InferenceEngine:
             model_input.balance.unsqueeze(-1),
         )
 
-        with torch.no_grad():
+        with torch.inference_mode():
             model_infer = self.evaluate_raw(raw_model_input)
 
         exec_mask = model_infer.raw_model_output.exec_samples == 1
@@ -284,7 +291,7 @@ class InferenceEngine:
         # TODO: input checks
 
         scaled_market_data = market_state.market_data.clone()
-        for src_ind, dst_inds in self._market_data_arr_mapper.scaling_inds:
+        for src_ind, dst_inds in self._market_data_arr_mapper.scaling_idxs:
             scaled_market_data[:, dst_inds] /= scaled_market_data[  # type: ignore
                 :, src_ind, None, -1, None
             ]

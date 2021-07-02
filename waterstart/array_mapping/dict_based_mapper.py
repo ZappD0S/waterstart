@@ -1,4 +1,4 @@
-from collections.abc import Iterator, Mapping, Set
+from collections import Iterator, Mapping, Set
 from typing import TypeVar, Any, overload
 
 from .base_mapper import BaseArrayMapper, FieldData
@@ -53,10 +53,8 @@ class DictBasedArrayMapper(BaseArrayMapper[Mapping[T, float]]):
         self, value: Mapping[T, Any]
     ) -> Iterator[tuple[int, Any]]:
         for key, index in self._inds_map.items():
-            if key not in value:
-                continue
-
-            yield index, value[key]
+            if key in value:
+                yield index, value[key]
 
     @overload
     def build_from_index_to_value_map(

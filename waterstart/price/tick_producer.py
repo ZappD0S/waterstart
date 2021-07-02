@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Iterable, Iterator, Set
+from collections import AsyncIterator, Awaitable, Collection, Iterable, Iterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncContextManager, Awaitable, Collection, Final, Mapping
+from typing import Any, AsyncContextManager, Final
 
 from ..client.app import AppClient
 from ..openapi import (
@@ -31,9 +31,8 @@ class BaseTicksProducer(ABC):
 class BaseTicksProducerFactory(ABC):
     def __init__(self, traded_symbols: Collection[TradedSymbolInfo]):
         self._traded_symbols = traded_symbols
-        self._traded_symbols = traded_symbols
-        id_to_symbol = {sym.id: sym for sym in self._get_all_symbols(traded_symbols)}
-        self._symbols = id_to_symbol.values()
+        self._id_to_sym = {sym.id: sym for sym in self._get_all_symbols(traded_symbols)}
+        self._symbols = self._id_to_sym.values()
 
     @property
     def traded_symbols(self) -> Collection[TradedSymbolInfo]:
@@ -65,7 +64,7 @@ class BaseTicksProducerFactory(ABC):
 class LiveTicksProducerFactory(BaseTicksProducerFactory):
     def __init__(
         self,
-        traded_symbols: Set[TradedSymbolInfo],
+        traded_symbols: Collection[TradedSymbolInfo],
         trader: ProtoOATrader,
         client: AppClient,
     ):
@@ -87,7 +86,7 @@ class LiveTicksProducerFactory(BaseTicksProducerFactory):
 
         try:
             async with self._client.register_type(ProtoOASpotEvent) as gen:
-                yield LiveTicksProducer(start, gen, self._id_to_sym)
+                yield LiveTicksProducer(start, gen)
         finally:
             spot_unsub_req = ProtoOAUnsubscribeSpotsReq(
                 ctidTraderAccountId=self._trader.ctidTraderAccountId,
@@ -99,31 +98,27 @@ class LiveTicksProducerFactory(BaseTicksProducerFactory):
 
 
 class LiveTicksProducer(BaseTicksProducer):
-    def __init__(
-        self,
-        start: float,
-        gen: AsyncIterator[ProtoOASpotEvent],
-        id_to_sym: Mapping[int, SymbolInfo],
-    ) -> None:
+    def __init__(self, start: float, gen: AsyncIterator[ProtoOASpotEvent]) -> None:
         self._gen = gen
-        self._id_to_sym = id_to_sym
         self._start = start
 
-    async def _next_event(self) -> ProtoOASpotEvent:
-        async for event in self._gen:
-            return event
-
-        raise RuntimeError()
-
     async def generate_ticks_up_to(self, end: float) -> AsyncIterator[TickData]:
+        gen = self._gen
+        PRICE_CONV_FACTOR = self.PRICE_CONV_FACTOR
+
+        async def next_event() -> ProtoOASpotEvent:
+            async for event in gen:
+                return event
+
+            raise RuntimeError()
+
         now = time.time()
         await asyncio.sleep(self._start - now)
         timeout: Awaitable[Any] = asyncio.sleep(end - now)
         timeout_task = asyncio.create_task(timeout)
-        PRICE_CONV_FACTOR = self.PRICE_CONV_FACTOR
 
         while True:
-            event_task = asyncio.create_task(self._next_event())
+            event_task = asyncio.create_task(next_event())
             done: asyncio.Task[Any]
             [done], _ = await asyncio.wait(
                 (timeout_task, event_task), return_when=asyncio.FIRST_COMPLETED
@@ -134,7 +129,7 @@ class LiveTicksProducer(BaseTicksProducer):
 
             t = time.time()
             event = await event_task
-            sym = self._id_to_sym[event.symbolId]
+            sym_id = event.symbolId
 
-            yield TickData(sym, TickType.BID, Tick(event.bid / PRICE_CONV_FACTOR, t))
-            yield TickData(sym, TickType.ASK, Tick(event.ask / PRICE_CONV_FACTOR, t))
+            yield TickData(sym_id, TickType.BID, Tick(event.bid / PRICE_CONV_FACTOR, t))
+            yield TickData(sym_id, TickType.ASK, Tick(event.ask / PRICE_CONV_FACTOR, t))

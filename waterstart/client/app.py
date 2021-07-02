@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from collections.abc import Awaitable, Callable
+from collections import Awaitable, Callable
 
 from ..openapi import ProtoOAApplicationAuthReq, ProtoOAApplicationAuthRes
 from .base import BaseReconnectingClient, HelperClient

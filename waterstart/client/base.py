@@ -4,13 +4,7 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from asyncio import StreamReader, StreamWriter
-from collections.abc import (
-    AsyncGenerator,
-    AsyncIterator,
-    Awaitable,
-    Callable,
-    Mapping,
-)
+from collections import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import AsyncContextManager, Final, Optional, TypeVar, Union
 

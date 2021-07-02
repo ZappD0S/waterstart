@@ -1,18 +1,14 @@
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections import Iterable, Iterator, Mapping, Sequence
 from dataclasses import astuple, dataclass
-from typing import Optional, TypeVar
-
-from ..symbols import TradedSymbolInfo
+from typing import Optional
 
 from ..price import MarketData, SymbolData, TrendBar
 from .base_mapper import BaseArrayMapper, FieldData
 
-T = TypeVar("T", float, FieldData)
-
 
 @dataclass
 class PriceFieldData(FieldData):
-    sym_info: TradedSymbolInfo
+    sym_id: int
     is_close_price: bool
 
 
@@ -26,18 +22,18 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
     def __init__(self, blueprint: MarketData[FieldData]) -> None:
         super().__init__(set(self._flatten_fields(blueprint)))
         self._blueprint = blueprint
-        self._scaling_inds = list(self._build_scaling_inds(self._fields_set))
+        self._scaling_idxs = list(self._build_scaling_inds(self._fields_set))
 
     # TODO: find better name
     @property
-    def scaling_inds(self) -> Sequence[tuple[int, list[int]]]:
-        return self._scaling_inds
+    def scaling_idxs(self) -> Sequence[tuple[int, list[int]]]:
+        return self._scaling_idxs
 
     def iterate_index_to_value(
         self, value: MarketData[float]
     ) -> Iterator[tuple[int, float]]:
-        for sym_info, blueprint_sym_data in self._blueprint.symbols_data_map.items():
-            sym_data = value.symbols_data_map[sym_info]
+        for sym_id, blueprint_sym_data in self._blueprint.symbols_data_map.items():
+            sym_data = value.symbols_data_map[sym_id]
 
             it: Iterator[tuple[TrendBar[FieldData], TrendBar[float]]] = zip(
                 astuple(blueprint_sym_data), astuple(sym_data)
@@ -54,12 +50,12 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
     def build_from_index_to_value_map(
         self, mapping: Mapping[int, float]
     ) -> MarketData[float]:
-        sym_info_map: dict[TradedSymbolInfo, SymbolData[float]] = {}
+        sym_data_map: dict[int, SymbolData[float]] = {}
 
-        for sym_info, blueprint_sym_data in self._blueprint.symbols_data_map.items():
+        for sym_id, blueprint_sym_data in self._blueprint.symbols_data_map.items():
             blueprint_tbs: tuple[TrendBar[FieldData], ...] = astuple(blueprint_sym_data)
 
-            tbs: list[TrendBar[float]] = [
+            tbs = [
                 TrendBar(
                     high=mapping[blueprint_tb.high.index],
                     low=mapping[blueprint_tb.low.index],
@@ -67,10 +63,10 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
                 )
                 for blueprint_tb in blueprint_tbs
             ]
-            sym_info_map[sym_info] = SymbolData(*tbs)
+            sym_data_map[sym_id] = SymbolData(*tbs)
 
         return MarketData(
-            sym_info_map,
+            sym_data_map,
             time_of_day=mapping[self._blueprint.time_of_day.index],
             delta_to_last=mapping[self._blueprint.delta_to_last.index],
         )
@@ -92,32 +88,32 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
     def _build_scaling_inds(
         fields: Iterable[FieldData],
     ) -> Iterator[tuple[int, list[int]]]:
-        builder: dict[TradedSymbolInfo, tuple[Optional[int], set[int]]] = {}
+        builder: dict[int, tuple[Optional[int], set[int]]] = {}
 
         for field_data in fields:
             if not isinstance(field_data, PriceFieldData):
                 continue
 
             index = field_data.index
-            sym_info = field_data.sym_info
+            sym_id = field_data.sym_id
 
-            close_price_ind, price_field_inds = builder.get(sym_info, (None, set()))
+            close_price_idx, price_field_idxs = builder.get(sym_id, (None, set()))
 
-            if index in price_field_inds:
+            if index in price_field_idxs:
                 raise ValueError()
 
             if field_data.is_close_price:
-                if close_price_ind is not None:
+                if close_price_idx is not None:
                     raise ValueError()
 
-                close_price_ind = index
+                close_price_idx = index
 
-            price_field_inds.add(index)
-            builder[sym_info] = (close_price_ind, price_field_inds)
+            price_field_idxs.add(index)
+            builder[sym_id] = (close_price_idx, price_field_idxs)
 
-        for close_price_ind, group_prices_inds in builder.values():
-            if close_price_ind is None:
+        for close_price_idx, group_prices_idxs in builder.values():
+            if close_price_idx is None:
                 raise ValueError()
 
-            assert close_price_ind in group_prices_inds
-            yield close_price_ind, list(group_prices_inds)
+            assert close_price_idx in group_prices_idxs
+            yield close_price_idx, list(group_prices_idxs)

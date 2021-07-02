@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Mapping, Sequence, Set
+from collections import AsyncIterator, Collection, Iterator, Mapping, Sequence, Set
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Collection, Counter, Iterator, Optional, TypeVar
+from typing import Counter, Optional, TypeVar
 
 from .client.trader import TraderClient
 from .openapi import (

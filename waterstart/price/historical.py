@@ -1,18 +1,10 @@
 import asyncio
-from contextlib import asynccontextmanager
 import time
-from collections import AsyncIterator
+from collections import AsyncIterator, Collection, Iterator, Mapping, Sequence, Set
+from contextlib import asynccontextmanager
 from enum import IntEnum
-from typing import (
-    ClassVar,
-    Collection,
-    Final,
-    Iterator,
-    Mapping,
-    Optional,
-    Sequence,
-    Union,
-)
+from typing import ClassVar, Final, Optional, Union
+
 from ..client.trader import TraderClient
 from ..openapi import (
     ASK,
@@ -24,7 +16,7 @@ from ..openapi import (
     ProtoOATickData,
 )
 from ..price import TickData
-from ..symbols import SymbolInfo, TradedSymbolInfo
+from ..symbols import TradedSymbolInfo
 from . import Tick, TickType
 from .tick_producer import BaseTicksProducer, BaseTicksProducerFactory
 
@@ -115,7 +107,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
         self,
         client: TraderClient,
         gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
-        symbols: Collection[SymbolInfo],
+        sym_ids: Set[int],
         start: float,
     ):
         super().__init__()
@@ -125,11 +117,11 @@ class HistoricalTicksProducer(BaseTicksProducer):
         self._req_count = 0
         self._start = start
         start_ms = int(start * 1000)
-        self._sym_to_state = {sym: State(start_ms) for sym in symbols}
+        self._sym_id_to_state = {sym_id: State(start_ms) for sym_id in sym_ids}
 
     @classmethod
     def _convert_to_tick_data(
-        cls, ticks: Sequence[ProtoOATickData], sym: SymbolInfo, tick_type: TickType
+        cls, ticks: Sequence[ProtoOATickData], sym_id: int, tick_type: TickType
     ) -> Iterator[TickData]:
         PRICE_CONV_FACTOR = cls.PRICE_CONV_FACTOR
 
@@ -140,7 +132,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
                 price += tick.tick
                 timestamp += tick.timestamp
                 yield TickData(
-                    sym,
+                    sym_id,
                     tick_type,
                     Tick(timestamp / 1000, price / PRICE_CONV_FACTOR),
                 )
@@ -150,7 +142,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
     async def _download_chunk(
         self,
         gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
-        sym: SymbolInfo,
+        sym_id: int,
         tick_type: TickType,
         chunk_start: int,
         chunk_end: int,
@@ -167,7 +159,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
         return await self._client.send_request_from_trader(
             lambda trader_id: ProtoOAGetTickDataReq(
                 ctidTraderAccountId=trader_id,
-                symbolId=sym.id,
+                symbolId=sym_id,
                 type=self.TICK_TYPE_MAP[tick_type],
                 fromTimestamp=chunk_start,
                 toTimestamp=chunk_end,
@@ -186,7 +178,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
         while True:
             done = True
 
-            for sym, state in self._sym_to_state.items():
+            for sym_id, state in self._sym_id_to_state.items():
                 latest_done = state.latest_done
 
                 if latest_done >= end_ms:
@@ -207,13 +199,13 @@ class HistoricalTicksProducer(BaseTicksProducer):
 
                 for tick_type in tick_types:
                     res = await self._download_chunk(
-                        self._gen, sym, tick_type, chunk_start, chunk_end
+                        self._gen, sym_id, tick_type, chunk_start, chunk_end
                     )
                     ticks = res.tickData
 
                     if ticks:
                         for tick_data in self._convert_to_tick_data(
-                            ticks, sym, tick_type
+                            ticks, sym_id, tick_type
                         ):
                             yield tick_data
                     else:
@@ -244,4 +236,6 @@ class HistoricalTicksProducerFactory(BaseTicksProducerFactory):
         async with self._client.register_types(
             (ProtoOAGetTickDataRes, ProtoOAErrorRes)
         ) as gen:
-            yield HistoricalTicksProducer(self._client, gen, self._symbols, start)
+            yield HistoricalTicksProducer(
+                self._client, gen, self._id_to_sym.keys(), start
+            )

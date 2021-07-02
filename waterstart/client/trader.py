@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections import AsyncIterator, Awaitable, Callable, Mapping
 from functools import partial
 from typing import Optional, TypeVar, Union
 

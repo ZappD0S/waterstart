@@ -1,7 +1,7 @@
 import datetime
 from abc import ABC, abstractmethod
 from bisect import bisect_right
-from collections.abc import Iterator, Sequence, Collection
+from collections import Iterator, Sequence, Collection
 from typing import Final, Optional
 from zoneinfo import ZoneInfo
 
@@ -237,8 +237,7 @@ class ExecutionSchedule(BaseSchedule):
         unique_traded_symbols = id_to_traded_sym.values()
 
         if len(unique_traded_symbols) < len(traded_symbols):
-            # TODO: log warning
-            ...
+            raise ValueError()
 
         self._symbols_schedule = ScheduleCombinator(
             [SymbolSchedule(sym_info) for sym_info in unique_traded_symbols]

@@ -1,5 +1,5 @@
-from collections.abc import Sequence
-from typing import Collection, TypeVar
+from collections import Collection, Sequence
+from typing import TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -38,14 +38,12 @@ class PriceAggregator:
         self._traded_symbols = traded_symbols
         self._symbols = symbols
 
-        sym_to_index: dict[SymbolInfo, int] = {
-            sym: ind for ind, sym in enumerate(traded_symbols)
-        }
-        sym_to_index.update(
-            (id_to_sym[sym_id], ind + n_traded_symbols)
-            for ind, sym_id in enumerate(id_to_sym.keys() - id_to_traded_sym.keys())
+        sym_id_to_idx = {sym_id: idx for idx, sym_id in enumerate(id_to_traded_sym)}
+        sym_id_to_idx.update(
+            (sym_id, idx + n_traded_symbols)
+            for idx, sym_id in enumerate(id_to_sym.keys() - id_to_traded_sym.keys())
         )
-        assert is_contiguous(sorted(sym_to_index.values()))
+        assert is_contiguous(sorted(sym_id_to_idx.values()))
 
         assets_set = {
             asset_id
@@ -56,46 +54,46 @@ class PriceAggregator:
             )
         }
 
-        asset_to_index = {asset_id: ind for ind, asset_id in enumerate(assets_set)}
+        asset_id_to_idx = {asset_id: idx for idx, asset_id in enumerate(assets_set)}
 
-        conv_chains_inds: tuple[list[int], list[int]] = ([], [])
-        conv_chain_sym_inds: list[int] = []
-        reciprocal_mask_inds: tuple[list[int], list[int]] = ([], [])
+        conv_chains_idxs: tuple[list[int], list[int]] = ([], [])
+        conv_chain_sym_idxs: list[int] = []
+        reciprocal_mask_idxs: tuple[list[int], list[int]] = ([], [])
 
-        dep_to_base_quote_inds: tuple[list[int], list[int]] = ([], [])
-        dep_to_base_quote_asset_inds: list[int] = []
+        dep_to_base_quote_idxs: tuple[list[int], list[int]] = ([], [])
+        dep_to_base_quote_asset_idxs: list[int] = []
 
         longest_chain_len = 0
 
-        for traded_sym in traded_symbols:
-            traded_sym_ind = sym_to_index[traded_sym]
+        for traded_sym_id, traded_sym in id_to_traded_sym.items():
+            traded_sym_idx = sym_id_to_idx[traded_sym_id]
 
             chains = traded_sym.conv_chains
             for i, chain in enumerate((chains.base_asset, chains.quote_asset)):
                 chain_len = len(chain)
                 longest_chain_len = max(longest_chain_len, chain_len)
-                asset_ind = asset_to_index[chain.asset_id]
+                asset_idx = asset_id_to_idx[chain.asset_id]
 
-                conv_chain_sym_inds.extend(sym_to_index[sym] for sym in chain)
-                conv_chains_inds[0].extend(range(chain_len))
-                conv_chains_inds[1].extend((asset_ind,) * chain_len)
+                conv_chain_sym_idxs.extend(sym_id_to_idx[sym.id] for sym in chain)
+                conv_chains_idxs[0].extend(range(chain_len))
+                conv_chains_idxs[1].extend((asset_idx,) * chain_len)
 
-                reciprocal_inds = [i for i, sym in enumerate(chain) if sym.reciprocal]
-                reciprocal_mask_inds[0].extend(reciprocal_inds)
-                reciprocal_mask_inds[1].extend((asset_ind,) * len(reciprocal_inds))
+                reciprocal_idxs = [i for i, sym in enumerate(chain) if sym.reciprocal]
+                reciprocal_mask_idxs[0].extend(reciprocal_idxs)
+                reciprocal_mask_idxs[1].extend((asset_idx,) * len(reciprocal_idxs))
 
-                dep_to_base_quote_asset_inds.append(asset_ind)
-                dep_to_base_quote_inds[0].append(traded_sym_ind)
-                dep_to_base_quote_inds[1].append(i)
+                dep_to_base_quote_asset_idxs.append(asset_idx)
+                dep_to_base_quote_idxs[0].append(traded_sym_idx)
+                dep_to_base_quote_idxs[1].append(i)
 
         self._n_symbols = n_symbols
         self._n_assets = len(assets_set)
         self._n_traded_symbols = n_traded_symbols
-        self._sym_to_index = sym_to_index
+        self._sym_id_to_idx = sym_id_to_idx
 
         # TODO: turn the lists of indices into arrays
-        self._conv_chains_inds = conv_chains_inds
-        self._conv_chain_sym_inds = conv_chain_sym_inds
+        self._conv_chains_idxs = conv_chains_idxs
+        self._conv_chain_sym_idxs = conv_chain_sym_idxs
 
         assert longest_chain_len != 0
         self._longest_chain_len = longest_chain_len
@@ -103,10 +101,10 @@ class PriceAggregator:
         self._reciprocal_mask: npt.NDArray[bool] = np.zeros(  # type: ignore
             (longest_chain_len, self._n_assets), dtype=bool
         )
-        self._reciprocal_mask[reciprocal_mask_inds] = True
+        self._reciprocal_mask[reciprocal_mask_idxs] = True
 
-        self._dep_to_base_quote_inds = dep_to_base_quote_inds
-        self._dep_to_base_quote_asset_inds = dep_to_base_quote_inds
+        self._dep_to_base_quote_idxs = dep_to_base_quote_idxs
+        self._dep_to_base_quote_asset_idxs = dep_to_base_quote_idxs
 
     @staticmethod
     def _rescale(
@@ -168,7 +166,7 @@ class PriceAggregator:
 
         # TODO: find better name
         sym_to_data_points: dict[
-            SymbolInfo,
+            int,
             tuple[
                 tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]],
                 tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]],
@@ -177,10 +175,13 @@ class PriceAggregator:
         dt = np.inf
         start, end = -np.inf, np.inf
 
-        for sym, tick_data in tick_data_map.items():
+        for sym_id, tick_data in tick_data_map.items():
             bid_times, bid_prices = self._build_interp_data(tick_data.bid)
             ask_times, ask_prices = self._build_interp_data(tick_data.ask)
-            sym_to_data_points[sym] = ((bid_times, bid_prices), (ask_times, ask_prices))
+            sym_to_data_points[sym_id] = (
+                (bid_times, bid_prices),
+                (ask_times, ask_prices),
+            )
 
             start = max(start, bid_times[0], ask_times[0])
             end = min(end, bid_times[-1], ask_times[-1])
@@ -197,11 +198,11 @@ class PriceAggregator:
         interp_arr: npt.NDArray[np.float32]
         interp_arr = np.full((self._n_symbols, 2, x.size), np.nan)  # type: ignore
 
-        sym_to_index = self._sym_to_index
+        sym_id_to_idx = self._sym_id_to_idx
 
-        for sym, bid_ask_ticks in tick_data_map.items():
-            traded_sym_ind = sym_to_index[sym]
-            data_points = sym_to_data_points[sym]
+        for sym_id, bid_ask_ticks in tick_data_map.items():
+            traded_sym_idx = sym_id_to_idx[sym_id]
+            data_points = sym_to_data_points[sym_id]
 
             interp_bid_ask_prices = (np.empty_like(x), np.empty_like(x))  # type: ignore
 
@@ -215,21 +216,21 @@ class PriceAggregator:
             avg_prices = (interp_bid_prices + interp_ask_prices) / 2
             spreads = interp_ask_prices - interp_bid_prices
             assert np.all(spreads >= 0)  # type: ignore
-            interp_arr[traded_sym_ind, 0] = avg_prices
-            interp_arr[traded_sym_ind, 1] = spreads
+            interp_arr[traded_sym_idx, 0] = avg_prices
+            interp_arr[traded_sym_idx, 1] = spreads
 
             for i, ticks in enumerate(bid_ask_ticks):
                 times = data_points[i][0]
-                last_used_index: int = times.searchsorted(end)  # type: ignore
-                del ticks[:last_used_index]
+                last_used_idx: int = times.searchsorted(end)  # type: ignore
+                del ticks[:last_used_idx]
 
         assert not np.isnan(interp_arr).any()  # type: ignore
 
         conv_chains_arr = np.ones(  # type: ignore
             (self._longest_chain_len, self._n_assets, x.size)
         )
-        conv_chains_arr[self._conv_chains_inds] = interp_arr[
-            self._conv_chain_sym_inds, 0
+        conv_chains_arr[self._conv_chains_idxs] = interp_arr[
+            self._conv_chain_sym_idxs, 0
         ]
         conv_chains_arr[self._reciprocal_mask] **= -1
         conv_chains_arr = conv_chains_arr.prod(axis=0)  # type: ignore
@@ -238,8 +239,8 @@ class PriceAggregator:
         dep_to_base_quote_arr: npt.NDArray[np.float32] = np.full(  # type: ignore
             (n_traded_symbols, 2, x.size), np.nan, dtype=np.float32
         )
-        dep_to_base_quote_arr[self._dep_to_base_quote_inds] = conv_chains_arr[
-            self._dep_to_base_quote_asset_inds
+        dep_to_base_quote_arr[self._dep_to_base_quote_idxs] = conv_chains_arr[
+            self._dep_to_base_quote_asset_idxs
         ]
         assert not np.isnan(dep_to_base_quote_arr).any()  # type: ignore
 
@@ -247,22 +248,22 @@ class PriceAggregator:
         price_spread_hlc = self._compute_hlc_array(traded_interp_arr)
         dep_to_base_quote_hlc = self._compute_hlc_array(dep_to_base_quote_arr)
 
-        new_sym_tb_data: dict[TradedSymbolInfo, SymbolData[float]] = {}
+        new_sym_tb_data: dict[int, SymbolData[float]] = {}
 
         # TODO: maybe update sym_tb_data_map instead of creating a new one?
-        for traded_sym, sym_tb_data in sym_tb_data_map.items():
-            traded_sym_ind = sym_to_index[traded_sym]
+        for traded_sym_id, sym_tb_data in sym_tb_data_map.items():
+            traded_sym_idx = sym_id_to_idx[traded_sym_id]
 
             price_tb = sym_tb_data.price_trendbar
             spread_tb = sym_tb_data.spread_trendbar
-            price_hlc, spread_hlc = price_spread_hlc[traded_sym_ind]
+            price_hlc, spread_hlc = price_spread_hlc[traded_sym_idx]
 
             new_price_tb = self._update_trendbar(price_tb, price_hlc)
             new_spread_tb = self._update_trendbar(spread_tb, spread_hlc)
 
             dep_to_base_tb = sym_tb_data.dep_to_base_trendbar
             dep_to_quote_tb = sym_tb_data.dep_to_quote_trendbar
-            dep_to_base_hlc, dep_to_quote_hlc = dep_to_base_quote_hlc[traded_sym_ind]
+            dep_to_base_hlc, dep_to_quote_hlc = dep_to_base_quote_hlc[traded_sym_idx]
 
             new_dep_to_base_tb = self._update_trendbar(dep_to_base_tb, dep_to_base_hlc)
             new_dep_to_quote_tb = self._update_trendbar(
@@ -276,6 +277,6 @@ class PriceAggregator:
                 dep_to_quote_trendbar=new_dep_to_quote_tb,
             )
 
-            new_sym_tb_data[traded_sym] = new_sym_data
+            new_sym_tb_data[traded_sym_id] = new_sym_data
 
         return AggregationData(tick_data_map, new_sym_tb_data)

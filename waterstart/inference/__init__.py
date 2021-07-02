@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections import Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Generic, TypeVar
@@ -8,7 +8,6 @@ from typing import Generic, TypeVar
 import torch
 
 from ..price import MarketData
-from ..symbols import TradedSymbolInfo
 
 
 @dataclass
@@ -43,7 +42,6 @@ class RawMarketState:
 
 
 T = TypeVar("T", MarketState, RawMarketState)
-U = TypeVar("U", MarketState, RawMarketState)
 
 
 @dataclass
@@ -62,7 +60,7 @@ class ModelInference:
 # TODO: we need a better name..
 @dataclass
 class ModelInferenceWithMap(ModelInference):
-    pos_sizes_map: Mapping[TradedSymbolInfo, float]
+    pos_sizes_map: Mapping[int, float]
     market_data_arr: torch.Tensor
     hidden_state: torch.Tensor
 
