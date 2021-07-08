@@ -44,13 +44,13 @@ class GatedTransition(nn.Module):
 
 
 class Emitter(nn.Module):
-    def __init__(self, z_dim: int, n_cur: int, hidden_dim: int):
+    def __init__(self, z_dim: int, n_traded_sym: int, hidden_dim: int):
         super().__init__()
-        self.n_cur = n_cur
+        self.n_traded_sym = n_traded_sym
         self.lin1 = nn.Linear(z_dim, hidden_dim)
         self.lin2 = nn.Linear(hidden_dim, hidden_dim)
-        self.lin_logits = nn.Linear(hidden_dim, n_cur)
-        self.lin_fraction = nn.Linear(hidden_dim, n_cur)
+        self.lin_logits = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin_fraction = nn.Linear(hidden_dim, n_traded_sym)
 
     def forward(  # type: ignore
         self, z: torch.Tensor
@@ -71,7 +71,7 @@ class CNN(nn.Module):
         window_size: int,
         market_features: int,
         out_features: int,
-        n_sym: int,
+        n_traded_sym: int,
         max_trades: int,
     ):
         super().__init__()
@@ -79,9 +79,9 @@ class CNN(nn.Module):
         self.window_size = window_size
         self.market_features = market_features
         self.kernel_size = 3
-        self.n_sym = n_sym
+        self.n_traded_sym = n_traded_sym
         self.max_trades = max_trades
-        self.prev_step_features = 2 * n_sym * max_trades + 1
+        self.prev_step_features = 2 * n_traded_sym * max_trades + 1
 
         hidden_dim = 2 ** max(
             5, round(log2(fmean((market_features, self.prev_step_features))))
@@ -112,23 +112,6 @@ class CNN(nn.Module):
         out2: torch.Tensor = self.lin1(prev_step_data)
 
         out = torch.cat((out1, out2), dim=1)
-        out = self.lin2(out)
-
-        return out
-
-
-# TODO: this won't stay here..
-# TODO: maybe use 3 layers?
-class NeuralBaseline(nn.Module):
-    def __init__(self, n_features: int, z_dim: int, hidden_dim: int, n_cur: int):
-        super().__init__()
-        self.lin1 = nn.Linear(n_features + z_dim, hidden_dim)
-        self.lin2 = nn.Linear(hidden_dim, n_cur)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
-        # x: (..., 2 * n_cur * (max_trades + 1) + z_dim + 1)
-
-        out = self.lin1(x).relu_()
         out = self.lin2(out)
 
         return out

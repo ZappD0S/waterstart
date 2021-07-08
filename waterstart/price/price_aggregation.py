@@ -60,8 +60,8 @@ class PriceAggregator:
         conv_chain_sym_idxs: list[int] = []
         reciprocal_mask_idxs: tuple[list[int], list[int]] = ([], [])
 
-        dep_to_base_quote_idxs: tuple[list[int], list[int]] = ([], [])
-        dep_to_base_quote_asset_idxs: list[int] = []
+        base_quote_to_dep_idxs: tuple[list[int], list[int]] = ([], [])
+        base_quote_to_dep_asset_idxs: list[int] = []
 
         longest_chain_len = 0
 
@@ -82,9 +82,9 @@ class PriceAggregator:
                 reciprocal_mask_idxs[0].extend(reciprocal_idxs)
                 reciprocal_mask_idxs[1].extend((asset_idx,) * len(reciprocal_idxs))
 
-                dep_to_base_quote_asset_idxs.append(asset_idx)
-                dep_to_base_quote_idxs[0].append(traded_sym_idx)
-                dep_to_base_quote_idxs[1].append(i)
+                base_quote_to_dep_asset_idxs.append(asset_idx)
+                base_quote_to_dep_idxs[0].append(traded_sym_idx)
+                base_quote_to_dep_idxs[1].append(i)
 
         self._n_symbols = n_symbols
         self._n_assets = len(assets_set)
@@ -103,8 +103,8 @@ class PriceAggregator:
         )
         self._reciprocal_mask[reciprocal_mask_idxs] = True
 
-        self._dep_to_base_quote_idxs = dep_to_base_quote_idxs
-        self._dep_to_base_quote_asset_idxs = dep_to_base_quote_idxs
+        self._base_quote_to_dep_idxs = base_quote_to_dep_idxs
+        self._base_quote_to_dep_asset_idxs = base_quote_to_dep_asset_idxs
 
     @staticmethod
     def _rescale(
@@ -236,17 +236,17 @@ class PriceAggregator:
         conv_chains_arr = conv_chains_arr.prod(axis=0)  # type: ignore
 
         n_traded_symbols = self._n_traded_symbols
-        dep_to_base_quote_arr: npt.NDArray[np.float32] = np.full(  # type: ignore
+        base_quote_to_dep_arr: npt.NDArray[np.float32] = np.full(  # type: ignore
             (n_traded_symbols, 2, x.size), np.nan, dtype=np.float32
         )
-        dep_to_base_quote_arr[self._dep_to_base_quote_idxs] = conv_chains_arr[
-            self._dep_to_base_quote_asset_idxs
+        base_quote_to_dep_arr[self._base_quote_to_dep_idxs] = conv_chains_arr[
+            self._base_quote_to_dep_asset_idxs
         ]
-        assert not np.isnan(dep_to_base_quote_arr).any()  # type: ignore
+        assert not np.isnan(base_quote_to_dep_arr).any()  # type: ignore
 
         traded_interp_arr: npt.NDArray[np.float32] = interp_arr[:n_traded_symbols]
         price_spread_hlc = self._compute_hlc_array(traded_interp_arr)
-        dep_to_base_quote_hlc = self._compute_hlc_array(dep_to_base_quote_arr)
+        base_quote_to_dep_hlc = self._compute_hlc_array(base_quote_to_dep_arr)
 
         new_sym_tb_data: dict[int, SymbolData[float]] = {}
 
@@ -261,20 +261,20 @@ class PriceAggregator:
             new_price_tb = self._update_trendbar(price_tb, price_hlc)
             new_spread_tb = self._update_trendbar(spread_tb, spread_hlc)
 
-            dep_to_base_tb = sym_tb_data.dep_to_base_trendbar
-            dep_to_quote_tb = sym_tb_data.dep_to_quote_trendbar
-            dep_to_base_hlc, dep_to_quote_hlc = dep_to_base_quote_hlc[traded_sym_idx]
+            base_to_dep_tb = sym_tb_data.base_to_dep_trendbar
+            quote_to_dep_tb = sym_tb_data.quote_to_dep_trendbar
+            base_to_dep_hlc, quote_to_dep_hlc = base_quote_to_dep_hlc[traded_sym_idx]
 
-            new_dep_to_base_tb = self._update_trendbar(dep_to_base_tb, dep_to_base_hlc)
-            new_dep_to_quote_tb = self._update_trendbar(
-                dep_to_quote_tb, dep_to_quote_hlc
+            new_base_to_dep_tb = self._update_trendbar(base_to_dep_tb, base_to_dep_hlc)
+            new_quote_to_dep_tb = self._update_trendbar(
+                quote_to_dep_tb, quote_to_dep_hlc
             )
 
             new_sym_data: SymbolData[float] = SymbolData(
                 price_trendbar=new_price_tb,
                 spread_trendbar=new_spread_tb,
-                dep_to_base_trendbar=new_dep_to_base_tb,
-                dep_to_quote_trendbar=new_dep_to_quote_tb,
+                base_to_dep_trendbar=new_base_to_dep_tb,
+                quote_to_dep_trendbar=new_quote_to_dep_tb,
             )
 
             new_sym_tb_data[traded_sym_id] = new_sym_data

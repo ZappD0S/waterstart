@@ -114,7 +114,7 @@ class Observable(ABC, Generic[T]):
                 raw = await queue.get()
 
                 if (val := func(raw)) is not None:
-                    yield val  # type: ignore
+                    yield val
 
         gen = get_generator()
         queue: asyncio.Queue[T] = asyncio.Queue(maxsize)

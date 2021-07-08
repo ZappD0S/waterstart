@@ -23,6 +23,7 @@ class SymbolInfo:
     light_symbol: ProtoOALightSymbol
     symbol: ProtoOASymbol
 
+    # TODO: use NewType to define a SymbolId type instead of using bare int?
     @cached_property
     def id(self) -> int:
         return self.symbol.symbolId

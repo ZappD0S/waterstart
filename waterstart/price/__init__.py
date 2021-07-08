@@ -23,8 +23,8 @@ class TrendBar(Generic[T]):
 class SymbolData(Generic[T]):
     price_trendbar: TrendBar[T]
     spread_trendbar: TrendBar[T]
-    dep_to_base_trendbar: TrendBar[T]
-    dep_to_quote_trendbar: TrendBar[T]
+    base_to_dep_trendbar: TrendBar[T]
+    quote_to_dep_trendbar: TrendBar[T]
 
     @staticmethod
     def build_default() -> SymbolData[float]:

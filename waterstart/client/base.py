@@ -82,7 +82,7 @@ class BaseClient(Observable[Message], ABC):
         if pred is None:
             pred = nofilter
 
-        return self.register(get_map_f(pred))  # type: ignore
+        return self.register(get_map_f(pred))
 
     @asynccontextmanager
     async def _type_lock(self, res_type: type[T]):
