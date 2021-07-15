@@ -166,7 +166,7 @@ class LowLevelInferenceEngine:
 
         return MinStepMax(min=min, step=step, max=max)
 
-    @jit.script  # type: ignore
+    @jit.export  # type: ignore
     def _compute_new_pos_sizes(
         self,
         fractions: torch.Tensor,
