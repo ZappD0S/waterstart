@@ -52,7 +52,7 @@ def obj_to_array(mapper: BaseArrayMapper[T], obj: T) -> npt.NDArray[np.float64]:
     return arr
 
 
-def array_to_obj(mapper: BaseArrayMapper[T], arr: npt.NDArray[np.floating[Any]]) -> T:
+def array_to_obj(mapper: BaseArrayMapper[T], arr: npt.NDArray[T_float]) -> T:
     l: list[float] = arr.tolist()  # type: ignore
     return mapper.build_from_index_to_value_map(dict(enumerate(l)))
 
@@ -94,7 +94,7 @@ def partial_map_to_masked_arrays(
 
 
 def masked_array_to_partial_map(
-    mapper: DictBasedArrayMapper[int], masked_arrs: MaskedArrays[np.floating[Any]]
+    mapper: DictBasedArrayMapper[int], masked_arrs: MaskedArrays[T_float]
 ) -> Mapping[int, float]:
     res: dict[int, float] = {}
 
@@ -106,7 +106,7 @@ def masked_array_to_partial_map(
 
 
 def masked_arrays_to_partial_map(
-    mapper: DictBasedArrayMapper[int], masked_arrs: MaskedArrays[np.floating[Any]]
+    mapper: DictBasedArrayMapper[int], masked_arrs: MaskedArrays[T_float]
 ) -> Mapping[int, Sequence[float]]:
     mask = masked_arrs.mask
     inds_list: list[int] = np.arange(len(mask))[mask].tolist()  # type: ignore
