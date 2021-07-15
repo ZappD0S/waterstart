@@ -2,7 +2,7 @@ import datetime
 from abc import ABC, abstractmethod
 from collections import AsyncIterator, Iterator
 from typing import Final
-from waterstart.client.trader import TraderClient
+from ..client.trader import TraderClient
 
 from ..datetime_utils import delta_to_midnight
 from ..schedule import ExecutionSchedule

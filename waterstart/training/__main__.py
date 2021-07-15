@@ -12,8 +12,8 @@ from pyro.distributions.transforms.affine_autoregressive import (  # type: ignor
 )
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm  # type: ignore
-from waterstart.array_mapping.dict_based_mapper import DictBasedArrayMapper
-from waterstart.array_mapping.market_data_mapper import MarketDataArrayMapper
+from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
+from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 
 from ..inference.low_level_engine import LowLevelInferenceEngine, NetworkModules
 from ..inference.model import CNN, Emitter, GatedTransition

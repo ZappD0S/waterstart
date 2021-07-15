@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import Sequence
 from dataclasses import dataclass
 from typing import Collection, Mapping
-from waterstart.symbols import TradedSymbolInfo
-from waterstart.array_mapping.dict_based_mapper import DictBasedArrayMapper
-from waterstart.array_mapping.market_data_mapper import MarketDataArrayMapper
+from ..symbols import TradedSymbolInfo
+from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
+from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 
 import torch
 import torch.distributions as dist

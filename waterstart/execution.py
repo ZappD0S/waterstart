@@ -1,6 +1,6 @@
 import datetime
-from waterstart.schedule import ExecutionSchedule
-from waterstart.price.market_data_producer import (
+from .schedule import ExecutionSchedule
+from .price.market_data_producer import (
     HistoricalMarketDataProducer,
     LiveMarketDataProducer,
 )
