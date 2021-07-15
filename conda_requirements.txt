@@ -5,9 +5,10 @@ ipython
 mypy
 mypy-protobuf
 numpy
-onnx
 pip
 protobuf
 python
 pytorch
+pyro-ppl
+tensorboard
 uvloop
