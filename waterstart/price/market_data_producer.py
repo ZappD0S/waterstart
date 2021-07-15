@@ -2,12 +2,14 @@ import datetime
 from abc import ABC, abstractmethod
 from collections import AsyncIterator, Iterator
 from typing import Final
+from waterstart.client.trader import TraderClient
 
 from ..datetime_utils import delta_to_midnight
-from ..schedule import BaseSchedule
+from ..schedule import ExecutionSchedule
 from . import AggregationData, BidAskTicks, MarketData, SymbolData
 from .price_aggregation import PriceAggregator
-from .tick_producer import BaseTicksProducerFactory
+from .tick_producer import BaseTicksProducerFactory, LiveTicksProducerFactory
+from .historical import HistoricalTicksProducerFactory
 
 
 class BaseMarketDataProducer(ABC):
@@ -59,11 +61,11 @@ class BaseMarketDataProducer(ABC):
 class LiveMarketDataProducer(BaseMarketDataProducer):
     def __init__(
         self,
-        tick_producer_factory: BaseTicksProducerFactory,
-        schedule: BaseSchedule,
+        client: TraderClient,
+        schedule: ExecutionSchedule,
         start: datetime.datetime,
     ):
-        super().__init__(tick_producer_factory)
+        super().__init__(LiveTicksProducerFactory(schedule.traded_symbols, client))
         self._schedule = schedule
         self._start = start
 
@@ -80,12 +82,14 @@ class LiveMarketDataProducer(BaseMarketDataProducer):
 class HistoricalMarketDataProducer(BaseMarketDataProducer):
     def __init__(
         self,
-        tick_producer_factory: BaseTicksProducerFactory,
-        schedule: BaseSchedule,
+        client: TraderClient,
+        schedule: ExecutionSchedule,
         start: datetime.datetime,
         n_intervals: int,
     ):
-        super().__init__(tick_producer_factory)
+        super().__init__(
+            HistoricalTicksProducerFactory(client, schedule.traded_symbols)
+        )
         self._schedule = schedule
         self._start = start
         self._n_intervals = n_intervals

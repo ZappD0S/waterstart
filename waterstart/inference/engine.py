@@ -9,15 +9,15 @@ from . import (
     ModelInferenceWithMap,
     ModelInput,
     RawMarketState,
-    TradesState,
+    AccountState,
 )
 from .low_level_engine import LowLevelInferenceEngine, NetworkModules
-from .utils import (
-    MaskedTensor,
-    map_to_tensors,
-    masked_tensor_to_partial_map,
-    obj_to_tensor,
-    partial_map_to_masked_tensors,
+from ..array_mapping.utils import (
+    MaskedArrays,
+    map_to_arrays,
+    masked_array_to_partial_map,
+    obj_to_array,
+    partial_map_to_masked_arrays,
 )
 
 
@@ -27,13 +27,17 @@ class InferenceEngine:
         self._market_data_arr_mapper = net_modules.market_data_arr_mapper
         self._traded_sym_arr_mapper = net_modules.traded_sym_arr_mapper
 
+    @property
+    def net_modules(self) -> NetworkModules:
+        return self._low_level_engine.net_modules
+
     def evaluate(self, model_input: ModelInput[MarketState]) -> ModelInferenceWithMap:
         market_state = model_input.market_state
         latest_market_data = market_state.latest_market_data
         # TODO: move to device?
 
-        latest_market_data_arr = obj_to_tensor(
-            self._market_data_arr_mapper, latest_market_data
+        latest_market_data_arr = torch.from_numpy(  # type: ignore
+            obj_to_array(self._market_data_arr_mapper, latest_market_data)
         )
 
         market_data_arr = market_state.prev_market_data_arr
@@ -52,8 +56,9 @@ class InferenceEngine:
             for sym in self._traded_sym_arr_mapper.keys
         }
 
-        midpoint_prices, spreads, margin_rate, quote_to_dep_rate = map_to_tensors(
-            self._traded_sym_arr_mapper, market_state_map
+        midpoint_prices, spreads, margin_rate, quote_to_dep_rate = map(
+            torch.from_numpy,  # type: ignore
+            map_to_arrays(self._traded_sym_arr_mapper, market_state_map),
         )
 
         raw_market_state = RawMarketState(
@@ -64,16 +69,16 @@ class InferenceEngine:
             quote_to_dep_rate=quote_to_dep_rate.unsqueeze(-1),
         )
 
-        trades_state = model_input.trades_state
+        account_state = model_input.account_state
 
         raw_model_input = ModelInput(
             raw_market_state,
-            TradesState(
-                trades_state.trades_sizes.unsqueeze(-1),
-                trades_state.trades_prices.unsqueeze(-1),
+            AccountState(
+                account_state.trades_sizes.unsqueeze(-1),
+                account_state.trades_prices.unsqueeze(-1),
+                account_state.balance.unsqueeze(-1),
             ),
             model_input.hidden_state.unsqueeze(0),
-            model_input.balance.unsqueeze(-1),
         )
 
         with torch.inference_mode():
@@ -85,8 +90,9 @@ class InferenceEngine:
         new_pos_sizes = model_infer.pos_sizes.squeeze(-1)
         hidden_state = raw_model_output.z_sample.squeeze(0)
 
-        new_pos_sizes_map = masked_tensor_to_partial_map(
-            self._traded_sym_arr_mapper, MaskedTensor(new_pos_sizes, exec_mask)
+        new_pos_sizes_map = masked_array_to_partial_map(
+            self._traded_sym_arr_mapper,
+            MaskedArrays(new_pos_sizes.numpy(), exec_mask.numpy()),
         )
 
         return ModelInferenceWithMap(
@@ -96,33 +102,34 @@ class InferenceEngine:
             hidden_state=hidden_state,
         )
 
+    # TODO: for now this function doesn't update volume..
     def update_trades(
         self,
-        trades_state: TradesState,
+        account_state: AccountState,
         new_pos_sizes_and_prices_map: Mapping[int, tuple[float, float]],
-    ) -> TradesState:
+    ) -> AccountState:
 
-        size_masked_tens, price_masked_tens = partial_map_to_masked_tensors(
+        masked_arrs = partial_map_to_masked_arrays(
             self._traded_sym_arr_mapper, new_pos_sizes_and_prices_map
         )
+        opened_mask = torch.from_numpy(masked_arrs.mask)  # type: ignore
 
-        if not torch.all(
-            (opened_mask := size_masked_tens.mask) == price_masked_tens.mask
-        ):
+        if not opened_mask.all():
             raise ValueError()
 
-        new_pos_sizes = size_masked_tens.arr
-        new_pos_prices = price_masked_tens.arr
+        new_pos_sizes, new_pos_prices = map(
+            torch.from_numpy, masked_arrs  # type: ignore
+        )
 
-        new_pos_sizes = new_pos_sizes.where(opened_mask, trades_state.pos_size)
+        new_pos_sizes = new_pos_sizes.where(opened_mask, account_state.pos_size)
         new_pos_prices = new_pos_prices.where(opened_mask, new_pos_prices.new_zeros([]))
 
         low_level_engine = self._low_level_engine
-        trades_state = low_level_engine.close_or_reduce_trades(
-            trades_state, new_pos_sizes
+        account_state = low_level_engine.close_or_reduce_trades(
+            account_state, new_pos_sizes
         )
-        trades_state = low_level_engine.open_trades(
-            trades_state, new_pos_sizes, new_pos_prices
+        account_state = low_level_engine.open_trades(
+            account_state, new_pos_sizes, new_pos_prices
         )
 
-        return trades_state
+        return account_state

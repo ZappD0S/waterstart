@@ -230,7 +230,7 @@ class HistoricalTicksProducerFactory(BaseTicksProducerFactory):
         self._client = client
 
     @asynccontextmanager
-    async def get_ticks_generator_starting_from(
+    async def get_ticks_gen_starting_from(
         self, start: float
     ) -> AsyncIterator[BaseTicksProducer]:
         async with self._client.register_types(

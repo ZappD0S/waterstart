@@ -11,9 +11,10 @@ from ..price import MarketData
 
 
 @dataclass
-class TradesState:
+class AccountState:
     trades_sizes: torch.Tensor
     trades_prices: torch.Tensor
+    balance: torch.Tensor
 
     # TODO: make the naming convention uniform
     @cached_property
@@ -43,10 +44,8 @@ T = TypeVar("T", MarketState, RawMarketState)
 @dataclass
 class ModelInput(Generic[T]):
     market_state: T
-    # TODO: it would be useful to have the three below in a dataclass
-    trades_state: TradesState
+    account_state: AccountState
     hidden_state: torch.Tensor
-    balance: torch.Tensor
 
 
 # TODO: make abstract?

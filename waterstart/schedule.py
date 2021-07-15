@@ -1,12 +1,10 @@
 import datetime
 from abc import ABC, abstractmethod
 from bisect import bisect_right
-from collections import Iterator, Sequence, Collection
+from collections import Sequence, Collection
 from typing import Final, Optional
-from zoneinfo import ZoneInfo
 
-from .symbols import SymbolInfo, TradedSymbolInfo
-from .utils import is_sorted
+from .symbols import SymbolInfo, TradedSymbolInfo, Holiday, Schedule
 from .datetime_utils import get_midnight, to_timedelta
 
 
@@ -54,24 +52,13 @@ class ScheduleCombinator(BaseSchedule):
 
 
 class HolidaySchedule(BaseSchedule):
-    def __init__(
-        self, start: datetime.datetime, end: datetime.datetime, is_recurring: bool
-    ) -> None:
+    def __init__(self, holiday: Holiday) -> None:
         super().__init__()
-
-        if start.tzinfo is None or start.tzinfo != end.tzinfo:
-            raise ValueError()
-
-        if start.date() != end.date():
-            raise ValueError()
-
-        if start > end:
-            raise ValueError()
-
+        start = holiday.start
         self._year = start.year
-        self._times = (start, end)
-        self.timezone = start.tzinfo
-        self.is_recurring = is_recurring
+        self._times = (start, holiday.end)
+        self._tz = start.tzinfo
+        self._is_recurring = holiday.is_recurring
 
     def last_invalid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=True)
@@ -82,11 +69,13 @@ class HolidaySchedule(BaseSchedule):
     def _get_valid_time(
         self, dt: datetime.datetime, reverse: bool
     ) -> datetime.datetime:
+        times = self._times
+        is_recurring = self._is_recurring
         orig_dt = dt
 
-        dt = dt.astimezone(self.timezone)
+        dt = dt.astimezone(self._tz)
 
-        if self.is_recurring:
+        if is_recurring:
             try:
                 dt = dt.replace(year=self._year)
             except ValueError:
@@ -94,7 +83,7 @@ class HolidaySchedule(BaseSchedule):
                 # on a non-leap year so it's safe to assume this it's not a holiday
                 return orig_dt
 
-        index = bisect_right(self._times, dt)
+        index = bisect_right(times, dt)
 
         if index % 2 == (1 if reverse else 0):
             return orig_dt
@@ -102,13 +91,13 @@ class HolidaySchedule(BaseSchedule):
         if reverse:
             index -= 1
 
-        sign, index = divmod(index, len(self._times))
+        sign, index = divmod(index, len(times))
         assert sign in (-1, 0)
 
-        if not self.is_recurring and sign == -1:
+        if not is_recurring and sign == -1:
             return datetime.datetime.min.replace(tzinfo=orig_dt.tzinfo)
 
-        first_valid_time = self._times[index].replace(year=orig_dt.year)
+        first_valid_time = times[index].replace(year=orig_dt.year)
         first_valid_time = first_valid_time.replace(year=first_valid_time.year + sign)
         first_valid_time = first_valid_time.astimezone(orig_dt.tzinfo)
         if orig_dt.tzinfo is None:
@@ -120,22 +109,11 @@ class HolidaySchedule(BaseSchedule):
 class WeeklySchedule(BaseSchedule):
     ONE_WEEK: Final[datetime.timedelta] = datetime.timedelta(weeks=1)
 
-    def __init__(
-        self, timetable: Sequence[datetime.timedelta], timezone: datetime.tzinfo
-    ) -> None:
+    def __init__(self, schedule: Schedule) -> None:
         super().__init__()
 
-        if not timetable:
-            raise ValueError()
-
-        if len(timetable) % 2 != 0:
-            raise ValueError()
-
-        if not is_sorted(timetable):
-            raise ValueError()
-
-        self.timetable = timetable
-        self.timezone = timezone
+        self._timetable = schedule.timetable
+        self._tz = schedule.tz
 
     def next_valid_time(self, dt: datetime.datetime) -> datetime.datetime:
         return self._get_valid_time(dt, reverse=False)
@@ -146,16 +124,19 @@ class WeeklySchedule(BaseSchedule):
     def _get_valid_time(
         self, dt: datetime.datetime, reverse: bool
     ) -> datetime.datetime:
+        timetable = self._timetable
+        tz = self._tz
+
         orig_dt = dt
-        dt = dt.astimezone(self.timezone)
+        dt = dt.astimezone(tz)
 
         days_since_last_sunday = (dt.weekday() + 1) % 7
         last_sunday = dt.date() - datetime.timedelta(days=days_since_last_sunday)
-        last_sunday_midnight = get_midnight(last_sunday).replace(tzinfo=self.timezone)
+        last_sunday_midnight = get_midnight(last_sunday).replace(tzinfo=tz)
 
         delta_to_lsm = dt - last_sunday_midnight
 
-        index = bisect_right(self.timetable, delta_to_lsm)
+        index = bisect_right(timetable, delta_to_lsm)
 
         if index % 2 == (0 if reverse else 1):
             return orig_dt
@@ -163,11 +144,11 @@ class WeeklySchedule(BaseSchedule):
         if reverse:
             index -= 1
 
-        sign, index = divmod(index, len(self.timetable))
+        sign, index = divmod(index, len(timetable))
         assert sign in (-1, 0, 1)
         offset = sign * self.ONE_WEEK
 
-        first_valid_time = last_sunday_midnight + offset + self.timetable[index]
+        first_valid_time = last_sunday_midnight + offset + timetable[index]
         first_valid_time = first_valid_time.astimezone(orig_dt.tzinfo)
         if orig_dt.tzinfo is None:
             first_valid_time = first_valid_time.replace(tzinfo=None)
@@ -179,35 +160,10 @@ class SymbolSchedule(ScheduleCombinator):
     def __init__(self, sym_info: SymbolInfo) -> None:
         super().__init__(
             [
-                self._get_weekly_schedule(sym_info),
-                *self._get_holiday_schedules(sym_info),
+                WeeklySchedule(sym_info.schedule),
+                *map(HolidaySchedule, sym_info.holidays),
             ]
         )
-
-    @staticmethod
-    def _get_holiday_schedules(sym_info: SymbolInfo) -> Iterator[HolidaySchedule]:
-        for holiday in sym_info.symbol.holiday:
-            tz = ZoneInfo(holiday.scheduleTimeZone)
-            epoch = datetime.datetime.fromtimestamp(0, tz)
-
-            start = epoch + datetime.timedelta(
-                days=holiday.holidayDate, seconds=holiday.startSecond
-            )
-            end = epoch + datetime.timedelta(
-                days=holiday.holidayDate, seconds=holiday.endSecond
-            )
-            yield HolidaySchedule(start, end, holiday.isRecurring)
-
-    @staticmethod
-    def _get_weekly_schedule(sym_info: SymbolInfo) -> WeeklySchedule:
-        timetable: list[datetime.timedelta] = []
-        for interval in sym_info.symbol.schedule:
-            start = datetime.timedelta(seconds=interval.startSecond)
-            end = datetime.timedelta(seconds=interval.endSecond)
-            timetable += (start, end)
-
-        timezone = ZoneInfo(sym_info.symbol.scheduleTimeZone)
-        return WeeklySchedule(timetable, timezone)
 
 
 class IntervalSchedule(BaseSchedule):

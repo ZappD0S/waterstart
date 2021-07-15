@@ -7,12 +7,11 @@ from collections import AsyncIterator, Awaitable, Collection, Iterable, Iterator
 from contextlib import asynccontextmanager
 from typing import Any, AsyncContextManager, Final
 
-from ..client.app import AppClient
+from ..client.trader import TraderClient
 from ..openapi import (
     ProtoOASpotEvent,
     ProtoOASubscribeSpotsReq,
     ProtoOASubscribeSpotsRes,
-    ProtoOATrader,
     ProtoOAUnsubscribeSpotsReq,
     ProtoOAUnsubscribeSpotsRes,
 )
@@ -63,37 +62,34 @@ class BaseTicksProducerFactory(ABC):
 
 class LiveTicksProducerFactory(BaseTicksProducerFactory):
     def __init__(
-        self,
-        traded_symbols: Collection[TradedSymbolInfo],
-        trader: ProtoOATrader,
-        client: AppClient,
+        self, traded_symbols: Collection[TradedSymbolInfo], client: TraderClient
     ):
         super().__init__(traded_symbols)
-        self._trader = trader
         self._client = client
         self._id_to_sym = {sym.id: sym for sym in self._symbols}
 
     @asynccontextmanager
-    async def get_ticks_generator_starting_from(
+    async def get_ticks_gen_starting_from(
         self, start: float
     ) -> AsyncIterator[BaseTicksProducer]:
-        spot_sub_req = ProtoOASubscribeSpotsReq(
-            ctidTraderAccountId=self._trader.ctidTraderAccountId,
-            symbolId=self._id_to_sym,
+        _ = await self._client.send_request_from_trader(
+            lambda trader_id: ProtoOASubscribeSpotsReq(
+                ctidTraderAccountId=trader_id,
+                symbolId=self._id_to_sym,
+            ),
+            ProtoOASubscribeSpotsRes,
         )
-
-        _ = await self._client.send_request(spot_sub_req, ProtoOASubscribeSpotsRes)
 
         try:
             async with self._client.register_type(ProtoOASpotEvent) as gen:
                 yield LiveTicksProducer(start, gen)
         finally:
-            spot_unsub_req = ProtoOAUnsubscribeSpotsReq(
-                ctidTraderAccountId=self._trader.ctidTraderAccountId,
-                symbolId=self._id_to_sym,
-            )
-            _ = await self._client.send_request(
-                spot_unsub_req, ProtoOAUnsubscribeSpotsRes
+            _ = await self._client.send_request_from_trader(
+                lambda trader_id: ProtoOAUnsubscribeSpotsReq(
+                    ctidTraderAccountId=trader_id,
+                    symbolId=self._id_to_sym,
+                ),
+                ProtoOAUnsubscribeSpotsRes,
             )
 
 

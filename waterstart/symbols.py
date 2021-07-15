@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from collections import AsyncIterator, Collection, Iterator, Mapping, Sequence, Set
-from dataclasses import dataclass
-from functools import cached_property
+import datetime
+from collections import AsyncIterator, Iterator, Mapping, Sequence, Set
+from dataclasses import InitVar, dataclass
 from typing import Counter, Optional, TypeVar
+from zoneinfo import ZoneInfo
 
 from .client.trader import TraderClient
 from .openapi import (
@@ -16,24 +17,145 @@ from .openapi import (
     ProtoOASymbolsListReq,
     ProtoOASymbolsListRes,
 )
+from .openapi.OpenApiModelMessages_pb2 import ProtoOAHoliday
+from .utils import is_sorted
 
 
-@dataclass(frozen=True)
+@dataclass
+class Holiday:
+    holiday: InitVar[ProtoOAHoliday]
+
+    def __post_init__(self, holiday: ProtoOAHoliday) -> None:
+        self._tz = ZoneInfo(holiday.scheduleTimeZone)
+        epoch = datetime.datetime.fromtimestamp(0, self._tz)
+
+        start = self._start = epoch + datetime.timedelta(
+            days=holiday.holidayDate, seconds=holiday.startSecond
+        )
+        end = self._end = epoch + datetime.timedelta(
+            days=holiday.holidayDate, seconds=holiday.endSecond
+        )
+
+        if start > end:
+            raise ValueError()
+
+        if start.date() != end.date():
+            raise ValueError()
+
+        self._is_recurring = holiday.isRecurring
+
+    @property
+    def tz(self) -> datetime.tzinfo:
+        return self._tz
+
+    @property
+    def start(self) -> datetime.datetime:
+        return self._start
+
+    @property
+    def end(self) -> datetime.datetime:
+        return self._end
+
+    @property
+    def is_recurring(self) -> bool:
+        return self._is_recurring
+
+
+@dataclass
+class Schedule:
+    symbol: InitVar[ProtoOASymbol]
+
+    def __post_init__(self, symbol: ProtoOASymbol) -> None:
+        if not symbol.schedule:
+            raise ValueError()
+
+        timetable: list[datetime.timedelta] = []
+        for interval in symbol.schedule:
+            start = datetime.timedelta(seconds=interval.startSecond)
+            end = datetime.timedelta(seconds=interval.endSecond)
+            timetable += (start, end)
+
+        if len(timetable) % 2 != 0:
+            raise ValueError()
+
+        if not is_sorted(timetable):
+            raise ValueError()
+
+        self._tz = ZoneInfo(symbol.scheduleTimeZone)
+        self._timetable = timetable
+
+    @property
+    def tz(self) -> datetime.tzinfo:
+        return self._tz
+
+    @property
+    def timetable(self) -> Sequence[datetime.timedelta]:
+        return self._timetable
+
+
+@dataclass
 class SymbolInfo:
-    light_symbol: ProtoOALightSymbol
-    symbol: ProtoOASymbol
+    light_symbol: InitVar[ProtoOALightSymbol]
+    symbol: InitVar[ProtoOASymbol]
+
+    def __post_init__(
+        self, light_symbol: ProtoOALightSymbol, symbol: ProtoOASymbol
+    ) -> None:
+        self._id = symbol.symbolId
+        self._name = light_symbol.symbolName.lower()
+        self._base_asset_id = light_symbol.baseAssetId
+        self._quote_asset_id = light_symbol.quoteAssetId
+        self._holidays = [Holiday(holiday) for holiday in symbol.holiday]
+        self._schedule = Schedule(symbol)
+
+        self._min_volume = symbol.minVolume
+        self._step_volume = symbol.stepVolume
+        self._max_volume = symbol.maxVolume
+        self._lot_size = symbol.lotSize
 
     # TODO: use NewType to define a SymbolId type instead of using bare int?
-    @cached_property
+    @property
     def id(self) -> int:
-        return self.symbol.symbolId
+        return self._id
 
-    @cached_property
+    @property
     def name(self) -> str:
-        return self.light_symbol.symbolName.lower()
+        return self._name
+
+    @property
+    def base_asset_id(self) -> int:
+        return self._base_asset_id
+
+    @property
+    def quote_asset_id(self) -> int:
+        return self._quote_asset_id
+
+    @property
+    def holidays(self) -> Sequence[Holiday]:
+        return self._holidays
+
+    @property
+    def schedule(self) -> Schedule:
+        return self._schedule
+
+    @property
+    def min_volume(self) -> int:
+        return self._min_volume
+
+    @property
+    def step_volume(self) -> int:
+        return self._step_volume
+
+    @property
+    def max_volume(self) -> int:
+        return self._max_volume
+
+    @property
+    def lot_size(self) -> int:
+        return self._lot_size
 
 
-@dataclass(frozen=True)
+@dataclass
 class ChainSymbolInfo(SymbolInfo):
     reciprocal: bool
 
@@ -59,7 +181,7 @@ class DepositConvChains:
     quote_asset: ConvChain
 
 
-@dataclass(frozen=True)
+@dataclass
 class TradedSymbolInfo(SymbolInfo):
     conv_chains: DepositConvChains
 
@@ -75,7 +197,7 @@ class SymbolsList:
     def __init__(self, client: TraderClient, dep_asset_id: int) -> None:
         self._client = client
         self._dep_asset_id = dep_asset_id
-        self._name_to_sym_info_map: dict[str, SymbolInfo] = {}
+        self._id_to_sym_info_map: dict[int, SymbolInfo] = {}
         self._id_to_full_symbol_map: dict[int, ProtoOASymbol] = {}
 
         self._sym_name_to_id: Optional[dict[str, int]] = None
@@ -84,55 +206,72 @@ class SymbolsList:
             Mapping[tuple[int, int], ProtoOALightSymbol]
         ] = None
 
-    async def get_sym_infos(
+    async def get_sym_infos_from_names(
         self, subset: Optional[Set[str]] = None
     ) -> AsyncIterator[SymbolInfo]:
-        found_sym_infos, missing_sym_ids = await self._get_saved_sym_infos(
-            self._name_to_sym_info_map, subset
+        ids_subset: Optional[Set[int]] = None
+
+        if subset is not None:
+            sym_name_to_id = await self._get_sym_name_to_id_map()
+            ids_subset = {sym_name_to_id[name] for name in subset}
+
+        async for sym_info in self.get_sym_infos_from_ids(ids_subset):
+            yield sym_info
+
+    async def get_sym_infos_from_ids(
+        self, subset: Optional[Set[int]] = None
+    ) -> AsyncIterator[SymbolInfo]:
+
+        if subset is None:
+            id_to_lightsym = await self._get_id_to_lightsym_map()
+            subset = id_to_lightsym.keys()
+
+        found_sym_infos, missing_sym_ids = self._get_saved_and_missing(
+            self._id_to_sym_info_map, subset
         )
 
-        for sym_info in found_sym_infos:
+        for sym_info in found_sym_infos.values():
             yield sym_info
 
         async for sym_info in self._build_sym_info(missing_sym_ids):
-            self._name_to_sym_info_map[sym_info.name] = sym_info
+            self._id_to_sym_info_map[sym_info.id] = sym_info
             yield sym_info
 
-    async def get_traded_sym_infos(
+    async def get_traded_sym_infos_from_names(
         self, subset: Optional[Set[str]] = None
+    ) -> AsyncIterator[SymbolInfo]:
+        ids_subset: Optional[Set[int]] = None
+
+        if subset is not None:
+            sym_name_to_id = await self._get_sym_name_to_id_map()
+            ids_subset = {sym_name_to_id[name] for name in subset}
+
+        async for sym_info in self.get_traded_sym_infos_from_ids(ids_subset):
+            yield sym_info
+
+    async def get_traded_sym_infos_from_ids(
+        self, subset: Optional[Set[int]] = None
     ) -> AsyncIterator[TradedSymbolInfo]:
-        found_sym_infos, missing_sym_ids = await self._get_saved_sym_infos(
+
+        if subset is None:
+            id_to_lightsym = await self._get_id_to_lightsym_map()
+            subset = id_to_lightsym.keys()
+
+        found_sym_infos, missing_sym_ids = self._get_saved_and_missing(
             {
                 name: sym_info
-                for name, sym_info in self._name_to_sym_info_map.items()
+                for name, sym_info in self._id_to_sym_info_map.items()
                 if isinstance(sym_info, TradedSymbolInfo)
             },
             subset,
         )
 
-        for sym_info in found_sym_infos:
+        for sym_info in found_sym_infos.values():
             yield sym_info
 
         async for sym_info in self._build_traded_sym_info(missing_sym_ids):
-            self._name_to_sym_info_map[sym_info.name] = sym_info
+            self._id_to_sym_info_map[sym_info.id] = sym_info
             yield sym_info
-
-    async def _get_saved_sym_infos(
-        self,
-        saved_sym_info_map: Mapping[str, T_SymInfo],
-        subset: Optional[Set[str]],
-    ) -> tuple[Collection[T_SymInfo], Set[int]]:
-        sym_name_to_id = await self._get_sym_name_to_id_map()
-
-        if subset is None:
-            subset = sym_name_to_id.keys()
-
-        found_sym_infos, missing_names = self._get_saved_and_missing(
-            saved_sym_info_map, subset
-        )
-
-        missing_sym_ids = {sym_name_to_id[name] for name in missing_names}
-        return found_sym_infos.values(), missing_sym_ids
 
     @staticmethod
     def _get_saved_and_missing(

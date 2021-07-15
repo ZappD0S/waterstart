@@ -9,9 +9,9 @@ U = TypeVar("U")
 
 
 class DictBasedArrayMapper(BaseArrayMapper[Mapping[T, float]]):
-    def __init__(self, fields_map: Mapping[T, FieldData]) -> None:
-        super().__init__(set(fields_map.values()))
-        self._inds_map = {key: field.index for key, field in fields_map.items()}
+    def __init__(self, blueprint_map: Mapping[T, FieldData]) -> None:
+        super().__init__(set(blueprint_map.values()))
+        self._inds_map = {key: field.index for key, field in blueprint_map.items()}
 
     @property
     def keys(self) -> Set[T]:

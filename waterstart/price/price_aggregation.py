@@ -91,9 +91,14 @@ class PriceAggregator:
         self._n_traded_symbols = n_traded_symbols
         self._sym_id_to_idx = sym_id_to_idx
 
-        # TODO: turn the lists of indices into arrays
-        self._conv_chains_idxs = conv_chains_idxs
-        self._conv_chain_sym_idxs = conv_chain_sym_idxs
+        self._conv_chains_idxs: tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]
+        self._conv_chains_idxs = (
+            np.array(conv_chains_idxs[0]),  # type:ignore
+            np.array(conv_chains_idxs[1]),  # type:ignore
+        )
+
+        self._conv_chain_sym_idxs: npt.NDArray[np.int64]
+        self._conv_chain_sym_idxs = np.array(conv_chain_sym_idxs)  # type:ignore
 
         assert longest_chain_len != 0
         self._longest_chain_len = longest_chain_len
@@ -103,8 +108,17 @@ class PriceAggregator:
         )
         self._reciprocal_mask[reciprocal_mask_idxs] = True
 
-        self._base_quote_to_dep_idxs = base_quote_to_dep_idxs
-        self._base_quote_to_dep_asset_idxs = base_quote_to_dep_asset_idxs
+        self._base_quote_to_dep_idxs: tuple[
+            npt.NDArray[np.int64], npt.NDArray[np.int64]
+        ]
+        self._base_quote_to_dep_idxs = (
+            np.array(base_quote_to_dep_idxs[0]),  # type:ignore
+            np.array(base_quote_to_dep_idxs[1]),  # type:ignore
+        )
+        self._base_quote_to_dep_asset_idxs: npt.NDArray[np.int64]
+        self._base_quote_to_dep_asset_idxs = np.array(  # type:ignore
+            base_quote_to_dep_asset_idxs
+        )
 
     @staticmethod
     def _rescale(
@@ -154,6 +168,7 @@ class PriceAggregator:
         )
         return new_tb
 
+    # TODO: split this into multiple methods
     def aggregate(self, aggreg_data: AggregationData) -> AggregationData:
         tick_data_map = aggreg_data.tick_data_map
         sym_tb_data_map = aggreg_data.tb_data_map

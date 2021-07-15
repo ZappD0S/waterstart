@@ -18,9 +18,9 @@ from . import (
     ModelInput,
     RawMarketState,
     RawModelOutput,
-    TradesState,
+    AccountState,
 )
-from .utils import map_to_tensors
+from ..array_mapping.utils import map_to_arrays
 
 
 class NetworkModules(nn.Module):
@@ -33,6 +33,7 @@ class NetworkModules(nn.Module):
         market_data_arr_mapper: MarketDataArrayMapper,
         traded_sym_arr_mapper: DictBasedArrayMapper[int],
         traded_symbols: Collection[TradedSymbolInfo],
+        leverage: float,
     ):
         super().__init__()
 
@@ -63,6 +64,7 @@ class NetworkModules(nn.Module):
         self._market_features = market_features
         self._max_trades = cnn.max_trades
         self._window_size = cnn.window_size
+        self._leverage = leverage
 
     @property
     def n_traded_sym(self) -> int:
@@ -75,6 +77,14 @@ class NetworkModules(nn.Module):
     @property
     def max_trades(self) -> int:
         return self._max_trades
+
+    @property
+    def leverage(self) -> float:
+        return self._leverage
+
+    @property
+    def window_size(self) -> int:
+        return self._window_size
 
     @property
     def cnn(self) -> CNN:
@@ -131,6 +141,8 @@ class LowLevelInferenceEngine:
         self._net_modules = net_modules
         self._min_step_max = self._compute_min_step_max_arr(net_modules)
         self._scaling_idx = net_modules.market_data_arr_mapper.scaling_idxs
+        self._leverage = net_modules.leverage
+        self._n_traded_sym = net_modules.n_traded_sym
 
     @property
     def net_modules(self) -> NetworkModules:
@@ -140,15 +152,16 @@ class LowLevelInferenceEngine:
     def _compute_min_step_max_arr(net_modules: NetworkModules) -> MinStepMax:
         min_step_max_map = {
             sym_id: (
-                (sym := syminfo.symbol).minVolume / 100 * sym.lotSize / 100,
-                sym.stepVolume / 100 * sym.lotSize / 100,
-                sym.maxVolume / 100 * sym.lotSize / 100,
+                syminfo.min_volume / 100 * (lot_size := syminfo.lot_size) / 100,
+                syminfo.step_volume / 100 * lot_size / 100,
+                syminfo.max_volume / 100 * lot_size / 100,
             )
             for sym_id, syminfo in net_modules.id_to_traded_sym.items()
         }
 
-        min, step, max = map_to_tensors(
-            net_modules.traded_sym_arr_mapper, min_step_max_map
+        min, step, max = map(
+            torch.from_numpy,  # type: ignore
+            map_to_arrays(net_modules.traded_sym_arr_mapper, min_step_max_map),
         )
 
         return MinStepMax(min=min, step=step, max=max)
@@ -164,13 +177,13 @@ class LowLevelInferenceEngine:
     ) -> torch.Tensor:
         new_pos_sizes = torch.empty_like(dep_cur_pos_sizes)  # type: ignore
 
-        for i in range(self._net_modules.n_traded_sym):
+        for i in range(self._n_traded_sym):
             available_margin = dep_cur_pos_sizes[i].abs() + unused_margin
             dep_cur_new_pos_size = torch.where(
                 exec_mask[i], fractions[i] * available_margin, dep_cur_pos_sizes[i]
             )
 
-            new_pos_size = dep_cur_new_pos_size * margin_rate[i]
+            new_pos_size = dep_cur_new_pos_size * margin_rate[i] * self._leverage
 
             abs_new_pos_size = new_pos_size.abs()
             new_pos_sign = new_pos_size.sign()
@@ -195,7 +208,7 @@ class LowLevelInferenceEngine:
     ) -> ModelInferenceWithRawOutput:
         market_state = model_input.market_state
 
-        # TODO: input checks
+        # TODO: check input?
 
         scaled_market_data = market_state.market_data.clone()
         for src_ind, dst_inds in self._scaling_idx:
@@ -203,20 +216,21 @@ class LowLevelInferenceEngine:
                 :, src_ind, None, -1, None
             ]
 
-        trades_state = model_input.trades_state
-        rel_prices = trades_state.trades_prices / market_state.midpoint_prices
+        account_state = model_input.account_state
+        rel_prices = account_state.trades_prices / market_state.midpoint_prices
 
         # TODO: make dep_cur_trade_sizes this a cached property?
-        dep_cur_trade_sizes = trades_state.trades_sizes / market_state.margin_rate
+        dep_cur_trade_sizes = account_state.trades_sizes / (
+            market_state.margin_rate * self._leverage
+        )
         dep_cur_pos_sizes = dep_cur_trade_sizes.sum(dim=0)
 
-        balance = model_input.balance
+        balance = account_state.balance
         unused = balance - dep_cur_pos_sizes.abs().sum(dim=0)
         assert torch.all(unused >= 0)
 
-        # NOTE: the leverage cancels out so we obtain the margin
         rel_margins = torch.cat((dep_cur_trade_sizes.flatten(0, 1), unused)) / balance
-        trades_data = torch.cat((rel_margins, rel_prices.flatten(0, 1)))
+        trades_data = torch.cat((rel_margins, rel_prices.flatten(0, 1))).movedim(0, -1)
 
         model_output = self._evaluate(
             trades_data, scaled_market_data, model_input.hidden_state
@@ -239,11 +253,13 @@ class LowLevelInferenceEngine:
         scaled_market_data: torch.Tensor,
         hidden_state: torch.Tensor,
     ) -> RawModelOutput:
-        net_modules = self._net_modules
+        net_modules = self.net_modules
 
         cnn_output: torch.Tensor = net_modules.cnn(
-            scaled_market_data, trades_data.movedim(0, -1)
+            scaled_market_data.flatten(0, -3), trades_data.flatten(0, -2)
         )
+        batch_shape = trades_data[..., 0].shape
+        cnn_output = cnn_output.unflatten(0, batch_shape)  # type: ignore
 
         z_loc: torch.Tensor
         z_scale: torch.Tensor
@@ -277,43 +293,45 @@ class LowLevelInferenceEngine:
 
     @staticmethod
     def open_trades(
-        trades_state: TradesState,
+        account_state: AccountState,
         new_pos_size: torch.Tensor,
-        open_prices: torch.Tensor,
-    ) -> TradesState:
-        pos_size = trades_state.pos_size
-        trades_sizes = trades_state.trades_sizes
+        open_price: torch.Tensor,
+    ) -> AccountState:
+        pos_size = account_state.pos_size
+        trades_sizes = account_state.trades_sizes
 
-        reached_max_trades_mask = trades_sizes[0] != 0
+        # NOTE: if the last trade is 0 it means that there
+        # is at least one trade can be opened
+        available_trade_mask = trades_sizes[0] == 0
 
         # NOTE: this mask matches the case pos_size != 0 and new_pos_size == 0
         # but is eliminated by the following condition
         same_sign_mask = pos_size * new_pos_size >= 0
         greater_new_pos_mask = pos_size.abs() < new_pos_size.abs()
-        open_pos_mask = ~reached_max_trades_mask & same_sign_mask & greater_new_pos_mask
+        open_pos_mask = available_trade_mask & same_sign_mask & greater_new_pos_mask
 
         new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[:-1] = trades_sizes[1:]
         new_trades_sizes[-1] = new_pos_size
         new_trades_sizes = new_trades_sizes.where(open_pos_mask, trades_sizes)
 
-        trades_prices = trades_state.trades_prices
+        trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()
         new_trades_prices[:-1] = trades_prices[1:]
-        new_trades_prices[-1] = open_prices
+        new_trades_prices[-1] = open_price
         new_trades_prices = new_trades_prices.where(open_pos_mask, trades_prices)
 
-        return TradesState(new_trades_sizes, new_trades_prices)
+        return AccountState(new_trades_sizes, new_trades_prices, account_state.balance)
 
     @staticmethod
     def close_or_reduce_trades(
-        trades_state: TradesState,
+        account_state: AccountState,
         new_pos_size: torch.Tensor,
-    ) -> TradesState:
-        trades_sizes = trades_state.trades_sizes
+    ) -> AccountState:
+        trades_sizes = account_state.trades_sizes
 
         cum_trades_sizes = trades_sizes.cumsum(dim=0)
-        close_trade_size = new_pos_size - trades_state.pos_size
+        close_trade_size = new_pos_size - account_state.pos_size
         left_diffs = close_trade_size + cum_trades_sizes
 
         right_diffs = torch.empty_like(left_diffs)
@@ -328,39 +346,8 @@ class LowLevelInferenceEngine:
         new_trades_sizes[close_trade_mask] = 0.0
         new_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
 
-        trades_prices = trades_state.trades_prices
+        trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()
         new_trades_prices[close_trade_mask] = 0.0
 
-        return TradesState(new_trades_sizes, new_trades_prices)
-
-    # def update_trades(
-    #     self,
-    #     trades_state: TradesState,
-    #     new_pos_size: torch.Tensor,
-    #     open_prices: torch.Tensor,
-    # ) -> TradesState:
-    #     pos_size = trades_state.pos_size
-    #     new_trade_size = close_trade_size = new_pos_size - pos_size
-
-    #     add_case_trade_state = self._add_case_update_trades(
-    #         trades_state, new_trade_size, open_prices
-    #     )
-    #     remove_case_trade_state = self._remove_case_update_trades(
-    #         trades_state, new_pos_size, close_trade_size, open_prices
-    #     )
-
-    #     no_open_trade_mask = trades_state.trades_sizes[-1] == 0
-    #     add_mask = no_open_trade_mask | (pos_size.abs() < new_pos_size.abs())
-    #     new_trades_sizes = torch.where(
-    #         add_mask,
-    #         add_case_trade_state.trades_sizes,
-    #         remove_case_trade_state.trades_sizes,
-    #     )
-    #     new_trades_prices = torch.where(
-    #         add_mask,
-    #         add_case_trade_state.trades_prices,
-    #         remove_case_trade_state.trades_prices,
-    #     )
-
-    #     return TradesState(new_trades_sizes, new_trades_prices)
+        return AccountState(new_trades_sizes, new_trades_prices, account_state.balance)

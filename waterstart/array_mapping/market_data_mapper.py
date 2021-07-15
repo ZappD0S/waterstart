@@ -8,7 +8,7 @@ from .base_mapper import BaseArrayMapper, FieldData
 
 @dataclass
 class PriceFieldData(FieldData):
-    sym_id: int
+    price_group_id: int
     is_close_price: bool
 
 
@@ -95,9 +95,11 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
                 continue
 
             index = field_data.index
-            sym_id = field_data.sym_id
+            price_group_id = field_data.price_group_id
 
-            close_price_idx, price_field_idxs = builder.get(sym_id, (None, set()))
+            close_price_idx, price_field_idxs = builder.get(
+                price_group_id, (None, set())
+            )
 
             if index in price_field_idxs:
                 raise ValueError()
@@ -109,11 +111,11 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
                 close_price_idx = index
 
             price_field_idxs.add(index)
-            builder[sym_id] = (close_price_idx, price_field_idxs)
+            builder[price_group_id] = (close_price_idx, price_field_idxs)
 
-        for close_price_idx, group_prices_idxs in builder.values():
+        for close_price_idx, price_group_idxs in builder.values():
             if close_price_idx is None:
                 raise ValueError()
 
-            assert close_price_idx in group_prices_idxs
-            yield close_price_idx, list(group_prices_idxs)
+            assert close_price_idx in price_group_idxs
+            yield close_price_idx, list(price_group_idxs)
