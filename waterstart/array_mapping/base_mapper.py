@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections import Iterator, Mapping, Set
+from collections import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -14,14 +14,16 @@ class FieldData:
 
 
 class BaseArrayMapper(ABC, Generic[T]):
-    def __init__(self, fields_set: Set[FieldData]) -> None:
+    def __init__(self, fields: Sequence[FieldData]) -> None:
         super().__init__()
 
-        self._n_fields = len(fields_set)
-        self._fields_set: Set[FieldData] = fields_set
-        indices = [field.index for field in fields_set]
+        if not fields:
+            raise ValueError()
 
-        if not indices:
+        n_fields = len(fields)
+        indices = sorted({field.index for field in fields})
+
+        if len(indices) < n_fields:
             raise ValueError()
 
         if indices[0] != 0:
@@ -29,6 +31,9 @@ class BaseArrayMapper(ABC, Generic[T]):
 
         if not is_contiguous(indices):
             raise ValueError()
+
+        self._n_fields = n_fields
+        self._fields = fields
 
     @property
     def n_fields(self) -> int:

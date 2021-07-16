@@ -100,9 +100,17 @@ class LossEvaluator(nn.Module):
         )
 
         account_state = self._engine.open_trades(
-            account_state, new_pos_sizes, open_prices
+            AccountState(
+                account_state.trades_sizes.detach(),
+                account_state.trades_prices,
+                account_state.balance,
+            ),
+            new_pos_sizes.detach(),
+            open_prices,
         )
 
         return LossOutput(
-            surrogate_loss + baseline_loss, account_state, raw_model_output.z_sample
+            surrogate_loss + baseline_loss,
+            account_state,
+            raw_model_output.z_sample.detach(),
         )

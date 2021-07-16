@@ -1,6 +1,6 @@
 import argparse
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,8 +12,6 @@ from pyro.distributions.transforms.affine_autoregressive import (  # type: ignor
 )
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm  # type: ignore
-from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
-from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 
 from ..inference.low_level_engine import LowLevelInferenceEngine, NetworkModules
 from ..inference.model import CNN, Emitter, GatedTransition
@@ -43,28 +41,31 @@ class TraingingArgs(argparse.Namespace):
     nn_baseline_hidden_size: int = 200
     emitter_hidden_size: int = 200
     n_iafs: int = 2
-    iafs_hidden_sizes: list[int] = [200]
+    iafs_hidden_sizes: list[int] = field(default_factory=lambda: [200])
     leverage: float = 20.0
     initial_balance: float = 1000.0
     tensorboard_log_dir: Optional[str] = None
     checkpoint_interval: int = 100
-    checkpoint_dir: str = "./checkpoints"
+    checkpoints_dir: str = "./checkpoints"
     load_checkpoint: bool = False
 
 
 def load_training_data(path: str) -> TrainingData:
-    data = np.load(path)  # type: ignore
+    data = np.load(path, allow_pickle=True)  # type: ignore
 
     # TODO: make names uniform
+    # BUG: convert to tensor
     return TrainingData(
-        market_data=data["market_data_arr"],  # type: ignore
-        midpoint_prices=data["sym_prices"],  # type: ignore
-        spreads=data["spreads"],  # type: ignore
-        base_to_dep_rates=data["margin_rates"],  # type: ignore
-        quote_to_dep_rates=data["quote_to_dep_rates"],  # type: ignore
-        market_data_blueprint=data["market_data_blueprint"],  # type: ignore
-        traded_sym_blueprint_map=data["traded_sym_blueprint_map"],  # type: ignore
-        traded_symbols=data["traded_symbols"],  # type: ignore
+        market_data=torch.from_numpy(data["market_data_arr"]),  # type: ignore
+        midpoint_prices=torch.from_numpy(data["sym_prices"]),  # type: ignore
+        spreads=torch.from_numpy(data["spreads"]),  # type: ignore
+        base_to_dep_rates=torch.from_numpy(data["margin_rates"]),  # type: ignore
+        quote_to_dep_rates=torch.from_numpy(data["quote_to_dep_rates"]),  # type: ignore
+        market_data_blueprint=data["market_data_blueprint"].item(),  # type: ignore
+        traded_sym_blueprint_map=data[  # type: ignore
+            "traded_sym_blueprint_map"
+        ].item(),
+        traded_symbols=data["traded_symbols"].tolist(),  # type: ignore
     )
 
 
@@ -126,7 +127,7 @@ def build_modules(
     cnn = CNN(
         args.batch_size,
         args.window_size,
-        training_data.market_features,
+        training_data.n_market_features,
         args.cnn_out_features,
         training_data.n_traded_sym,
         args.max_trades,
@@ -148,8 +149,8 @@ def build_modules(
         gated_trans,
         iafs,
         emitter,
-        MarketDataArrayMapper(training_data.market_data_blueprint),
-        DictBasedArrayMapper(training_data.traded_sym_blueprint_map),
+        training_data.market_data_arr_mapper,
+        training_data.traded_sym_arr_mapper,
         training_data.traded_symbols,
         args.leverage,
     ), NeuralBaseline(
@@ -198,7 +199,7 @@ def get_modules(
 
 def save_modules(net_modules: NetworkModules, nn_baseline: NeuralBaseline) -> None:
     now = datetime.datetime.now()
-    save_dir = args.checkpoint_dir / Path(now.strftime(SAVE_FOLDER_NAME_FORMAT))
+    save_dir = args.checkpoints_dir / Path(now.strftime(SAVE_FOLDER_NAME_FORMAT))
     save_dir.mkdir(parents=True)
     torch.save(net_modules, save_dir / "net_modules.pt")  # type: ignore
     torch.save(nn_baseline, save_dir / "nn_baseline.pt")  # type: ignore
@@ -230,7 +231,7 @@ def main(args: TraingingArgs):
         args.batch_size,
         args.n_samples,
         args.window_size,
-        args.window_size,
+        args.max_trades,
         args.hidden_state_size,
         args.initial_balance,
         device,
@@ -255,13 +256,13 @@ def main(args: TraingingArgs):
 
         train_data_manager.save(loss_out.account_state, loss_out.hidden_state)
 
-        if n_iter % args.checkpoint_interval == 0:
+        if (n_iter + 1) % args.checkpoint_interval == 0:
             save_modules(net_modules, nn_baseline)
 
 
 # TODO: use a config file...
 parser = argparse.ArgumentParser()
-parser.add_argument("train-data-file", type=str)
+parser.add_argument("train_data_file", type=str)
 parser.add_argument("iterations", type=int)
 parser.add_argument("-lr", "--learning-rate", type=float)
 parser.add_argument("--baseline-learning-rate", type=float)
@@ -286,7 +287,7 @@ parser.add_argument("--initial-balance", type=float)
 
 parser.add_argument("--tensorboard-log-dir", type=str)
 parser.add_argument("--checkpoint-interval", type=int)
-parser.add_argument("--checkpoint-dir", type=str)
+parser.add_argument("--checkpoints-dir", type=str)
 parser.add_argument("--load-checkpoint", action="store_true")
 
 nsp = TraingingArgs()

@@ -1,6 +1,6 @@
 from collections import Iterable, Iterator, Mapping, Sequence
-from dataclasses import astuple, dataclass
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, TypeVar
 
 from ..price import MarketData, SymbolData, TrendBar
 from .base_mapper import BaseArrayMapper, FieldData
@@ -17,17 +17,30 @@ class PriceFieldData(FieldData):
 # the information we need for each field (symbol info, is price, is close price..)
 # this method would replace _flatten_fields
 
+T = TypeVar("T")
+
 
 class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
     def __init__(self, blueprint: MarketData[FieldData]) -> None:
-        super().__init__(set(self._flatten_fields(blueprint)))
+        super().__init__(list(self._flatten_fields(blueprint)))
         self._blueprint = blueprint
-        self._scaling_idxs = list(self._build_scaling_inds(self._fields_set))
+        self._scaling_idxs = list(self._build_scaling_inds(self._fields))
 
     # TODO: find better name
     @property
     def scaling_idxs(self) -> Sequence[tuple[int, list[int]]]:
         return self._scaling_idxs
+
+    @staticmethod
+    def _to_tuple(
+        sym_data: SymbolData[T],
+    ) -> tuple[TrendBar[T], TrendBar[T], TrendBar[T], TrendBar[T]]:
+        return (
+            sym_data.price_trendbar,
+            sym_data.spread_trendbar,
+            sym_data.base_to_dep_trendbar,
+            sym_data.quote_to_dep_trendbar,
+        )
 
     def iterate_index_to_value(
         self, value: MarketData[float]
@@ -35,9 +48,7 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
         for sym_id, blueprint_sym_data in self._blueprint.symbols_data_map.items():
             sym_data = value.symbols_data_map[sym_id]
 
-            it: Iterator[tuple[TrendBar[FieldData], TrendBar[float]]] = zip(
-                astuple(blueprint_sym_data), astuple(sym_data)
-            )
+            it = zip(self._to_tuple(blueprint_sym_data), self._to_tuple(sym_data))
 
             for blueprint_tb, tb in it:
                 yield blueprint_tb.high.index, tb.high
@@ -53,7 +64,7 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
         sym_data_map: dict[int, SymbolData[float]] = {}
 
         for sym_id, blueprint_sym_data in self._blueprint.symbols_data_map.items():
-            blueprint_tbs: tuple[TrendBar[FieldData], ...] = astuple(blueprint_sym_data)
+            blueprint_tbs = self._to_tuple(blueprint_sym_data)
 
             tbs = [
                 TrendBar(
@@ -71,10 +82,10 @@ class MarketDataArrayMapper(BaseArrayMapper[MarketData[float]]):
             delta_to_last=mapping[self._blueprint.delta_to_last.index],
         )
 
-    @staticmethod
-    def _flatten_fields(blueprint: MarketData[FieldData]) -> Iterator[FieldData]:
+    @classmethod
+    def _flatten_fields(cls, blueprint: MarketData[FieldData]) -> Iterator[FieldData]:
         for blueprint_sym_data in blueprint.symbols_data_map.values():
-            blueprint_tbs: tuple[TrendBar[FieldData], ...] = astuple(blueprint_sym_data)
+            blueprint_tbs = cls._to_tuple(blueprint_sym_data)
 
             for blueprint_tb in blueprint_tbs:
                 yield blueprint_tb.high

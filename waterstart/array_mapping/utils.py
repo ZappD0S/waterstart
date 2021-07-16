@@ -31,16 +31,20 @@ class MaskedArrays(Generic[T_float]):
             raise ValueError()
 
     def __iter__(self) -> Iterator[npt.NDArray[T_float]]:
-        return iter(self.data)
+        return iter(self.data.T)
 
 
-def obj_to_array(mapper: BaseArrayMapper[T], obj: T) -> npt.NDArray[np.float64]:
+def obj_to_array(
+    mapper: BaseArrayMapper[T],
+    obj: T,
+    dtype: type[T_float] = np.float64,  # type: ignore
+) -> npt.NDArray[T_float]:
     rec_arr: npt.NDArray[Any] = np.fromiter(  # type: ignore
-        mapper.iterate_index_to_value(obj), dtype=[("inds", int), ("vals", float)]
+        mapper.iterate_index_to_value(obj), dtype=[("inds", int), ("vals", dtype)]
     )
 
-    arr: npt.NDArray[np.float64] = np.full_like(  # type: ignore
-        rec_arr, np.nan, dtype=float
+    arr: npt.NDArray[T_float] = np.full_like(  # type: ignore
+        rec_arr, np.nan, dtype=dtype
     )
     inds = rec_arr["inds"]  # type: ignore
     vals = rec_arr["vals"]  # type: ignore
@@ -58,9 +62,11 @@ def array_to_obj(mapper: BaseArrayMapper[T], arr: npt.NDArray[T_float]) -> T:
 
 
 def map_to_arrays(
-    mapper: DictBasedArrayMapper[int], mapping: Mapping[int, tuple[float, ...]]
+    mapper: DictBasedArrayMapper[int],
+    mapping: Mapping[int, tuple[float, ...]],
+    dtype: type[T_float] = np.float64,  # type: ignore
 ) -> Iterator[npt.NDArray[np.float64]]:
-    masked_arr = partial_map_to_masked_arrays(mapper, mapping)
+    masked_arr = partial_map_to_masked_arrays(mapper, mapping, dtype)
 
     if not masked_arr.mask.all():
         raise ValueError()
@@ -69,25 +75,27 @@ def map_to_arrays(
 
 
 def partial_map_to_masked_arrays(
-    mapper: DictBasedArrayMapper[int], mapping: Mapping[int, tuple[float, ...]]
-) -> MaskedArrays[np.float64]:
+    mapper: DictBasedArrayMapper[int],
+    mapping: Mapping[int, tuple[float, ...]],
+    dtype: type[T_float] = np.float64,  # type: ignore
+) -> MaskedArrays[T_float]:
     tuple_len = len(next(iter(mapping.values())))
     keys_len = len(mapper.keys)
 
     rec_arr: npt.NDArray[Any] = np.fromiter(  # type: ignore
         mapper.iterate_index_to_value_partial(mapping),
-        dtype=[("inds", int), ("vals", [("", float) for _ in range(tuple_len)])],
+        dtype=[("inds", int), ("vals", [("", dtype) for _ in range(tuple_len)])],
     )
 
     inds: npt.NDArray[np.int64] = rec_arr["inds"]
-    vals: npt.NDArray[np.float64]
+    vals: npt.NDArray[T_float]
     vals = rfn.structured_to_unstructured(rec_arr["vals"])  # type: ignore
 
     mask: npt.NDArray[np.bool_] = np.zeros(keys_len, dtype=bool)  # type: ignore
     mask[inds] = True
 
-    data: npt.NDArray[np.float64]
-    data = np.empty((keys_len, tuple_len), dtype=bool)  # type: ignore
+    data: npt.NDArray[T_float]
+    data = np.empty((keys_len, tuple_len), dtype=dtype)  # type: ignore
 
     data[inds] = vals
     return MaskedArrays(data, mask)

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import Collection, Iterator, Mapping, Optional
+from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
+from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 
 import torch
 
@@ -30,21 +32,31 @@ class TrainingData:
         ):
             raise ValueError()
 
+        market_data_arr_mapper = MarketDataArrayMapper(self.market_data_blueprint)
+        traded_sym_arr_mapper = DictBasedArrayMapper(self.traded_sym_blueprint_map)
+
         if (
-            not (n_traded_sym := self.market_data.shape[1])
+            not (n_market_features := market_data_arr_mapper.n_fields)
+            == self.market_data.shape[1]
+        ):
+            raise ValueError()
+
+        if (
+            not (n_traded_sym := traded_sym_arr_mapper.n_fields)
             == self.midpoint_prices.shape[1]
             == self.spreads.shape[1]
             == self.base_to_dep_rates.shape[1]
             == self.quote_to_dep_rates.shape[1]
             == len(self.market_data_blueprint.symbols_data_map)
-            == len(self.traded_sym_blueprint_map)
             == len(self.traded_symbols)
         ):
             raise ValueError()
 
+        self._market_data_arr_mapper = market_data_arr_mapper
+        self._traded_sym_arr_mapper = traded_sym_arr_mapper
         self._n_timestemps = n_timestemps
         self._n_traded_sym = n_traded_sym
-        self._market_features = self.market_data.shape[2]
+        self._n_market_features = n_market_features
 
     @property
     def n_timestemps(self) -> int:
@@ -55,8 +67,17 @@ class TrainingData:
         return self._n_traded_sym
 
     @property
-    def market_features(self) -> int:
-        return self._market_features
+    def n_market_features(self) -> int:
+        return self._n_market_features
+
+    @property
+    def market_data_arr_mapper(self) -> MarketDataArrayMapper:
+        return self._market_data_arr_mapper
+
+    @property
+    def traded_sym_arr_mapper(self) -> DictBasedArrayMapper[int]:
+        return self._traded_sym_arr_mapper
+
 
 
 class TrainDataManager:
@@ -85,17 +106,17 @@ class TrainDataManager:
 
         self._balances = torch.full((self._n_batches, n_samples), initial_balance)
         self._trade_sizes = torch.zeros(
-            (self._n_batches, max_trades, n_traded_sym, n_samples)
+            (self._n_batches, n_samples, max_trades, n_traded_sym)
         )
         self._trade_prices = torch.zeros(
-            (self._n_batches, max_trades, n_traded_sym, n_samples)
+            (self._n_batches, n_samples, max_trades, n_traded_sym)
         )
         self._hidden_states = torch.zeros(
-            (self._n_batches, hidden_state_size, n_samples)
+            (self._n_batches, n_samples, hidden_state_size)
         )
         self._windowed_market_data = training_data.market_data.unfold(
             0, window_size, step=1
-        ).moveaxis(1, -1)
+        )
 
         self._batch_inds_it: Iterator[torch.Tensor] = self._build_batch_inds_it()
         self._next_batch_inds: Optional[torch.Tensor] = next(self._batch_inds_it)
@@ -114,24 +135,15 @@ class TrainDataManager:
             add_samples_dim: bool,
             move_batch_dims_to_last: bool = True,
         ) -> torch.Tensor:
+            # TODO: for the market data we need to subtract a window length (- 1?)
             batch: torch.Tensor = storage[batch_inds]
 
-            if not add_samples_dim:
-                if move_batch_dims_to_last:
-                    batch = batch.moveaxis(0, -1)
-
-                return batch.to(self._device)
-
-            batch = batch.expand(self._n_samples, *batch.shape)
+            if add_samples_dim:
+                first, *rest = batch.shape
+                batch = batch.unsqueeze(1).expand(first, self._n_samples, *rest)
 
             if move_batch_dims_to_last:
-                batch = (
-                    batch.flatten(0, 1)
-                    .moveaxis(0, -1)
-                    .unflatten(  # type:ignore
-                        -1, (self._n_samples, self._batch_size)
-                    )
-                )
+                batch = batch.permute(*range(2, batch.ndim), 0, 1)
 
             return batch.to(self._device)
 
@@ -161,7 +173,7 @@ class TrainDataManager:
         return ModelInput(
             market_state,
             account_state,
-            hidden_state=build_batch(self._hidden_states, False),
+            hidden_state=build_batch(self._hidden_states, False, False),
         )
 
     def save(self, account_state: AccountState, hidden_state: torch.Tensor) -> None:
@@ -172,7 +184,8 @@ class TrainDataManager:
             raise RuntimeError()
 
         def transform_batch(batch: torch.Tensor) -> torch.Tensor:
-            return batch.cpu().moveaxis(-1, 0)
+            return batch.cpu().permute(-2, -1, *range(batch.ndim - 2))
+            # return batch.cpu().moveaxis(-1, 0)
 
         shifted_batch_inds = batch_inds + 1
         self._trade_sizes[shifted_batch_inds] = transform_batch(
@@ -181,7 +194,7 @@ class TrainDataManager:
         self._trade_prices[shifted_batch_inds] = transform_batch(
             account_state.trades_prices
         )
-        self._hidden_states[shifted_batch_inds] = transform_batch(hidden_state)
+        self._hidden_states[shifted_batch_inds] = hidden_state
         self._balances[shifted_batch_inds] = transform_batch(account_state.balance)
 
         self._next_batch_inds = next(self._batch_inds_it, None)

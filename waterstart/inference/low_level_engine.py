@@ -3,24 +3,26 @@ from __future__ import annotations
 from collections import Sequence
 from dataclasses import dataclass
 from typing import Collection, Mapping
-from ..symbols import TradedSymbolInfo
-from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
-from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 
+import numpy as np
 import torch
 import torch.distributions as dist
 import torch.jit as jit
 import torch.nn as nn
 
+from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
+from ..array_mapping.market_data_mapper import MarketDataArrayMapper
+from ..array_mapping.utils import map_to_arrays
 from ..inference.model import CNN, Emitter, GatedTransition
+from ..symbols import TradedSymbolInfo
 from . import (
+    AccountState,
     ModelInferenceWithRawOutput,
     ModelInput,
     RawMarketState,
     RawModelOutput,
-    AccountState,
 )
-from ..array_mapping.utils import map_to_arrays
+
 
 
 class NetworkModules(nn.Module):
@@ -152,16 +154,18 @@ class LowLevelInferenceEngine:
     def _compute_min_step_max_arr(net_modules: NetworkModules) -> MinStepMax:
         min_step_max_map = {
             sym_id: (
-                syminfo.min_volume / 100 * (lot_size := syminfo.lot_size) / 100,
-                syminfo.step_volume / 100 * lot_size / 100,
-                syminfo.max_volume / 100 * lot_size / 100,
+                syminfo.min_volume / 100,
+                syminfo.step_volume / 100,
+                syminfo.max_volume / 100,
             )
             for sym_id, syminfo in net_modules.id_to_traded_sym.items()
         }
 
         min, step, max = map(
             torch.from_numpy,  # type: ignore
-            map_to_arrays(net_modules.traded_sym_arr_mapper, min_step_max_map),
+            map_to_arrays(
+                net_modules.traded_sym_arr_mapper, min_step_max_map, dtype=np.float32
+            ),
         )
 
         return MinStepMax(min=min, step=step, max=max)
@@ -212,8 +216,8 @@ class LowLevelInferenceEngine:
 
         scaled_market_data = market_state.market_data.clone()
         for src_ind, dst_inds in self._scaling_idx:
-            scaled_market_data[:, dst_inds] /= scaled_market_data[  # type: ignore
-                :, src_ind, None, -1, None
+            scaled_market_data[..., dst_inds, :] /= scaled_market_data[  # type: ignore
+                ..., src_ind, None, -1, None
             ]
 
         account_state = model_input.account_state
@@ -227,9 +231,12 @@ class LowLevelInferenceEngine:
 
         balance = account_state.balance
         unused = balance - dep_cur_pos_sizes.abs().sum(dim=0)
-        assert torch.all(unused >= 0)
+        unused = torch.maximum(unused, unused.new_zeros([]))
 
-        rel_margins = torch.cat((dep_cur_trade_sizes.flatten(0, 1), unused)) / balance
+        rel_margins = (
+            torch.cat((dep_cur_trade_sizes.flatten(0, 1), unused.unsqueeze(0)))
+            / balance
+        )
         trades_data = torch.cat((rel_margins, rel_prices.flatten(0, 1))).movedim(0, -1)
 
         model_output = self._evaluate(

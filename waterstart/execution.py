@@ -6,6 +6,7 @@ from .price.market_data_producer import (
 )
 from .client.trader import TraderClient
 from .inference.engine import InferenceEngine
+from .array_mapping.utils import obj_to_array
 
 
 class Executor:
@@ -16,12 +17,15 @@ class Executor:
         # for the Account state we need to make a request for the balance
         start = datetime.datetime.now()
 
-        historical_market_data_producer = HistoricalMarketDataProducer(
+        self._historical_market_data_producer = HistoricalMarketDataProducer(
             client,
             schedule,
             start,
             engine.net_modules.window_size - 1,
         )
+        self._market_data_arr_mapper = engine.net_modules.market_data_arr_mapper
+
+        # historical_market_data_producer.generate_market_data()
 
         # TODO: for now we send ProtoOAReconcileReq and if there are any one positions at
         # start we throw an exception
@@ -31,3 +35,6 @@ class Executor:
         self._live_market_data_producer = LiveMarketDataProducer(
             client, schedule, start
         )
+
+    async def _init_market_data_arr(self) -> None:
+        ...
