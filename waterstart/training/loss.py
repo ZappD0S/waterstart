@@ -73,7 +73,9 @@ class LossEvaluator(nn.Module):
         )
 
         cum_balances = old_account_state.balance + profits_losses.cumsum(0)
-        costs = torch.log1p_(profits_losses / cum_balances)
+        ratio = profits_losses / cum_balances
+        assert torch.all(ratio > -1)
+        costs = torch.log1p_(ratio)
 
         exec_logprobs = raw_model_output.exec_logprobs
         exec_logprobs = exec_logprobs.where(
@@ -86,12 +88,11 @@ class LossEvaluator(nn.Module):
             [raw_model_output.cnn_output.detach(), model_input.hidden_state], dim=-1
         )
         assert not nn_baseline_input.requires_grad
-        baselines = self._nn_baseline(nn_baseline_input).movedim(-1, 0)
+        baselines: torch.Tensor = self._nn_baseline(nn_baseline_input).movedim(-1, 0)
 
         # TODO: compute both regular loss a surrogate loss
         surrogate_loss = tot_logprobs * torch.detach_(costs - baselines) + costs
         baseline_loss = (costs.detach() - baselines) ** 2
-        # TODO: sum loss
 
         open_prices = torch.where(
             new_pos_sizes > 0,
@@ -99,18 +100,21 @@ class LossEvaluator(nn.Module):
             torch.where(new_pos_sizes < 0, bid_prices, bid_prices.new_zeros([])),
         )
 
+        new_balance = account_state.balance + profits_losses.detach().sum()
+        assert torch.all(new_balance > 0)
+
         account_state = self._engine.open_trades(
             AccountState(
                 account_state.trades_sizes.detach(),
                 account_state.trades_prices,
-                account_state.balance,
+                new_balance,
             ),
             new_pos_sizes.detach(),
             open_prices,
         )
 
         return LossOutput(
-            surrogate_loss + baseline_loss,
+            -surrogate_loss + baseline_loss,
             account_state,
             raw_model_output.z_sample.detach(),
         )

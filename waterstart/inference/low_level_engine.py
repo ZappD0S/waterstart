@@ -59,7 +59,6 @@ class NetworkModules(nn.Module):
         self._emitter = emitter
         self._market_data_arr_mapper = market_data_arr_mapper
         self._traded_sym_arr_mapper = traded_sym_arr_mapper
-        # self._traded_symbols = traded_symbols
         self._id_to_traded_sym = id_to_traded_sym
 
         self._n_traded_sym = n_traded_sym
@@ -180,6 +179,8 @@ class LowLevelInferenceEngine:
         unused_margin: torch.Tensor,
     ) -> torch.Tensor:
         new_pos_sizes = torch.empty_like(dep_cur_pos_sizes)  # type: ignore
+        leverage = self._leverage
+        min_step_max = self._min_step_max
 
         for i in range(self._n_traded_sym):
             available_margin = dep_cur_pos_sizes[i].abs() + unused_margin
@@ -187,23 +188,23 @@ class LowLevelInferenceEngine:
                 exec_mask[i], fractions[i] * available_margin, dep_cur_pos_sizes[i]
             )
 
-            new_pos_size = dep_cur_new_pos_size * margin_rate[i] * self._leverage
+            new_pos_size = dep_cur_new_pos_size * margin_rate[i] * leverage
 
             abs_new_pos_size = new_pos_size.abs()
             new_pos_sign = new_pos_size.sign()
 
-            abs_new_pos_size = (
-                abs_new_pos_size - abs_new_pos_size % self._min_step_max.step[i]
-            )
+            step = min_step_max.step[i]
+            abs_new_pos_size = torch.round(abs_new_pos_size / step) * step
             abs_new_pos_size = abs_new_pos_size.new_zeros([]).where(
-                abs_new_pos_size < self._min_step_max.min[i], abs_new_pos_size
+                abs_new_pos_size < min_step_max.min[i], abs_new_pos_size
             )
-            abs_new_pos_size = self._min_step_max.max[i].where(
-                abs_new_pos_size > self._min_step_max.max[i], abs_new_pos_size
+            abs_new_pos_size = min_step_max.max[i].where(
+                abs_new_pos_size > min_step_max.max[i], abs_new_pos_size
             )
 
             new_pos_sizes[i] = new_pos_sign * abs_new_pos_size
-            unused_margin = available_margin - abs_new_pos_size
+            dep_cur_abs_new_pos_size = abs_new_pos_size / (margin_rate[i] * leverage)
+            unused_margin = available_margin - dep_cur_abs_new_pos_size
 
         return new_pos_sizes
 
@@ -299,7 +300,22 @@ class LowLevelInferenceEngine:
         )
 
     @staticmethod
+    def _get_validity_mask(sizes_or_trades: torch.Tensor) -> torch.Tensor:
+        trade_open_mask = sizes_or_trades != 0
+
+        mask_cumsum = trade_open_mask.cumsum(0)
+        open_trades_counts = mask_cumsum[-1] - mask_cumsum
+
+        expected_open_trades_counts = torch.arange(
+            open_trades_counts.shape[0] - 1, -1, -1, device=open_trades_counts.device
+        )[(slice(None), *(None,) * (open_trades_counts.ndim - 1))]
+
+        all_following_trades_open = open_trades_counts == expected_open_trades_counts
+        return torch.all(~trade_open_mask | all_following_trades_open, dim=0)
+
+    @classmethod
     def open_trades(
+        cls,
         account_state: AccountState,
         new_pos_size: torch.Tensor,
         open_price: torch.Tensor,
@@ -328,10 +344,18 @@ class LowLevelInferenceEngine:
         new_trades_prices[-1] = open_price
         new_trades_prices = new_trades_prices.where(open_pos_mask, trades_prices)
 
+        assert not torch.any((new_trades_sizes == 0) != (new_trades_prices == 0))
+        assert torch.all(
+            torch.all(new_trades_sizes >= 0, dim=0)
+            | torch.all(new_trades_sizes <= 0, dim=0)
+        )
+        assert cls._get_validity_mask(new_trades_sizes).all()
+
         return AccountState(new_trades_sizes, new_trades_prices, account_state.balance)
 
-    @staticmethod
+    @classmethod
     def close_or_reduce_trades(
+        cls,
         account_state: AccountState,
         new_pos_size: torch.Tensor,
     ) -> AccountState:
@@ -356,5 +380,12 @@ class LowLevelInferenceEngine:
         trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()
         new_trades_prices[close_trade_mask] = 0.0
+
+        assert not torch.any((new_trades_sizes == 0) != (new_trades_prices == 0))
+        assert torch.all(
+            torch.all(new_trades_sizes >= 0, dim=0)
+            | torch.all(new_trades_sizes <= 0, dim=0)
+        )
+        assert cls._get_validity_mask(new_trades_sizes).all()
 
         return AccountState(new_trades_sizes, new_trades_prices, account_state.balance)

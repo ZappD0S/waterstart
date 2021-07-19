@@ -1,11 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from typing import Collection, Iterator, Mapping, Optional
-from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
-from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 
 import torch
 
 from ..array_mapping.base_mapper import FieldData
+from ..array_mapping.dict_based_mapper import DictBasedArrayMapper
+from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 from ..inference import AccountState, ModelInput, RawMarketState
 from ..price import MarketData
 from ..symbols import TradedSymbolInfo
@@ -18,11 +18,15 @@ class TrainingData:
     spreads: torch.Tensor
     base_to_dep_rates: torch.Tensor
     quote_to_dep_rates: torch.Tensor
-    market_data_blueprint: MarketData[FieldData]
-    traded_sym_blueprint_map: Mapping[int, FieldData]
+    market_data_blueprint: InitVar[MarketData[FieldData]]
+    traded_sym_blueprint_map: InitVar[Mapping[int, FieldData]]
     traded_symbols: Collection[TradedSymbolInfo]
 
-    def __post_init__(self):
+    def __post_init__(
+        self,
+        market_data_blueprint: MarketData[FieldData],
+        traded_sym_blueprint_map: Mapping[int, FieldData],
+    ):
         if (
             not (n_timestemps := self.market_data.shape[0])
             == self.midpoint_prices.shape[0]
@@ -32,8 +36,8 @@ class TrainingData:
         ):
             raise ValueError()
 
-        market_data_arr_mapper = MarketDataArrayMapper(self.market_data_blueprint)
-        traded_sym_arr_mapper = DictBasedArrayMapper(self.traded_sym_blueprint_map)
+        market_data_arr_mapper = MarketDataArrayMapper(market_data_blueprint)
+        traded_sym_arr_mapper = DictBasedArrayMapper(traded_sym_blueprint_map)
 
         if (
             not (n_market_features := market_data_arr_mapper.n_fields)
@@ -47,7 +51,7 @@ class TrainingData:
             == self.spreads.shape[1]
             == self.base_to_dep_rates.shape[1]
             == self.quote_to_dep_rates.shape[1]
-            == len(self.market_data_blueprint.symbols_data_map)
+            == len(market_data_blueprint.symbols_data_map)
             == len(self.traded_symbols)
         ):
             raise ValueError()
@@ -79,6 +83,102 @@ class TrainingData:
         return self._traded_sym_arr_mapper
 
 
+class ReadonlyBatchManager:
+    def __init__(
+        self,
+        storage: torch.Tensor,
+        batch_dims: int,
+        batch_dims_last: bool = True,
+        load_lag: int = 1,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        super().__init__()
+
+        if batch_dims > storage.ndim:
+            raise ValueError()
+
+        self._storage = storage
+        self._batch_dims = batch_dims
+        self._batch_dims_last = batch_dims_last
+        self._load_lag = load_lag
+        self._device = device
+
+    def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
+        batch: torch.Tensor = self._storage[inds - self._load_lag]
+        batch = self._transform_batch(batch, self._batch_dims + inds.ndim - 1)
+        return batch.to(self._device)
+
+    def _transform_batch(self, batch: torch.Tensor, batch_dims: int) -> torch.Tensor:
+        if not self._batch_dims_last:
+            return batch
+
+        return batch.permute(*range(batch_dims, batch.ndim), *range(batch_dims))
+
+
+class ExpandableBatchManagager(ReadonlyBatchManager):
+    def __init__(
+        self,
+        storage: torch.Tensor,
+        expand_size: int,
+        batch_dims: int,
+        batch_dims_last: bool = True,
+        load_lag: int = 1,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        super().__init__(
+            storage.unsqueeze(batch_dims),
+            batch_dims + 1,
+            batch_dims_last,
+            load_lag,
+            device,
+        )
+        self._expand_size = expand_size
+
+    def _transform_batch(self, batch: torch.Tensor, batch_dims: int) -> torch.Tensor:
+        batch = batch.expand(
+            *(-1,) * (batch_dims - 1),
+            self._expand_size,
+            *(-1,) * (batch.ndim - batch_dims),
+        )
+
+        return super()._transform_batch(batch, batch_dims)
+
+
+class BatchManager(ReadonlyBatchManager):
+    def __init__(
+        self,
+        storage: torch.Tensor,
+        batch_dims: int,
+        batch_dims_last: bool = True,
+        load_lag: int = 1,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        super().__init__(storage, batch_dims, batch_dims_last, load_lag, device)
+        self._inds: Optional[torch.Tensor] = None
+
+    def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
+        self._inds = inds
+        return super().build_batch(inds)
+
+    def store_batch(self, batch: torch.Tensor) -> None:
+        if (inds := self._inds) is None:
+            raise RuntimeError()
+
+        assert not batch.requires_grad
+        batch = batch.cpu()
+        batch = self._inverse_transform_batch(batch, self._batch_dims + inds.ndim - 1)
+        self._inds = None
+        self._storage[inds] = batch
+
+    def _inverse_transform_batch(
+        self, batch: torch.Tensor, batch_dims: int
+    ) -> torch.Tensor:
+        if not self._batch_dims_last:
+            return batch
+
+        ndim = batch.ndim
+        return batch.permute(*range(ndim - batch_dims, ndim), *range(ndim - batch_dims))
+
 
 class TrainDataManager:
     def __init__(
@@ -93,109 +193,113 @@ class TrainDataManager:
         initial_balance: float,
         device: Optional[torch.device] = None,
     ) -> None:
-        self._batch_size = batch_size
         n_timestemps = training_data.n_timestemps
-
-        self._training_data = training_data
-        # NOTE: the -1 is to make sure that whe can save the data at
-        # position batch_ind + 1
-        self._n_batches = (n_timestemps - 1) // batch_size
         n_traded_sym = training_data.n_traded_sym
-        self._n_samples = n_samples
-        self._device = device
 
-        self._balances = torch.full((self._n_batches, n_samples), initial_balance)
-        self._trade_sizes = torch.zeros(
-            (self._n_batches, n_samples, max_trades, n_traded_sym)
+        self._balances_batch_manager = BatchManager(
+            torch.full((n_timestemps, n_samples), initial_balance),
+            batch_dims=2,
+            device=device,
         )
-        self._trade_prices = torch.zeros(
-            (self._n_batches, n_samples, max_trades, n_traded_sym)
+        self._trade_sizes_batch_manager = BatchManager(
+            torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
+            batch_dims=2,
+            device=device,
         )
-        self._hidden_states = torch.zeros(
-            (self._n_batches, n_samples, hidden_state_size)
+        self._trade_prices_batch_manager = BatchManager(
+            torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
+            batch_dims=2,
+            device=device,
         )
-        self._windowed_market_data = training_data.market_data.unfold(
-            0, window_size, step=1
+        self._hidden_states_batch_manager = BatchManager(
+            torch.zeros((n_timestemps, n_samples, hidden_state_size)),
+            batch_dims=2,
+            batch_dims_last=False,
+            device=device,
+        )
+        self._market_data_batch_manager = ExpandableBatchManagager(
+            training_data.market_data.unfold(0, window_size, step=1),
+            expand_size=n_samples,
+            batch_dims=1,
+            batch_dims_last=False,
+            load_lag=window_size - 1,
+            device=device,
         )
 
+        self._midpoint_prices_batch_manager = ExpandableBatchManagager(
+            training_data.midpoint_prices,
+            expand_size=n_samples,
+            batch_dims=1,
+            device=device,
+        )
+        self._spreads_batch_manager = ExpandableBatchManagager(
+            training_data.spreads,
+            expand_size=n_samples,
+            batch_dims=1,
+            device=device,
+        )
+        self._base_to_dep_rates_batch_manager = ExpandableBatchManagager(
+            training_data.base_to_dep_rates,
+            expand_size=n_samples,
+            batch_dims=1,
+            device=device,
+        )
+        self._quote_to_dep_rates_batch_manager = ExpandableBatchManagager(
+            training_data.quote_to_dep_rates,
+            expand_size=n_samples,
+            batch_dims=1,
+            device=device,
+        )
+
+        self._n_timestemps = n_timestemps
+        self._batch_size = batch_size
+        self._window_size = window_size
         self._batch_inds_it: Iterator[torch.Tensor] = self._build_batch_inds_it()
         self._next_batch_inds: Optional[torch.Tensor] = next(self._batch_inds_it)
         self._save_pending: bool = False
 
     def _build_batch_inds_it(self) -> Iterator[torch.Tensor]:
         batch_size = self._batch_size
-        n_batches = self._n_batches
+        batch_inds = torch.arange(
+            self._window_size - 1, self._n_timestemps - batch_size
+        ).unsqueeze(-1) + torch.arange(batch_size)
 
-        batch_inds = torch.randperm(n_batches * batch_size).view(n_batches, batch_size)
-        return iter(batch_inds)
+        rand_perm = torch.randperm(batch_inds.shape[0])
+        return iter(batch_inds[rand_perm])
 
     def load(self) -> ModelInput[RawMarketState]:
-        def build_batch(
-            storage: torch.Tensor,
-            add_samples_dim: bool,
-            move_batch_dims_to_last: bool = True,
-        ) -> torch.Tensor:
-            # TODO: for the market data we need to subtract a window length (- 1?)
-            batch: torch.Tensor = storage[batch_inds]
-
-            if add_samples_dim:
-                first, *rest = batch.shape
-                batch = batch.unsqueeze(1).expand(first, self._n_samples, *rest)
-
-            if move_batch_dims_to_last:
-                batch = batch.permute(*range(2, batch.ndim), 0, 1)
-
-            return batch.to(self._device)
-
-        if self._save_pending:
-            raise RuntimeError()
-
-        self._save_pending = True
-
         if (batch_inds := self._next_batch_inds) is None:
             self._batch_inds_it = self._build_batch_inds_it()
             batch_inds = self._next_batch_inds = next(self._batch_inds_it)
 
+        self._next_batch_inds = next(self._batch_inds_it, None)
+
         market_state = RawMarketState(
-            market_data=build_batch(self._windowed_market_data, True, False),
-            midpoint_prices=build_batch(self._training_data.midpoint_prices, True),
-            spreads=build_batch(self._training_data.spreads, True),
-            margin_rate=build_batch(self._training_data.base_to_dep_rates, True),
-            quote_to_dep_rate=build_batch(self._training_data.quote_to_dep_rates, True),
+            market_data=self._market_data_batch_manager.build_batch(batch_inds),
+            midpoint_prices=self._midpoint_prices_batch_manager.build_batch(batch_inds),
+            spreads=self._spreads_batch_manager.build_batch(batch_inds),
+            margin_rate=self._base_to_dep_rates_batch_manager.build_batch(batch_inds),
+            quote_to_dep_rate=self._quote_to_dep_rates_batch_manager.build_batch(
+                batch_inds
+            ),
         )
 
         account_state = AccountState(
-            trades_sizes=build_batch(self._trade_sizes, False),
-            trades_prices=build_batch(self._trade_prices, False),
-            balance=build_batch(self._balances, False),
+            trades_sizes=self._trade_sizes_batch_manager.build_batch(batch_inds),
+            trades_prices=self._trade_prices_batch_manager.build_batch(batch_inds),
+            balance=self._balances_batch_manager.build_batch(batch_inds),
         )
 
         return ModelInput(
             market_state,
             account_state,
-            hidden_state=build_batch(self._hidden_states, False, False),
+            hidden_state=self._hidden_states_batch_manager.build_batch(batch_inds),
         )
 
+    # TODO: maybe return the transformed balance batch from here (smth else?)
     def save(self, account_state: AccountState, hidden_state: torch.Tensor) -> None:
-        if not self._save_pending:
-            raise RuntimeError()
+        self._trade_sizes_batch_manager.store_batch(account_state.trades_sizes)
+        self._trade_prices_batch_manager.store_batch(account_state.trades_prices)
+        self._balances_batch_manager.store_batch(account_state.balance)
 
-        if (batch_inds := self._next_batch_inds) is None:
-            raise RuntimeError()
-
-        def transform_batch(batch: torch.Tensor) -> torch.Tensor:
-            return batch.cpu().permute(-2, -1, *range(batch.ndim - 2))
-            # return batch.cpu().moveaxis(-1, 0)
-
-        shifted_batch_inds = batch_inds + 1
-        self._trade_sizes[shifted_batch_inds] = transform_batch(
-            account_state.trades_sizes
-        )
-        self._trade_prices[shifted_batch_inds] = transform_batch(
-            account_state.trades_prices
-        )
-        self._hidden_states[shifted_batch_inds] = hidden_state
-        self._balances[shifted_batch_inds] = transform_batch(account_state.balance)
-
-        self._next_batch_inds = next(self._batch_inds_it, None)
-        self._save_pending = False
+        self._hidden_states_batch_manager.store_batch(hidden_state)

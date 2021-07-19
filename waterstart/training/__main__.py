@@ -31,9 +31,9 @@ class TraingingArgs(argparse.Namespace):
     max_gradient_norm: float = 10.0
     detect_anomaly: bool = False
     use_cuda: bool = False
-    batch_size: int = 1
-    n_samples: int = 10
-    window_size: int = 100
+    batch_size: int = 100
+    n_samples: int = 11
+    window_size: int = 50
     cnn_out_features: int = 256
     max_trades: int = 10
     hidden_state_size: int = 128
@@ -54,7 +54,6 @@ def load_training_data(path: str) -> TrainingData:
     data = np.load(path, allow_pickle=True)  # type: ignore
 
     # TODO: make names uniform
-    # BUG: convert to tensor
     return TrainingData(
         market_data=torch.from_numpy(data["market_data_arr"]),  # type: ignore
         midpoint_prices=torch.from_numpy(data["sym_prices"]),  # type: ignore
@@ -76,7 +75,7 @@ def write_summary(
     grad_norm: torch.Tensor,
     n_iter: int,
 ):
-    step_log_rates = balance[..., 1:].log() - balance[..., :-1].log()
+    step_log_rates = balance[..., 1:, :].log() - balance[..., :-1, :].log()
     positive_log_rates = torch.sum(step_log_rates > 0).item()
     negative_log_rates = torch.sum(step_log_rates < 0).item()
     tot_log_rates = step_log_rates.numel()
@@ -87,10 +86,10 @@ def write_summary(
         "single step/negative fraction", negative_log_rates / tot_log_rates, n_iter
     )
 
-    avg_step_gain = step_log_rates.mean(-2).exp_().mean().item()
+    avg_step_gain = step_log_rates.mean(-1).exp_().mean().item()
     writer.add_scalar("single step/average gain", avg_step_gain, n_iter)  # type: ignore
 
-    whole_seq_log_rates = balance[..., -1].log() - balance[..., 0].log()
+    whole_seq_log_rates = balance[..., -1, :].log() - balance[..., 0, :].log()
     positive_log_rates = torch.sum(whole_seq_log_rates > 0).item()
     negative_log_rates = torch.sum(whole_seq_log_rates < 0).item()
     tot_log_rates = whole_seq_log_rates.numel()
@@ -107,7 +106,7 @@ def write_summary(
     )
 
     loss_loc: float = loss.mean().item()  # type: ignore
-    loss_scale: float = loss.std(-2).mean().item()  # type: ignore
+    loss_scale: float = loss.std(-1).mean().item()  # type: ignore
     writer.add_scalars(  # type: ignore
         "loss with stdev bounds",
         {
@@ -249,6 +248,7 @@ def main(args: TraingingArgs):
             parameters, max_norm=args.max_gradient_norm, error_if_nonfinite=True
         )
         optimizer.step()
+        optimizer.zero_grad()
 
         write_summary(
             writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
