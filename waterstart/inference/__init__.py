@@ -19,7 +19,7 @@ class AccountState:
     # TODO: make the naming convention uniform
     @cached_property
     def pos_size(self) -> torch.Tensor:
-        return self.trades_sizes.sum(dim=0)
+        return self.trades_sizes.sum(0)
 
 
 @dataclass

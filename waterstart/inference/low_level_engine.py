@@ -65,6 +65,7 @@ class NetworkModules(nn.Module):
         self._market_features = market_features
         self._max_trades = cnn.max_trades
         self._window_size = cnn.window_size
+        self._hidden_state_size = gated_trans.z_dim
         self._leverage = leverage
 
     @property
@@ -78,6 +79,10 @@ class NetworkModules(nn.Module):
     @property
     def max_trades(self) -> int:
         return self._max_trades
+
+    @property
+    def hidden_state_size(self) -> int:
+        return self._hidden_state_size
 
     @property
     def leverage(self) -> float:
@@ -228,10 +233,10 @@ class LowLevelInferenceEngine:
         dep_cur_trade_sizes = account_state.trades_sizes / (
             market_state.margin_rate * self._leverage
         )
-        dep_cur_pos_sizes = dep_cur_trade_sizes.sum(dim=0)
+        dep_cur_pos_sizes = dep_cur_trade_sizes.sum(0)
 
         balance = account_state.balance
-        unused = balance - dep_cur_pos_sizes.abs().sum(dim=0)
+        unused = balance - dep_cur_pos_sizes.abs().sum(0)
         unused = torch.maximum(unused, unused.new_zeros([]))
 
         rel_margins = (
@@ -330,12 +335,13 @@ class LowLevelInferenceEngine:
         # NOTE: this mask matches the case pos_size != 0 and new_pos_size == 0
         # but is eliminated by the following condition
         same_sign_mask = pos_size * new_pos_size >= 0
-        greater_new_pos_mask = pos_size.abs() < new_pos_size.abs()
-        open_pos_mask = available_trade_mask & same_sign_mask & greater_new_pos_mask
+        open_trade_size = new_pos_size - pos_size
+        valid_new_pos_mask = new_pos_size * open_trade_size > 0
+        open_pos_mask = available_trade_mask & same_sign_mask & valid_new_pos_mask
 
         new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[:-1] = trades_sizes[1:]
-        new_trades_sizes[-1] = new_pos_size
+        new_trades_sizes[-1] = open_trade_size
         new_trades_sizes = new_trades_sizes.where(open_pos_mask, trades_sizes)
 
         trades_prices = account_state.trades_prices
@@ -361,9 +367,8 @@ class LowLevelInferenceEngine:
     ) -> AccountState:
         trades_sizes = account_state.trades_sizes
 
-        cum_trades_sizes = trades_sizes.cumsum(dim=0)
         close_trade_size = new_pos_size - account_state.pos_size
-        left_diffs = close_trade_size + cum_trades_sizes
+        left_diffs = close_trade_size + trades_sizes.cumsum(0)
 
         right_diffs = torch.empty_like(left_diffs)
         right_diffs[1:] = left_diffs[:-1]
@@ -372,8 +377,10 @@ class LowLevelInferenceEngine:
         close_trade_mask = new_pos_size * left_diffs <= 0
         reduce_trade_mask = left_diffs * right_diffs < 0
 
-        new_trades_sizes = trades_sizes.clone()
+        assert not torch.any(close_trade_mask & reduce_trade_mask)
+        assert torch.all(reduce_trade_mask.sum(0) <= 1)
 
+        new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[close_trade_mask] = 0.0
         new_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
 
