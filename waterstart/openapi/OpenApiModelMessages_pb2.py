@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto2',
   serialized_options=b'\n%com.xtrader.protocol.openapi.v2.modelB\037ContainerOpenApiV2ModelMessagesP\001\240\001\001',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1aOpenApiModelMessages.proto\"R\n\x0cProtoOAAsset\x12\x0f\n\x07\x61ssetId\x18\x01 \x02(\x03\x12\x0c\n\x04name\x18\x02 \x02(\t\x12\x13\n\x0b\x64isplayName\x18\x03 \x01(\t\x12\x0e\n\x06\x64igits\x18\x04 \x01(\x05\"\xb9\x08\n\rProtoOASymbol\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x0e\n\x06\x64igits\x18\x02 \x02(\x05\x12\x13\n\x0bpipPosition\x18\x03 \x02(\x05\x12\x1a\n\x12\x65nableShortSelling\x18\x04 \x01(\x08\x12\x1a\n\x12guaranteedStopLoss\x18\x05 \x01(\x08\x12\x34\n\x11swapRollover3Days\x18\x06 \x01(\x0e\x32\x11.ProtoOADayOfWeek:\x06MONDAY\x12\x10\n\x08swapLong\x18\x07 \x01(\x01\x12\x11\n\tswapShort\x18\x08 \x01(\x01\x12\x11\n\tmaxVolume\x18\t \x01(\x03\x12\x11\n\tminVolume\x18\n \x01(\x03\x12\x12\n\nstepVolume\x18\x0b \x01(\x03\x12\x13\n\x0bmaxExposure\x18\x0c \x01(\x04\x12\"\n\x08schedule\x18\r \x03(\x0b\x32\x10.ProtoOAInterval\x12\x16\n\ncommission\x18\x0e \x01(\x03\x42\x02\x18\x01\x12\x43\n\x0e\x63ommissionType\x18\x0f \x01(\x0e\x32\x16.ProtoOACommissionType:\x13USD_PER_MILLION_USD\x12\x12\n\nslDistance\x18\x10 \x01(\r\x12\x12\n\ntpDistance\x18\x11 \x01(\r\x12\x13\n\x0bgslDistance\x18\x12 \x01(\r\x12\x11\n\tgslCharge\x18\x13 \x01(\x03\x12L\n\rdistanceSetIn\x18\x14 \x01(\x0e\x32\x1a.ProtoOASymbolDistanceType:\x19SYMBOL_DISTANCE_IN_POINTS\x12\x19\n\rminCommission\x18\x15 \x01(\x03\x42\x02\x18\x01\x12>\n\x11minCommissionType\x18\x16 \x01(\x0e\x32\x19.ProtoOAMinCommissionType:\x08\x43URRENCY\x12\x1f\n\x12minCommissionAsset\x18\x17 \x01(\t:\x03USD\x12\x1a\n\x12rolloverCommission\x18\x18 \x01(\x03\x12\x18\n\x10skipRolloverDays\x18\x19 \x01(\x05\x12\x18\n\x10scheduleTimeZone\x18\x1a \x01(\t\x12\x31\n\x0btradingMode\x18\x1b \x01(\x0e\x32\x13.ProtoOATradingMode:\x07\x45NABLED\x12:\n\x17rolloverCommission3Days\x18\x1c \x01(\x0e\x32\x11.ProtoOADayOfWeek:\x06MONDAY\x12>\n\x13swapCalculationType\x18\x1d \x01(\x0e\x32\x1b.ProtoOASwapCalculationType:\x04PIPS\x12\x0f\n\x07lotSize\x18\x1e \x01(\x03\x12$\n\x1cpreciseTradingCommissionRate\x18\x1f \x01(\x03\x12\x1c\n\x14preciseMinCommission\x18  \x01(\x03\x12 \n\x07holiday\x18! \x03(\x0b\x32\x0f.ProtoOAHoliday\"\xa5\x01\n\x12ProtoOALightSymbol\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x12\n\nsymbolName\x18\x02 \x01(\t\x12\x0f\n\x07\x65nabled\x18\x03 \x01(\x08\x12\x13\n\x0b\x62\x61seAssetId\x18\x04 \x01(\x03\x12\x14\n\x0cquoteAssetId\x18\x05 \x01(\x03\x12\x18\n\x10symbolCategoryId\x18\x06 \x01(\x03\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\"l\n\x15ProtoOAArchivedSymbol\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x0c\n\x04name\x18\x02 \x02(\t\x12\x1e\n\x16utcLastUpdateTimestamp\x18\x03 \x02(\x03\x12\x13\n\x0b\x64\x65scription\x18\x04 \x01(\t\"G\n\x15ProtoOASymbolCategory\x12\n\n\x02id\x18\x01 \x02(\x03\x12\x14\n\x0c\x61ssetClassId\x18\x02 \x02(\x03\x12\x0c\n\x04name\x18\x03 \x02(\t\"9\n\x0fProtoOAInterval\x12\x13\n\x0bstartSecond\x18\x03 \x02(\r\x12\x11\n\tendSecond\x18\x04 \x02(\r\"\xa4\x05\n\rProtoOATrader\x12\x1b\n\x13\x63tidTraderAccountId\x18\x01 \x02(\x03\x12\x0f\n\x07\x62\x61lance\x18\x02 \x02(\x03\x12\x16\n\x0e\x62\x61lanceVersion\x18\x03 \x01(\x03\x12\x14\n\x0cmanagerBonus\x18\x04 \x01(\x03\x12\x0f\n\x07ibBonus\x18\x05 \x01(\x03\x12\x1c\n\x14nonWithdrawableBonus\x18\x06 \x01(\x03\x12\x37\n\x0c\x61\x63\x63\x65ssRights\x18\x07 \x01(\x0e\x32\x14.ProtoOAAccessRights:\x0b\x46ULL_ACCESS\x12\x16\n\x0e\x64\x65positAssetId\x18\x08 \x02(\x03\x12\x10\n\x08swapFree\x18\t \x01(\x08\x12\x17\n\x0fleverageInCents\x18\n \x01(\r\x12\x46\n\x1atotalMarginCalculationType\x18\x0b \x01(\x0e\x32\".ProtoOATotalMarginCalculationType\x12\x13\n\x0bmaxLeverage\x18\x0c \x01(\r\x12\x16\n\nfrenchRisk\x18\r \x01(\x08\x42\x02\x18\x01\x12\x13\n\x0btraderLogin\x18\x0e \x01(\x03\x12\x30\n\x0b\x61\x63\x63ountType\x18\x0f \x01(\x0e\x32\x13.ProtoOAAccountType:\x06HEDGED\x12\x12\n\nbrokerName\x18\x10 \x01(\t\x12\x1d\n\x15registrationTimestamp\x18\x11 \x01(\x03\x12\x15\n\risLimitedRisk\x18\x12 \x01(\x08\x12q\n$limitedRiskMarginCalculationStrategy\x18\x13 \x01(\x0e\x32,.ProtoOALimitedRiskMarginCalculationStrategy:\x15\x41\x43\x43ORDING_TO_LEVERAGE\x12\x13\n\x0bmoneyDigits\x18\x14 \x01(\r\"\xaa\x03\n\x0fProtoOAPosition\x12\x12\n\npositionId\x18\x01 \x02(\x03\x12$\n\ttradeData\x18\x02 \x02(\x0b\x32\x11.ProtoOATradeData\x12.\n\x0epositionStatus\x18\x03 \x02(\x0e\x32\x16.ProtoOAPositionStatus\x12\x0c\n\x04swap\x18\x04 \x02(\x03\x12\r\n\x05price\x18\x05 \x01(\x01\x12\x10\n\x08stopLoss\x18\x06 \x01(\x01\x12\x12\n\ntakeProfit\x18\x07 \x01(\x01\x12\x1e\n\x16utcLastUpdateTimestamp\x18\x08 \x01(\x03\x12\x12\n\ncommission\x18\t \x01(\x03\x12\x12\n\nmarginRate\x18\n \x01(\x01\x12\x1b\n\x13mirroringCommission\x18\x0b \x01(\x03\x12\x1a\n\x12guaranteedStopLoss\x18\x0c \x01(\x08\x12\x12\n\nusedMargin\x18\r \x01(\x04\x12@\n\x15stopLossTriggerMethod\x18\x0e \x01(\x0e\x32\x1a.ProtoOAOrderTriggerMethod:\x05TRADE\x12\x13\n\x0bmoneyDigits\x18\x0f \x01(\r\"\xad\x01\n\x10ProtoOATradeData\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x0e\n\x06volume\x18\x02 \x02(\x03\x12$\n\ttradeSide\x18\x03 \x02(\x0e\x32\x11.ProtoOATradeSide\x12\x15\n\ropenTimestamp\x18\x04 \x01(\x03\x12\r\n\x05label\x18\x05 \x01(\t\x12\x1a\n\x12guaranteedStopLoss\x18\x06 \x01(\x08\x12\x0f\n\x07\x63omment\x18\x07 \x01(\t\"\xa5\x05\n\x0cProtoOAOrder\x12\x0f\n\x07orderId\x18\x01 \x02(\x03\x12$\n\ttradeData\x18\x02 \x02(\x0b\x32\x11.ProtoOATradeData\x12$\n\torderType\x18\x03 \x02(\x0e\x32\x11.ProtoOAOrderType\x12(\n\x0borderStatus\x18\x04 \x02(\x0e\x32\x13.ProtoOAOrderStatus\x12\x1b\n\x13\x65xpirationTimestamp\x18\x06 \x01(\x03\x12\x16\n\x0e\x65xecutionPrice\x18\x07 \x01(\x01\x12\x16\n\x0e\x65xecutedVolume\x18\x08 \x01(\x03\x12\x1e\n\x16utcLastUpdateTimestamp\x18\t \x01(\x03\x12\x19\n\x11\x62\x61seSlippagePrice\x18\n \x01(\x01\x12\x18\n\x10slippageInPoints\x18\x0b \x01(\x03\x12\x14\n\x0c\x63losingOrder\x18\x0c \x01(\x08\x12\x12\n\nlimitPrice\x18\r \x01(\x01\x12\x11\n\tstopPrice\x18\x0e \x01(\x01\x12\x10\n\x08stopLoss\x18\x0f \x01(\x01\x12\x12\n\ntakeProfit\x18\x10 \x01(\x01\x12\x15\n\rclientOrderId\x18\x11 \x01(\t\x12=\n\x0btimeInForce\x18\x12 \x01(\x0e\x32\x13.ProtoOATimeInForce:\x13IMMEDIATE_OR_CANCEL\x12\x12\n\npositionId\x18\x13 \x01(\x03\x12\x18\n\x10relativeStopLoss\x18\x14 \x01(\x03\x12\x1a\n\x12relativeTakeProfit\x18\x15 \x01(\x03\x12\x11\n\tisStopOut\x18\x16 \x01(\x08\x12\x18\n\x10trailingStopLoss\x18\x17 \x01(\x08\x12<\n\x11stopTriggerMethod\x18\x18 \x01(\x0e\x32\x1a.ProtoOAOrderTriggerMethod:\x05TRADE\"\x99\x02\n\x1bProtoOABonusDepositWithdraw\x12.\n\roperationType\x18\x01 \x02(\x0e\x32\x17.ProtoOAChangeBonusType\x12\x16\n\x0e\x62onusHistoryId\x18\x02 \x02(\x03\x12\x14\n\x0cmanagerBonus\x18\x03 \x02(\x03\x12\x14\n\x0cmanagerDelta\x18\x04 \x02(\x03\x12\x0f\n\x07ibBonus\x18\x05 \x02(\x03\x12\x0f\n\x07ibDelta\x18\x06 \x02(\x03\x12\x1c\n\x14\x63hangeBonusTimestamp\x18\x07 \x02(\x03\x12\x14\n\x0c\x65xternalNote\x18\x08 \x01(\t\x12\x1b\n\x13introducingBrokerId\x18\t \x01(\x03\x12\x13\n\x0bmoneyDigits\x18\n \x01(\r\"\xf7\x01\n\x16ProtoOADepositWithdraw\x12\x30\n\roperationType\x18\x01 \x02(\x0e\x32\x19.ProtoOAChangeBalanceType\x12\x18\n\x10\x62\x61lanceHistoryId\x18\x02 \x02(\x03\x12\x0f\n\x07\x62\x61lance\x18\x03 \x02(\x03\x12\r\n\x05\x64\x65lta\x18\x04 \x02(\x03\x12\x1e\n\x16\x63hangeBalanceTimestamp\x18\x05 \x02(\x03\x12\x14\n\x0c\x65xternalNote\x18\x06 \x01(\t\x12\x16\n\x0e\x62\x61lanceVersion\x18\x07 \x01(\x03\x12\x0e\n\x06\x65quity\x18\x08 \x01(\x03\x12\x13\n\x0bmoneyDigits\x18\t \x01(\r\"\xcd\x03\n\x0bProtoOADeal\x12\x0e\n\x06\x64\x65\x61lId\x18\x01 \x02(\x03\x12\x0f\n\x07orderId\x18\x02 \x02(\x03\x12\x12\n\npositionId\x18\x03 \x02(\x03\x12\x0e\n\x06volume\x18\x04 \x02(\x03\x12\x14\n\x0c\x66illedVolume\x18\x05 \x02(\x03\x12\x10\n\x08symbolId\x18\x06 \x02(\x03\x12\x17\n\x0f\x63reateTimestamp\x18\x07 \x02(\x03\x12\x1a\n\x12\x65xecutionTimestamp\x18\x08 \x02(\x03\x12\x1e\n\x16utcLastUpdateTimestamp\x18\t \x01(\x03\x12\x16\n\x0e\x65xecutionPrice\x18\n \x01(\x01\x12$\n\ttradeSide\x18\x0b \x02(\x0e\x32\x11.ProtoOATradeSide\x12&\n\ndealStatus\x18\x0c \x02(\x0e\x32\x12.ProtoOADealStatus\x12\x12\n\nmarginRate\x18\r \x01(\x01\x12\x12\n\ncommission\x18\x0e \x01(\x03\x12\x1f\n\x17\x62\x61seToUsdConversionRate\x18\x0f \x01(\x01\x12\x38\n\x13\x63losePositionDetail\x18\x10 \x01(\x0b\x32\x1b.ProtoOAClosePositionDetail\x12\x13\n\x0bmoneyDigits\x18\x11 \x01(\r\"\xe1\x01\n\x1aProtoOAClosePositionDetail\x12\x12\n\nentryPrice\x18\x01 \x02(\x01\x12\x13\n\x0bgrossProfit\x18\x02 \x02(\x03\x12\x0c\n\x04swap\x18\x03 \x02(\x03\x12\x12\n\ncommission\x18\x04 \x02(\x03\x12\x0f\n\x07\x62\x61lance\x18\x05 \x02(\x03\x12$\n\x1cquoteToDepositConversionRate\x18\x06 \x01(\x01\x12\x14\n\x0c\x63losedVolume\x18\x07 \x01(\x03\x12\x16\n\x0e\x62\x61lanceVersion\x18\x08 \x01(\x03\x12\x13\n\x0bmoneyDigits\x18\t \x01(\r\"\xb3\x01\n\x0fProtoOATrendbar\x12\x0e\n\x06volume\x18\x03 \x02(\x03\x12*\n\x06period\x18\x04 \x01(\x0e\x32\x16.ProtoOATrendbarPeriod:\x02M1\x12\x0b\n\x03low\x18\x05 \x01(\x03\x12\x11\n\tdeltaOpen\x18\x06 \x01(\x04\x12\x12\n\ndeltaClose\x18\x07 \x01(\x04\x12\x11\n\tdeltaHigh\x18\x08 \x01(\x04\x12\x1d\n\x15utcTimestampInMinutes\x18\t \x01(\r\"N\n\x15ProtoOAExpectedMargin\x12\x0e\n\x06volume\x18\x01 \x02(\x03\x12\x11\n\tbuyMargin\x18\x02 \x02(\x03\x12\x12\n\nsellMargin\x18\x03 \x02(\x03\"2\n\x0fProtoOATickData\x12\x11\n\ttimestamp\x18\x01 \x02(\x03\x12\x0c\n\x04tick\x18\x02 \x02(\x03\"$\n\x12ProtoOACtidProfile\x12\x0e\n\x06userId\x18\x01 \x02(\x03\"\xa2\x01\n\x18ProtoOACtidTraderAccount\x12\x1b\n\x13\x63tidTraderAccountId\x18\x01 \x02(\x04\x12\x0e\n\x06isLive\x18\x02 \x01(\x08\x12\x13\n\x0btraderLogin\x18\x03 \x01(\x03\x12 \n\x18lastClosingDealTimestamp\x18\x04 \x01(\x03\x12\"\n\x1alastBalanceUpdateTimestamp\x18\x05 \x01(\x03\"-\n\x11ProtoOAAssetClass\x12\n\n\x02id\x18\x01 \x01(\x03\x12\x0c\n\x04name\x18\x02 \x01(\t\"G\n\x11ProtoOADepthQuote\x12\n\n\x02id\x18\x01 \x02(\x04\x12\x0c\n\x04size\x18\x03 \x02(\x04\x12\x0b\n\x03\x62id\x18\x04 \x01(\x04\x12\x0b\n\x03\x61sk\x18\x05 \x01(\x04\"\x83\x01\n\x11ProtoOAMarginCall\x12\x30\n\x0emarginCallType\x18\x01 \x02(\x0e\x32\x18.ProtoOANotificationType\x12\x1c\n\x14marginLevelThreshold\x18\x02 \x02(\x01\x12\x1e\n\x16utcLastUpdateTimestamp\x18\x03 \x01(\x03\"\xb2\x01\n\x0eProtoOAHoliday\x12\x11\n\tholidayId\x18\x01 \x02(\x03\x12\x0c\n\x04name\x18\x02 \x02(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x12\x18\n\x10scheduleTimeZone\x18\x04 \x02(\t\x12\x13\n\x0bholidayDate\x18\x05 \x02(\x03\x12\x13\n\x0bisRecurring\x18\x06 \x02(\x08\x12\x13\n\x0bstartSecond\x18\x07 \x01(\x05\x12\x11\n\tendSecond\x18\x08 \x01(\x05*\x8b\x15\n\x12ProtoOAPayloadType\x12\"\n\x1dPROTO_OA_APPLICATION_AUTH_REQ\x10\xb4\x10\x12\"\n\x1dPROTO_OA_APPLICATION_AUTH_RES\x10\xb5\x10\x12\x1e\n\x19PROTO_OA_ACCOUNT_AUTH_REQ\x10\xb6\x10\x12\x1e\n\x19PROTO_OA_ACCOUNT_AUTH_RES\x10\xb7\x10\x12\x19\n\x14PROTO_OA_VERSION_REQ\x10\xb8\x10\x12\x19\n\x14PROTO_OA_VERSION_RES\x10\xb9\x10\x12\x1b\n\x16PROTO_OA_NEW_ORDER_REQ\x10\xba\x10\x12\'\n\"PROTO_OA_TRAILING_SL_CHANGED_EVENT\x10\xbb\x10\x12\x1e\n\x19PROTO_OA_CANCEL_ORDER_REQ\x10\xbc\x10\x12\x1d\n\x18PROTO_OA_AMEND_ORDER_REQ\x10\xbd\x10\x12%\n PROTO_OA_AMEND_POSITION_SLTP_REQ\x10\xbe\x10\x12 \n\x1bPROTO_OA_CLOSE_POSITION_REQ\x10\xbf\x10\x12\x1c\n\x17PROTO_OA_ASSET_LIST_REQ\x10\xc0\x10\x12\x1c\n\x17PROTO_OA_ASSET_LIST_RES\x10\xc1\x10\x12\x1e\n\x19PROTO_OA_SYMBOLS_LIST_REQ\x10\xc2\x10\x12\x1e\n\x19PROTO_OA_SYMBOLS_LIST_RES\x10\xc3\x10\x12\x1e\n\x19PROTO_OA_SYMBOL_BY_ID_REQ\x10\xc4\x10\x12\x1e\n\x19PROTO_OA_SYMBOL_BY_ID_RES\x10\xc5\x10\x12(\n#PROTO_OA_SYMBOLS_FOR_CONVERSION_REQ\x10\xc6\x10\x12(\n#PROTO_OA_SYMBOLS_FOR_CONVERSION_RES\x10\xc7\x10\x12\"\n\x1dPROTO_OA_SYMBOL_CHANGED_EVENT\x10\xc8\x10\x12\x18\n\x13PROTO_OA_TRADER_REQ\x10\xc9\x10\x12\x18\n\x13PROTO_OA_TRADER_RES\x10\xca\x10\x12!\n\x1cPROTO_OA_TRADER_UPDATE_EVENT\x10\xcb\x10\x12\x1b\n\x16PROTO_OA_RECONCILE_REQ\x10\xcc\x10\x12\x1b\n\x16PROTO_OA_RECONCILE_RES\x10\xcd\x10\x12\x1d\n\x18PROTO_OA_EXECUTION_EVENT\x10\xce\x10\x12!\n\x1cPROTO_OA_SUBSCRIBE_SPOTS_REQ\x10\xcf\x10\x12!\n\x1cPROTO_OA_SUBSCRIBE_SPOTS_RES\x10\xd0\x10\x12#\n\x1ePROTO_OA_UNSUBSCRIBE_SPOTS_REQ\x10\xd1\x10\x12#\n\x1ePROTO_OA_UNSUBSCRIBE_SPOTS_RES\x10\xd2\x10\x12\x18\n\x13PROTO_OA_SPOT_EVENT\x10\xd3\x10\x12\x1f\n\x1aPROTO_OA_ORDER_ERROR_EVENT\x10\xd4\x10\x12\x1b\n\x16PROTO_OA_DEAL_LIST_REQ\x10\xd5\x10\x12\x1b\n\x16PROTO_OA_DEAL_LIST_RES\x10\xd6\x10\x12)\n$PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_REQ\x10\xd7\x10\x12+\n&PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_REQ\x10\xd8\x10\x12\x1f\n\x1aPROTO_OA_GET_TRENDBARS_REQ\x10\xd9\x10\x12\x1f\n\x1aPROTO_OA_GET_TRENDBARS_RES\x10\xda\x10\x12!\n\x1cPROTO_OA_EXPECTED_MARGIN_REQ\x10\xdb\x10\x12!\n\x1cPROTO_OA_EXPECTED_MARGIN_RES\x10\xdc\x10\x12\"\n\x1dPROTO_OA_MARGIN_CHANGED_EVENT\x10\xdd\x10\x12\x17\n\x12PROTO_OA_ERROR_RES\x10\xde\x10\x12(\n#PROTO_OA_CASH_FLOW_HISTORY_LIST_REQ\x10\xdf\x10\x12(\n#PROTO_OA_CASH_FLOW_HISTORY_LIST_RES\x10\xe0\x10\x12\x1e\n\x19PROTO_OA_GET_TICKDATA_REQ\x10\xe1\x10\x12\x1e\n\x19PROTO_OA_GET_TICKDATA_RES\x10\xe2\x10\x12.\n)PROTO_OA_ACCOUNTS_TOKEN_INVALIDATED_EVENT\x10\xe3\x10\x12%\n PROTO_OA_CLIENT_DISCONNECT_EVENT\x10\xe4\x10\x12.\n)PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_REQ\x10\xe5\x10\x12.\n)PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_RES\x10\xe6\x10\x12+\n&PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_REQ\x10\xe7\x10\x12+\n&PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_RES\x10\xe8\x10\x12\"\n\x1dPROTO_OA_ASSET_CLASS_LIST_REQ\x10\xe9\x10\x12\"\n\x1dPROTO_OA_ASSET_CLASS_LIST_RES\x10\xea\x10\x12\x19\n\x14PROTO_OA_DEPTH_EVENT\x10\xeb\x10\x12(\n#PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_REQ\x10\xec\x10\x12(\n#PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_RES\x10\xed\x10\x12*\n%PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_REQ\x10\xee\x10\x12*\n%PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_RES\x10\xef\x10\x12!\n\x1cPROTO_OA_SYMBOL_CATEGORY_REQ\x10\xf0\x10\x12!\n\x1cPROTO_OA_SYMBOL_CATEGORY_RES\x10\xf1\x10\x12 \n\x1bPROTO_OA_ACCOUNT_LOGOUT_REQ\x10\xf2\x10\x12 \n\x1bPROTO_OA_ACCOUNT_LOGOUT_RES\x10\xf3\x10\x12&\n!PROTO_OA_ACCOUNT_DISCONNECT_EVENT\x10\xf4\x10\x12)\n$PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_RES\x10\xf5\x10\x12+\n&PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_RES\x10\xf6\x10\x12\"\n\x1dPROTO_OA_MARGIN_CALL_LIST_REQ\x10\xf7\x10\x12\"\n\x1dPROTO_OA_MARGIN_CALL_LIST_RES\x10\xf8\x10\x12$\n\x1fPROTO_OA_MARGIN_CALL_UPDATE_REQ\x10\xf9\x10\x12$\n\x1fPROTO_OA_MARGIN_CALL_UPDATE_RES\x10\xfa\x10\x12&\n!PROTO_OA_MARGIN_CALL_UPDATE_EVENT\x10\xfb\x10\x12\'\n\"PROTO_OA_MARGIN_CALL_TRIGGER_EVENT\x10\xfc\x10\x12\x1f\n\x1aPROTO_OA_REFRESH_TOKEN_REQ\x10\xfd\x10\x12\x1f\n\x1aPROTO_OA_REFRESH_TOKEN_RES\x10\xfe\x10*x\n\x10ProtoOADayOfWeek\x12\x08\n\x04NONE\x10\x00\x12\n\n\x06MONDAY\x10\x01\x12\x0b\n\x07TUESDAY\x10\x02\x12\r\n\tWEDNESDAY\x10\x03\x12\x0c\n\x08THURSDAY\x10\x04\x12\n\n\x06\x46RIDAY\x10\x05\x12\x0c\n\x08SATURDAY\x10\x06\x12\n\n\x06SUNDAY\x10\x07*q\n\x15ProtoOACommissionType\x12\x17\n\x13USD_PER_MILLION_USD\x10\x01\x12\x0f\n\x0bUSD_PER_LOT\x10\x02\x12\x17\n\x13PERCENTAGE_OF_VALUE\x10\x03\x12\x15\n\x11QUOTE_CCY_PER_LOT\x10\x04*]\n\x19ProtoOASymbolDistanceType\x12\x1d\n\x19SYMBOL_DISTANCE_IN_POINTS\x10\x01\x12!\n\x1dSYMBOL_DISTANCE_IN_PERCENTAGE\x10\x02*<\n\x18ProtoOAMinCommissionType\x12\x0c\n\x08\x43URRENCY\x10\x01\x12\x12\n\x0eQUOTE_CURRENCY\x10\x02*\x85\x01\n\x12ProtoOATradingMode\x12\x0b\n\x07\x45NABLED\x10\x00\x12\'\n#DISABLED_WITHOUT_PENDINGS_EXECUTION\x10\x01\x12$\n DISABLED_WITH_PENDINGS_EXECUTION\x10\x02\x12\x13\n\x0f\x43LOSE_ONLY_MODE\x10\x03*6\n\x1aProtoOASwapCalculationType\x12\x08\n\x04PIPS\x10\x00\x12\x0e\n\nPERCENTAGE\x10\x01*T\n\x13ProtoOAAccessRights\x12\x0f\n\x0b\x46ULL_ACCESS\x10\x00\x12\x0e\n\nCLOSE_ONLY\x10\x01\x12\x0e\n\nNO_TRADING\x10\x02\x12\x0c\n\x08NO_LOGIN\x10\x03*>\n!ProtoOATotalMarginCalculationType\x12\x07\n\x03MAX\x10\x00\x12\x07\n\x03SUM\x10\x01\x12\x07\n\x03NET\x10\x02*@\n\x12ProtoOAAccountType\x12\n\n\x06HEDGED\x10\x00\x12\n\n\x06NETTED\x10\x01\x12\x12\n\x0eSPREAD_BETTING\x10\x02*\x85\x01\n\x15ProtoOAPositionStatus\x12\x18\n\x14POSITION_STATUS_OPEN\x10\x01\x12\x1a\n\x16POSITION_STATUS_CLOSED\x10\x02\x12\x1b\n\x17POSITION_STATUS_CREATED\x10\x03\x12\x19\n\x15POSITION_STATUS_ERROR\x10\x04*%\n\x10ProtoOATradeSide\x12\x07\n\x03\x42UY\x10\x01\x12\x08\n\x04SELL\x10\x02*p\n\x10ProtoOAOrderType\x12\n\n\x06MARKET\x10\x01\x12\t\n\x05LIMIT\x10\x02\x12\x08\n\x04STOP\x10\x03\x12\x19\n\x15STOP_LOSS_TAKE_PROFIT\x10\x04\x12\x10\n\x0cMARKET_RANGE\x10\x05\x12\x0e\n\nSTOP_LIMIT\x10\x06*}\n\x12ProtoOATimeInForce\x12\x12\n\x0eGOOD_TILL_DATE\x10\x01\x12\x14\n\x10GOOD_TILL_CANCEL\x10\x02\x12\x17\n\x13IMMEDIATE_OR_CANCEL\x10\x03\x12\x10\n\x0c\x46ILL_OR_KILL\x10\x04\x12\x12\n\x0eMARKET_ON_OPEN\x10\x05*\x99\x01\n\x12ProtoOAOrderStatus\x12\x19\n\x15ORDER_STATUS_ACCEPTED\x10\x01\x12\x17\n\x13ORDER_STATUS_FILLED\x10\x02\x12\x19\n\x15ORDER_STATUS_REJECTED\x10\x03\x12\x18\n\x14ORDER_STATUS_EXPIRED\x10\x04\x12\x1a\n\x16ORDER_STATUS_CANCELLED\x10\x05*[\n\x19ProtoOAOrderTriggerMethod\x12\t\n\x05TRADE\x10\x01\x12\x0c\n\x08OPPOSITE\x10\x02\x12\x10\n\x0c\x44OUBLE_TRADE\x10\x03\x12\x13\n\x0f\x44OUBLE_OPPOSITE\x10\x04*\xfb\x01\n\x14ProtoOAExecutionType\x12\x12\n\x0eORDER_ACCEPTED\x10\x02\x12\x10\n\x0cORDER_FILLED\x10\x03\x12\x12\n\x0eORDER_REPLACED\x10\x04\x12\x13\n\x0fORDER_CANCELLED\x10\x05\x12\x11\n\rORDER_EXPIRED\x10\x06\x12\x12\n\x0eORDER_REJECTED\x10\x07\x12\x19\n\x15ORDER_CANCEL_REJECTED\x10\x08\x12\x08\n\x04SWAP\x10\t\x12\x14\n\x10\x44\x45POSIT_WITHDRAW\x10\n\x12\x16\n\x12ORDER_PARTIAL_FILL\x10\x0b\x12\x1a\n\x16\x42ONUS_DEPOSIT_WITHDRAW\x10\x0c*?\n\x16ProtoOAChangeBonusType\x12\x11\n\rBONUS_DEPOSIT\x10\x00\x12\x12\n\x0e\x42ONUS_WITHDRAW\x10\x01*\x87\n\n\x18ProtoOAChangeBalanceType\x12\x13\n\x0f\x42\x41LANCE_DEPOSIT\x10\x00\x12\x14\n\x10\x42\x41LANCE_WITHDRAW\x10\x01\x12-\n)BALANCE_DEPOSIT_STRATEGY_COMMISSION_INNER\x10\x03\x12.\n*BALANCE_WITHDRAW_STRATEGY_COMMISSION_INNER\x10\x04\x12\"\n\x1e\x42\x41LANCE_DEPOSIT_IB_COMMISSIONS\x10\x05\x12)\n%BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE\x10\x06\x12\x34\n0BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_SUB_IB\x10\x07\x12\x34\n0BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_BROKER\x10\x08\x12\x1a\n\x16\x42\x41LANCE_DEPOSIT_REBATE\x10\t\x12\x1b\n\x17\x42\x41LANCE_WITHDRAW_REBATE\x10\n\x12-\n)BALANCE_DEPOSIT_STRATEGY_COMMISSION_OUTER\x10\x0b\x12.\n*BALANCE_WITHDRAW_STRATEGY_COMMISSION_OUTER\x10\x0c\x12\'\n#BALANCE_WITHDRAW_BONUS_COMPENSATION\x10\r\x12\x33\n/BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE_TO_BROKER\x10\x0e\x12\x1d\n\x19\x42\x41LANCE_DEPOSIT_DIVIDENDS\x10\x0f\x12\x1e\n\x1a\x42\x41LANCE_WITHDRAW_DIVIDENDS\x10\x10\x12\x1f\n\x1b\x42\x41LANCE_WITHDRAW_GSL_CHARGE\x10\x11\x12\x1d\n\x19\x42\x41LANCE_WITHDRAW_ROLLOVER\x10\x12\x12)\n%BALANCE_DEPOSIT_NONWITHDRAWABLE_BONUS\x10\x13\x12*\n&BALANCE_WITHDRAW_NONWITHDRAWABLE_BONUS\x10\x14\x12\x18\n\x14\x42\x41LANCE_DEPOSIT_SWAP\x10\x15\x12\x19\n\x15\x42\x41LANCE_WITHDRAW_SWAP\x10\x16\x12\"\n\x1e\x42\x41LANCE_DEPOSIT_MANAGEMENT_FEE\x10\x1b\x12#\n\x1f\x42\x41LANCE_WITHDRAW_MANAGEMENT_FEE\x10\x1c\x12#\n\x1f\x42\x41LANCE_DEPOSIT_PERFORMANCE_FEE\x10\x1d\x12#\n\x1f\x42\x41LANCE_WITHDRAW_FOR_SUBACCOUNT\x10\x1e\x12!\n\x1d\x42\x41LANCE_DEPOSIT_TO_SUBACCOUNT\x10\x1f\x12$\n BALANCE_WITHDRAW_FROM_SUBACCOUNT\x10 \x12#\n\x1f\x42\x41LANCE_DEPOSIT_FROM_SUBACCOUNT\x10!\x12\x1d\n\x19\x42\x41LANCE_WITHDRAW_COPY_FEE\x10\"\x12#\n\x1f\x42\x41LANCE_WITHDRAW_INACTIVITY_FEE\x10#\x12\x1c\n\x18\x42\x41LANCE_DEPOSIT_TRANSFER\x10$\x12\x1d\n\x19\x42\x41LANCE_WITHDRAW_TRANSFER\x10%\x12#\n\x1f\x42\x41LANCE_DEPOSIT_CONVERTED_BONUS\x10&*s\n\x11ProtoOADealStatus\x12\n\n\x06\x46ILLED\x10\x02\x12\x14\n\x10PARTIALLY_FILLED\x10\x03\x12\x0c\n\x08REJECTED\x10\x04\x12\x17\n\x13INTERNALLY_REJECTED\x10\x05\x12\t\n\x05\x45RROR\x10\x06\x12\n\n\x06MISSED\x10\x07*\x8c\x01\n\x15ProtoOATrendbarPeriod\x12\x06\n\x02M1\x10\x01\x12\x06\n\x02M2\x10\x02\x12\x06\n\x02M3\x10\x03\x12\x06\n\x02M4\x10\x04\x12\x06\n\x02M5\x10\x05\x12\x07\n\x03M10\x10\x06\x12\x07\n\x03M15\x10\x07\x12\x07\n\x03M30\x10\x08\x12\x06\n\x02H1\x10\t\x12\x06\n\x02H4\x10\n\x12\x07\n\x03H12\x10\x0b\x12\x06\n\x02\x44\x31\x10\x0c\x12\x06\n\x02W1\x10\r\x12\x07\n\x03MN1\x10\x0e*$\n\x10ProtoOAQuoteType\x12\x07\n\x03\x42ID\x10\x01\x12\x07\n\x03\x41SK\x10\x02*?\n\x1cProtoOAClientPermissionScope\x12\x0e\n\nSCOPE_VIEW\x10\x00\x12\x0f\n\x0bSCOPE_TRADE\x10\x01*s\n\x17ProtoOANotificationType\x12\x1c\n\x18MARGIN_LEVEL_THRESHOLD_1\x10=\x12\x1c\n\x18MARGIN_LEVEL_THRESHOLD_2\x10>\x12\x1c\n\x18MARGIN_LEVEL_THRESHOLD_3\x10?*\xde\x08\n\x10ProtoOAErrorCode\x12\x19\n\x15OA_AUTH_TOKEN_EXPIRED\x10\x01\x12\x1a\n\x16\x41\x43\x43OUNT_NOT_AUTHORIZED\x10\x02\x12\x15\n\x11\x41LREADY_LOGGED_IN\x10\x0e\x12\x1a\n\x16\x43H_CLIENT_AUTH_FAILURE\x10\x65\x12\x1f\n\x1b\x43H_CLIENT_NOT_AUTHENTICATED\x10\x66\x12#\n\x1f\x43H_CLIENT_ALREADY_AUTHENTICATED\x10g\x12\x1b\n\x17\x43H_ACCESS_TOKEN_INVALID\x10h\x12\x1b\n\x17\x43H_SERVER_NOT_REACHABLE\x10i\x12$\n CH_CTID_TRADER_ACCOUNT_NOT_FOUND\x10j\x12\x1a\n\x16\x43H_OA_CLIENT_NOT_FOUND\x10k\x12\x1e\n\x1aREQUEST_FREQUENCY_EXCEEDED\x10l\x12\x1f\n\x1bSERVER_IS_UNDER_MAINTENANCE\x10m\x12\x16\n\x12\x43HANNEL_IS_BLOCKED\x10n\x12\x1e\n\x1a\x43ONNECTIONS_LIMIT_EXCEEDED\x10\x43\x12\x19\n\x15WORSE_GSL_NOT_ALLOWED\x10\x44\x12\x16\n\x12SYMBOL_HAS_HOLIDAY\x10\x45\x12\x1b\n\x17NOT_SUBSCRIBED_TO_SPOTS\x10p\x12\x16\n\x12\x41LREADY_SUBSCRIBED\x10q\x12\x14\n\x10SYMBOL_NOT_FOUND\x10r\x12\x12\n\x0eUNKNOWN_SYMBOL\x10s\x12\x18\n\x14INCORRECT_BOUNDARIES\x10#\x12\r\n\tNO_QUOTES\x10u\x12\x14\n\x10NOT_ENOUGH_MONEY\x10v\x12\x18\n\x14MAX_EXPOSURE_REACHED\x10w\x12\x16\n\x12POSITION_NOT_FOUND\x10x\x12\x13\n\x0fORDER_NOT_FOUND\x10y\x12\x15\n\x11POSITION_NOT_OPEN\x10z\x12\x13\n\x0fPOSITION_LOCKED\x10{\x12\x16\n\x12TOO_MANY_POSITIONS\x10|\x12\x16\n\x12TRADING_BAD_VOLUME\x10}\x12\x15\n\x11TRADING_BAD_STOPS\x10~\x12\x16\n\x12TRADING_BAD_PRICES\x10\x7f\x12\x16\n\x11TRADING_BAD_STAKE\x10\x80\x01\x12&\n!PROTECTION_IS_TOO_CLOSE_TO_MARKET\x10\x81\x01\x12 \n\x1bTRADING_BAD_EXPIRATION_DATE\x10\x82\x01\x12\x16\n\x11PENDING_EXECUTION\x10\x83\x01\x12\x15\n\x10TRADING_DISABLED\x10\x84\x01\x12\x18\n\x13TRADING_NOT_ALLOWED\x10\x85\x01\x12\x1b\n\x16UNABLE_TO_CANCEL_ORDER\x10\x86\x01\x12\x1a\n\x15UNABLE_TO_AMEND_ORDER\x10\x87\x01\x12\x1e\n\x19SHORT_SELLING_NOT_ALLOWED\x10\x88\x01*\x81\x01\n+ProtoOALimitedRiskMarginCalculationStrategy\x12\x19\n\x15\x41\x43\x43ORDING_TO_LEVERAGE\x10\x00\x12\x14\n\x10\x41\x43\x43ORDING_TO_GSL\x10\x01\x12!\n\x1d\x41\x43\x43ORDING_TO_GSL_AND_LEVERAGE\x10\x02\x42M\n%com.xtrader.protocol.openapi.v2.modelB\x1f\x43ontainerOpenApiV2ModelMessagesP\x01\xa0\x01\x01'
+  serialized_pb=b'\n\x1aOpenApiModelMessages.proto\"R\n\x0cProtoOAAsset\x12\x0f\n\x07\x61ssetId\x18\x01 \x02(\x03\x12\x0c\n\x04name\x18\x02 \x02(\t\x12\x13\n\x0b\x64isplayName\x18\x03 \x01(\t\x12\x0e\n\x06\x64igits\x18\x04 \x01(\x05\"\xd7\x08\n\rProtoOASymbol\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x0e\n\x06\x64igits\x18\x02 \x02(\x05\x12\x13\n\x0bpipPosition\x18\x03 \x02(\x05\x12\x1a\n\x12\x65nableShortSelling\x18\x04 \x01(\x08\x12\x1a\n\x12guaranteedStopLoss\x18\x05 \x01(\x08\x12\x34\n\x11swapRollover3Days\x18\x06 \x01(\x0e\x32\x11.ProtoOADayOfWeek:\x06MONDAY\x12\x10\n\x08swapLong\x18\x07 \x01(\x01\x12\x11\n\tswapShort\x18\x08 \x01(\x01\x12\x11\n\tmaxVolume\x18\t \x01(\x03\x12\x11\n\tminVolume\x18\n \x01(\x03\x12\x12\n\nstepVolume\x18\x0b \x01(\x03\x12\x13\n\x0bmaxExposure\x18\x0c \x01(\x04\x12\"\n\x08schedule\x18\r \x03(\x0b\x32\x10.ProtoOAInterval\x12\x16\n\ncommission\x18\x0e \x01(\x03\x42\x02\x18\x01\x12\x43\n\x0e\x63ommissionType\x18\x0f \x01(\x0e\x32\x16.ProtoOACommissionType:\x13USD_PER_MILLION_USD\x12\x12\n\nslDistance\x18\x10 \x01(\r\x12\x12\n\ntpDistance\x18\x11 \x01(\r\x12\x13\n\x0bgslDistance\x18\x12 \x01(\r\x12\x11\n\tgslCharge\x18\x13 \x01(\x03\x12L\n\rdistanceSetIn\x18\x14 \x01(\x0e\x32\x1a.ProtoOASymbolDistanceType:\x19SYMBOL_DISTANCE_IN_POINTS\x12\x19\n\rminCommission\x18\x15 \x01(\x03\x42\x02\x18\x01\x12>\n\x11minCommissionType\x18\x16 \x01(\x0e\x32\x19.ProtoOAMinCommissionType:\x08\x43URRENCY\x12\x1f\n\x12minCommissionAsset\x18\x17 \x01(\t:\x03USD\x12\x1a\n\x12rolloverCommission\x18\x18 \x01(\x03\x12\x18\n\x10skipRolloverDays\x18\x19 \x01(\x05\x12\x18\n\x10scheduleTimeZone\x18\x1a \x01(\t\x12\x31\n\x0btradingMode\x18\x1b \x01(\x0e\x32\x13.ProtoOATradingMode:\x07\x45NABLED\x12:\n\x17rolloverCommission3Days\x18\x1c \x01(\x0e\x32\x11.ProtoOADayOfWeek:\x06MONDAY\x12>\n\x13swapCalculationType\x18\x1d \x01(\x0e\x32\x1b.ProtoOASwapCalculationType:\x04PIPS\x12\x0f\n\x07lotSize\x18\x1e \x01(\x03\x12$\n\x1cpreciseTradingCommissionRate\x18\x1f \x01(\x03\x12\x1c\n\x14preciseMinCommission\x18  \x01(\x03\x12 \n\x07holiday\x18! \x03(\x0b\x32\x0f.ProtoOAHoliday\x12\x1c\n\x14pnlConversionFeeRate\x18\" \x01(\x05\"\xa5\x01\n\x12ProtoOALightSymbol\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x12\n\nsymbolName\x18\x02 \x01(\t\x12\x0f\n\x07\x65nabled\x18\x03 \x01(\x08\x12\x13\n\x0b\x62\x61seAssetId\x18\x04 \x01(\x03\x12\x14\n\x0cquoteAssetId\x18\x05 \x01(\x03\x12\x18\n\x10symbolCategoryId\x18\x06 \x01(\x03\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\"l\n\x15ProtoOAArchivedSymbol\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x0c\n\x04name\x18\x02 \x02(\t\x12\x1e\n\x16utcLastUpdateTimestamp\x18\x03 \x02(\x03\x12\x13\n\x0b\x64\x65scription\x18\x04 \x01(\t\"G\n\x15ProtoOASymbolCategory\x12\n\n\x02id\x18\x01 \x02(\x03\x12\x14\n\x0c\x61ssetClassId\x18\x02 \x02(\x03\x12\x0c\n\x04name\x18\x03 \x02(\t\"9\n\x0fProtoOAInterval\x12\x13\n\x0bstartSecond\x18\x03 \x02(\r\x12\x11\n\tendSecond\x18\x04 \x02(\r\"\xa4\x05\n\rProtoOATrader\x12\x1b\n\x13\x63tidTraderAccountId\x18\x01 \x02(\x03\x12\x0f\n\x07\x62\x61lance\x18\x02 \x02(\x03\x12\x16\n\x0e\x62\x61lanceVersion\x18\x03 \x01(\x03\x12\x14\n\x0cmanagerBonus\x18\x04 \x01(\x03\x12\x0f\n\x07ibBonus\x18\x05 \x01(\x03\x12\x1c\n\x14nonWithdrawableBonus\x18\x06 \x01(\x03\x12\x37\n\x0c\x61\x63\x63\x65ssRights\x18\x07 \x01(\x0e\x32\x14.ProtoOAAccessRights:\x0b\x46ULL_ACCESS\x12\x16\n\x0e\x64\x65positAssetId\x18\x08 \x02(\x03\x12\x10\n\x08swapFree\x18\t \x01(\x08\x12\x17\n\x0fleverageInCents\x18\n \x01(\r\x12\x46\n\x1atotalMarginCalculationType\x18\x0b \x01(\x0e\x32\".ProtoOATotalMarginCalculationType\x12\x13\n\x0bmaxLeverage\x18\x0c \x01(\r\x12\x16\n\nfrenchRisk\x18\r \x01(\x08\x42\x02\x18\x01\x12\x13\n\x0btraderLogin\x18\x0e \x01(\x03\x12\x30\n\x0b\x61\x63\x63ountType\x18\x0f \x01(\x0e\x32\x13.ProtoOAAccountType:\x06HEDGED\x12\x12\n\nbrokerName\x18\x10 \x01(\t\x12\x1d\n\x15registrationTimestamp\x18\x11 \x01(\x03\x12\x15\n\risLimitedRisk\x18\x12 \x01(\x08\x12q\n$limitedRiskMarginCalculationStrategy\x18\x13 \x01(\x0e\x32,.ProtoOALimitedRiskMarginCalculationStrategy:\x15\x41\x43\x43ORDING_TO_LEVERAGE\x12\x13\n\x0bmoneyDigits\x18\x14 \x01(\r\"\xaa\x03\n\x0fProtoOAPosition\x12\x12\n\npositionId\x18\x01 \x02(\x03\x12$\n\ttradeData\x18\x02 \x02(\x0b\x32\x11.ProtoOATradeData\x12.\n\x0epositionStatus\x18\x03 \x02(\x0e\x32\x16.ProtoOAPositionStatus\x12\x0c\n\x04swap\x18\x04 \x02(\x03\x12\r\n\x05price\x18\x05 \x01(\x01\x12\x10\n\x08stopLoss\x18\x06 \x01(\x01\x12\x12\n\ntakeProfit\x18\x07 \x01(\x01\x12\x1e\n\x16utcLastUpdateTimestamp\x18\x08 \x01(\x03\x12\x12\n\ncommission\x18\t \x01(\x03\x12\x12\n\nmarginRate\x18\n \x01(\x01\x12\x1b\n\x13mirroringCommission\x18\x0b \x01(\x03\x12\x1a\n\x12guaranteedStopLoss\x18\x0c \x01(\x08\x12\x12\n\nusedMargin\x18\r \x01(\x04\x12@\n\x15stopLossTriggerMethod\x18\x0e \x01(\x0e\x32\x1a.ProtoOAOrderTriggerMethod:\x05TRADE\x12\x13\n\x0bmoneyDigits\x18\x0f \x01(\r\"\xad\x01\n\x10ProtoOATradeData\x12\x10\n\x08symbolId\x18\x01 \x02(\x03\x12\x0e\n\x06volume\x18\x02 \x02(\x03\x12$\n\ttradeSide\x18\x03 \x02(\x0e\x32\x11.ProtoOATradeSide\x12\x15\n\ropenTimestamp\x18\x04 \x01(\x03\x12\r\n\x05label\x18\x05 \x01(\t\x12\x1a\n\x12guaranteedStopLoss\x18\x06 \x01(\x08\x12\x0f\n\x07\x63omment\x18\x07 \x01(\t\"\xa5\x05\n\x0cProtoOAOrder\x12\x0f\n\x07orderId\x18\x01 \x02(\x03\x12$\n\ttradeData\x18\x02 \x02(\x0b\x32\x11.ProtoOATradeData\x12$\n\torderType\x18\x03 \x02(\x0e\x32\x11.ProtoOAOrderType\x12(\n\x0borderStatus\x18\x04 \x02(\x0e\x32\x13.ProtoOAOrderStatus\x12\x1b\n\x13\x65xpirationTimestamp\x18\x06 \x01(\x03\x12\x16\n\x0e\x65xecutionPrice\x18\x07 \x01(\x01\x12\x16\n\x0e\x65xecutedVolume\x18\x08 \x01(\x03\x12\x1e\n\x16utcLastUpdateTimestamp\x18\t \x01(\x03\x12\x19\n\x11\x62\x61seSlippagePrice\x18\n \x01(\x01\x12\x18\n\x10slippageInPoints\x18\x0b \x01(\x03\x12\x14\n\x0c\x63losingOrder\x18\x0c \x01(\x08\x12\x12\n\nlimitPrice\x18\r \x01(\x01\x12\x11\n\tstopPrice\x18\x0e \x01(\x01\x12\x10\n\x08stopLoss\x18\x0f \x01(\x01\x12\x12\n\ntakeProfit\x18\x10 \x01(\x01\x12\x15\n\rclientOrderId\x18\x11 \x01(\t\x12=\n\x0btimeInForce\x18\x12 \x01(\x0e\x32\x13.ProtoOATimeInForce:\x13IMMEDIATE_OR_CANCEL\x12\x12\n\npositionId\x18\x13 \x01(\x03\x12\x18\n\x10relativeStopLoss\x18\x14 \x01(\x03\x12\x1a\n\x12relativeTakeProfit\x18\x15 \x01(\x03\x12\x11\n\tisStopOut\x18\x16 \x01(\x08\x12\x18\n\x10trailingStopLoss\x18\x17 \x01(\x08\x12<\n\x11stopTriggerMethod\x18\x18 \x01(\x0e\x32\x1a.ProtoOAOrderTriggerMethod:\x05TRADE\"\x99\x02\n\x1bProtoOABonusDepositWithdraw\x12.\n\roperationType\x18\x01 \x02(\x0e\x32\x17.ProtoOAChangeBonusType\x12\x16\n\x0e\x62onusHistoryId\x18\x02 \x02(\x03\x12\x14\n\x0cmanagerBonus\x18\x03 \x02(\x03\x12\x14\n\x0cmanagerDelta\x18\x04 \x02(\x03\x12\x0f\n\x07ibBonus\x18\x05 \x02(\x03\x12\x0f\n\x07ibDelta\x18\x06 \x02(\x03\x12\x1c\n\x14\x63hangeBonusTimestamp\x18\x07 \x02(\x03\x12\x14\n\x0c\x65xternalNote\x18\x08 \x01(\t\x12\x1b\n\x13introducingBrokerId\x18\t \x01(\x03\x12\x13\n\x0bmoneyDigits\x18\n \x01(\r\"\xf7\x01\n\x16ProtoOADepositWithdraw\x12\x30\n\roperationType\x18\x01 \x02(\x0e\x32\x19.ProtoOAChangeBalanceType\x12\x18\n\x10\x62\x61lanceHistoryId\x18\x02 \x02(\x03\x12\x0f\n\x07\x62\x61lance\x18\x03 \x02(\x03\x12\r\n\x05\x64\x65lta\x18\x04 \x02(\x03\x12\x1e\n\x16\x63hangeBalanceTimestamp\x18\x05 \x02(\x03\x12\x14\n\x0c\x65xternalNote\x18\x06 \x01(\t\x12\x16\n\x0e\x62\x61lanceVersion\x18\x07 \x01(\x03\x12\x0e\n\x06\x65quity\x18\x08 \x01(\x03\x12\x13\n\x0bmoneyDigits\x18\t \x01(\r\"\xcd\x03\n\x0bProtoOADeal\x12\x0e\n\x06\x64\x65\x61lId\x18\x01 \x02(\x03\x12\x0f\n\x07orderId\x18\x02 \x02(\x03\x12\x12\n\npositionId\x18\x03 \x02(\x03\x12\x0e\n\x06volume\x18\x04 \x02(\x03\x12\x14\n\x0c\x66illedVolume\x18\x05 \x02(\x03\x12\x10\n\x08symbolId\x18\x06 \x02(\x03\x12\x17\n\x0f\x63reateTimestamp\x18\x07 \x02(\x03\x12\x1a\n\x12\x65xecutionTimestamp\x18\x08 \x02(\x03\x12\x1e\n\x16utcLastUpdateTimestamp\x18\t \x01(\x03\x12\x16\n\x0e\x65xecutionPrice\x18\n \x01(\x01\x12$\n\ttradeSide\x18\x0b \x02(\x0e\x32\x11.ProtoOATradeSide\x12&\n\ndealStatus\x18\x0c \x02(\x0e\x32\x12.ProtoOADealStatus\x12\x12\n\nmarginRate\x18\r \x01(\x01\x12\x12\n\ncommission\x18\x0e \x01(\x03\x12\x1f\n\x17\x62\x61seToUsdConversionRate\x18\x0f \x01(\x01\x12\x38\n\x13\x63losePositionDetail\x18\x10 \x01(\x0b\x32\x1b.ProtoOAClosePositionDetail\x12\x13\n\x0bmoneyDigits\x18\x11 \x01(\r\"\xfb\x01\n\x1aProtoOAClosePositionDetail\x12\x12\n\nentryPrice\x18\x01 \x02(\x01\x12\x13\n\x0bgrossProfit\x18\x02 \x02(\x03\x12\x0c\n\x04swap\x18\x03 \x02(\x03\x12\x12\n\ncommission\x18\x04 \x02(\x03\x12\x0f\n\x07\x62\x61lance\x18\x05 \x02(\x03\x12$\n\x1cquoteToDepositConversionRate\x18\x06 \x01(\x01\x12\x14\n\x0c\x63losedVolume\x18\x07 \x01(\x03\x12\x16\n\x0e\x62\x61lanceVersion\x18\x08 \x01(\x03\x12\x13\n\x0bmoneyDigits\x18\t \x01(\r\x12\x18\n\x10pnlConversionFee\x18\n \x01(\x03\"\xb3\x01\n\x0fProtoOATrendbar\x12\x0e\n\x06volume\x18\x03 \x02(\x03\x12*\n\x06period\x18\x04 \x01(\x0e\x32\x16.ProtoOATrendbarPeriod:\x02M1\x12\x0b\n\x03low\x18\x05 \x01(\x03\x12\x11\n\tdeltaOpen\x18\x06 \x01(\x04\x12\x12\n\ndeltaClose\x18\x07 \x01(\x04\x12\x11\n\tdeltaHigh\x18\x08 \x01(\x04\x12\x1d\n\x15utcTimestampInMinutes\x18\t \x01(\r\"N\n\x15ProtoOAExpectedMargin\x12\x0e\n\x06volume\x18\x01 \x02(\x03\x12\x11\n\tbuyMargin\x18\x02 \x02(\x03\x12\x12\n\nsellMargin\x18\x03 \x02(\x03\"2\n\x0fProtoOATickData\x12\x11\n\ttimestamp\x18\x01 \x02(\x03\x12\x0c\n\x04tick\x18\x02 \x02(\x03\"$\n\x12ProtoOACtidProfile\x12\x0e\n\x06userId\x18\x01 \x02(\x03\"\xa2\x01\n\x18ProtoOACtidTraderAccount\x12\x1b\n\x13\x63tidTraderAccountId\x18\x01 \x02(\x04\x12\x0e\n\x06isLive\x18\x02 \x01(\x08\x12\x13\n\x0btraderLogin\x18\x03 \x01(\x03\x12 \n\x18lastClosingDealTimestamp\x18\x04 \x01(\x03\x12\"\n\x1alastBalanceUpdateTimestamp\x18\x05 \x01(\x03\"-\n\x11ProtoOAAssetClass\x12\n\n\x02id\x18\x01 \x01(\x03\x12\x0c\n\x04name\x18\x02 \x01(\t\"G\n\x11ProtoOADepthQuote\x12\n\n\x02id\x18\x01 \x02(\x04\x12\x0c\n\x04size\x18\x03 \x02(\x04\x12\x0b\n\x03\x62id\x18\x04 \x01(\x04\x12\x0b\n\x03\x61sk\x18\x05 \x01(\x04\"\x83\x01\n\x11ProtoOAMarginCall\x12\x30\n\x0emarginCallType\x18\x01 \x02(\x0e\x32\x18.ProtoOANotificationType\x12\x1c\n\x14marginLevelThreshold\x18\x02 \x02(\x01\x12\x1e\n\x16utcLastUpdateTimestamp\x18\x03 \x01(\x03\"\xb2\x01\n\x0eProtoOAHoliday\x12\x11\n\tholidayId\x18\x01 \x02(\x03\x12\x0c\n\x04name\x18\x02 \x02(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x12\x18\n\x10scheduleTimeZone\x18\x04 \x02(\t\x12\x13\n\x0bholidayDate\x18\x05 \x02(\x03\x12\x13\n\x0bisRecurring\x18\x06 \x02(\x08\x12\x13\n\x0bstartSecond\x18\x07 \x01(\x05\x12\x11\n\tendSecond\x18\x08 \x01(\x05*\xc7\x15\n\x12ProtoOAPayloadType\x12\"\n\x1dPROTO_OA_APPLICATION_AUTH_REQ\x10\xb4\x10\x12\"\n\x1dPROTO_OA_APPLICATION_AUTH_RES\x10\xb5\x10\x12\x1e\n\x19PROTO_OA_ACCOUNT_AUTH_REQ\x10\xb6\x10\x12\x1e\n\x19PROTO_OA_ACCOUNT_AUTH_RES\x10\xb7\x10\x12\x19\n\x14PROTO_OA_VERSION_REQ\x10\xb8\x10\x12\x19\n\x14PROTO_OA_VERSION_RES\x10\xb9\x10\x12\x1b\n\x16PROTO_OA_NEW_ORDER_REQ\x10\xba\x10\x12\'\n\"PROTO_OA_TRAILING_SL_CHANGED_EVENT\x10\xbb\x10\x12\x1e\n\x19PROTO_OA_CANCEL_ORDER_REQ\x10\xbc\x10\x12\x1d\n\x18PROTO_OA_AMEND_ORDER_REQ\x10\xbd\x10\x12%\n PROTO_OA_AMEND_POSITION_SLTP_REQ\x10\xbe\x10\x12 \n\x1bPROTO_OA_CLOSE_POSITION_REQ\x10\xbf\x10\x12\x1c\n\x17PROTO_OA_ASSET_LIST_REQ\x10\xc0\x10\x12\x1c\n\x17PROTO_OA_ASSET_LIST_RES\x10\xc1\x10\x12\x1e\n\x19PROTO_OA_SYMBOLS_LIST_REQ\x10\xc2\x10\x12\x1e\n\x19PROTO_OA_SYMBOLS_LIST_RES\x10\xc3\x10\x12\x1e\n\x19PROTO_OA_SYMBOL_BY_ID_REQ\x10\xc4\x10\x12\x1e\n\x19PROTO_OA_SYMBOL_BY_ID_RES\x10\xc5\x10\x12(\n#PROTO_OA_SYMBOLS_FOR_CONVERSION_REQ\x10\xc6\x10\x12(\n#PROTO_OA_SYMBOLS_FOR_CONVERSION_RES\x10\xc7\x10\x12\"\n\x1dPROTO_OA_SYMBOL_CHANGED_EVENT\x10\xc8\x10\x12\x18\n\x13PROTO_OA_TRADER_REQ\x10\xc9\x10\x12\x18\n\x13PROTO_OA_TRADER_RES\x10\xca\x10\x12!\n\x1cPROTO_OA_TRADER_UPDATE_EVENT\x10\xcb\x10\x12\x1b\n\x16PROTO_OA_RECONCILE_REQ\x10\xcc\x10\x12\x1b\n\x16PROTO_OA_RECONCILE_RES\x10\xcd\x10\x12\x1d\n\x18PROTO_OA_EXECUTION_EVENT\x10\xce\x10\x12!\n\x1cPROTO_OA_SUBSCRIBE_SPOTS_REQ\x10\xcf\x10\x12!\n\x1cPROTO_OA_SUBSCRIBE_SPOTS_RES\x10\xd0\x10\x12#\n\x1ePROTO_OA_UNSUBSCRIBE_SPOTS_REQ\x10\xd1\x10\x12#\n\x1ePROTO_OA_UNSUBSCRIBE_SPOTS_RES\x10\xd2\x10\x12\x18\n\x13PROTO_OA_SPOT_EVENT\x10\xd3\x10\x12\x1f\n\x1aPROTO_OA_ORDER_ERROR_EVENT\x10\xd4\x10\x12\x1b\n\x16PROTO_OA_DEAL_LIST_REQ\x10\xd5\x10\x12\x1b\n\x16PROTO_OA_DEAL_LIST_RES\x10\xd6\x10\x12)\n$PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_REQ\x10\xd7\x10\x12+\n&PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_REQ\x10\xd8\x10\x12\x1f\n\x1aPROTO_OA_GET_TRENDBARS_REQ\x10\xd9\x10\x12\x1f\n\x1aPROTO_OA_GET_TRENDBARS_RES\x10\xda\x10\x12!\n\x1cPROTO_OA_EXPECTED_MARGIN_REQ\x10\xdb\x10\x12!\n\x1cPROTO_OA_EXPECTED_MARGIN_RES\x10\xdc\x10\x12\"\n\x1dPROTO_OA_MARGIN_CHANGED_EVENT\x10\xdd\x10\x12\x17\n\x12PROTO_OA_ERROR_RES\x10\xde\x10\x12(\n#PROTO_OA_CASH_FLOW_HISTORY_LIST_REQ\x10\xdf\x10\x12(\n#PROTO_OA_CASH_FLOW_HISTORY_LIST_RES\x10\xe0\x10\x12\x1e\n\x19PROTO_OA_GET_TICKDATA_REQ\x10\xe1\x10\x12\x1e\n\x19PROTO_OA_GET_TICKDATA_RES\x10\xe2\x10\x12.\n)PROTO_OA_ACCOUNTS_TOKEN_INVALIDATED_EVENT\x10\xe3\x10\x12%\n PROTO_OA_CLIENT_DISCONNECT_EVENT\x10\xe4\x10\x12.\n)PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_REQ\x10\xe5\x10\x12.\n)PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_RES\x10\xe6\x10\x12+\n&PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_REQ\x10\xe7\x10\x12+\n&PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_RES\x10\xe8\x10\x12\"\n\x1dPROTO_OA_ASSET_CLASS_LIST_REQ\x10\xe9\x10\x12\"\n\x1dPROTO_OA_ASSET_CLASS_LIST_RES\x10\xea\x10\x12\x19\n\x14PROTO_OA_DEPTH_EVENT\x10\xeb\x10\x12(\n#PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_REQ\x10\xec\x10\x12(\n#PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_RES\x10\xed\x10\x12*\n%PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_REQ\x10\xee\x10\x12*\n%PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_RES\x10\xef\x10\x12!\n\x1cPROTO_OA_SYMBOL_CATEGORY_REQ\x10\xf0\x10\x12!\n\x1cPROTO_OA_SYMBOL_CATEGORY_RES\x10\xf1\x10\x12 \n\x1bPROTO_OA_ACCOUNT_LOGOUT_REQ\x10\xf2\x10\x12 \n\x1bPROTO_OA_ACCOUNT_LOGOUT_RES\x10\xf3\x10\x12&\n!PROTO_OA_ACCOUNT_DISCONNECT_EVENT\x10\xf4\x10\x12)\n$PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_RES\x10\xf5\x10\x12+\n&PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_RES\x10\xf6\x10\x12\"\n\x1dPROTO_OA_MARGIN_CALL_LIST_REQ\x10\xf7\x10\x12\"\n\x1dPROTO_OA_MARGIN_CALL_LIST_RES\x10\xf8\x10\x12$\n\x1fPROTO_OA_MARGIN_CALL_UPDATE_REQ\x10\xf9\x10\x12$\n\x1fPROTO_OA_MARGIN_CALL_UPDATE_RES\x10\xfa\x10\x12&\n!PROTO_OA_MARGIN_CALL_UPDATE_EVENT\x10\xfb\x10\x12\'\n\"PROTO_OA_MARGIN_CALL_TRIGGER_EVENT\x10\xfc\x10\x12\x1f\n\x1aPROTO_OA_REFRESH_TOKEN_REQ\x10\xfd\x10\x12\x1f\n\x1aPROTO_OA_REFRESH_TOKEN_RES\x10\xfe\x10\x12\x1c\n\x17PROTO_OA_ORDER_LIST_REQ\x10\xff\x10\x12\x1c\n\x17PROTO_OA_ORDER_LIST_RES\x10\x80\x11*x\n\x10ProtoOADayOfWeek\x12\x08\n\x04NONE\x10\x00\x12\n\n\x06MONDAY\x10\x01\x12\x0b\n\x07TUESDAY\x10\x02\x12\r\n\tWEDNESDAY\x10\x03\x12\x0c\n\x08THURSDAY\x10\x04\x12\n\n\x06\x46RIDAY\x10\x05\x12\x0c\n\x08SATURDAY\x10\x06\x12\n\n\x06SUNDAY\x10\x07*q\n\x15ProtoOACommissionType\x12\x17\n\x13USD_PER_MILLION_USD\x10\x01\x12\x0f\n\x0bUSD_PER_LOT\x10\x02\x12\x17\n\x13PERCENTAGE_OF_VALUE\x10\x03\x12\x15\n\x11QUOTE_CCY_PER_LOT\x10\x04*]\n\x19ProtoOASymbolDistanceType\x12\x1d\n\x19SYMBOL_DISTANCE_IN_POINTS\x10\x01\x12!\n\x1dSYMBOL_DISTANCE_IN_PERCENTAGE\x10\x02*<\n\x18ProtoOAMinCommissionType\x12\x0c\n\x08\x43URRENCY\x10\x01\x12\x12\n\x0eQUOTE_CURRENCY\x10\x02*\x85\x01\n\x12ProtoOATradingMode\x12\x0b\n\x07\x45NABLED\x10\x00\x12\'\n#DISABLED_WITHOUT_PENDINGS_EXECUTION\x10\x01\x12$\n DISABLED_WITH_PENDINGS_EXECUTION\x10\x02\x12\x13\n\x0f\x43LOSE_ONLY_MODE\x10\x03*6\n\x1aProtoOASwapCalculationType\x12\x08\n\x04PIPS\x10\x00\x12\x0e\n\nPERCENTAGE\x10\x01*T\n\x13ProtoOAAccessRights\x12\x0f\n\x0b\x46ULL_ACCESS\x10\x00\x12\x0e\n\nCLOSE_ONLY\x10\x01\x12\x0e\n\nNO_TRADING\x10\x02\x12\x0c\n\x08NO_LOGIN\x10\x03*>\n!ProtoOATotalMarginCalculationType\x12\x07\n\x03MAX\x10\x00\x12\x07\n\x03SUM\x10\x01\x12\x07\n\x03NET\x10\x02*@\n\x12ProtoOAAccountType\x12\n\n\x06HEDGED\x10\x00\x12\n\n\x06NETTED\x10\x01\x12\x12\n\x0eSPREAD_BETTING\x10\x02*\x85\x01\n\x15ProtoOAPositionStatus\x12\x18\n\x14POSITION_STATUS_OPEN\x10\x01\x12\x1a\n\x16POSITION_STATUS_CLOSED\x10\x02\x12\x1b\n\x17POSITION_STATUS_CREATED\x10\x03\x12\x19\n\x15POSITION_STATUS_ERROR\x10\x04*%\n\x10ProtoOATradeSide\x12\x07\n\x03\x42UY\x10\x01\x12\x08\n\x04SELL\x10\x02*p\n\x10ProtoOAOrderType\x12\n\n\x06MARKET\x10\x01\x12\t\n\x05LIMIT\x10\x02\x12\x08\n\x04STOP\x10\x03\x12\x19\n\x15STOP_LOSS_TAKE_PROFIT\x10\x04\x12\x10\n\x0cMARKET_RANGE\x10\x05\x12\x0e\n\nSTOP_LIMIT\x10\x06*}\n\x12ProtoOATimeInForce\x12\x12\n\x0eGOOD_TILL_DATE\x10\x01\x12\x14\n\x10GOOD_TILL_CANCEL\x10\x02\x12\x17\n\x13IMMEDIATE_OR_CANCEL\x10\x03\x12\x10\n\x0c\x46ILL_OR_KILL\x10\x04\x12\x12\n\x0eMARKET_ON_OPEN\x10\x05*\x99\x01\n\x12ProtoOAOrderStatus\x12\x19\n\x15ORDER_STATUS_ACCEPTED\x10\x01\x12\x17\n\x13ORDER_STATUS_FILLED\x10\x02\x12\x19\n\x15ORDER_STATUS_REJECTED\x10\x03\x12\x18\n\x14ORDER_STATUS_EXPIRED\x10\x04\x12\x1a\n\x16ORDER_STATUS_CANCELLED\x10\x05*[\n\x19ProtoOAOrderTriggerMethod\x12\t\n\x05TRADE\x10\x01\x12\x0c\n\x08OPPOSITE\x10\x02\x12\x10\n\x0c\x44OUBLE_TRADE\x10\x03\x12\x13\n\x0f\x44OUBLE_OPPOSITE\x10\x04*\xfb\x01\n\x14ProtoOAExecutionType\x12\x12\n\x0eORDER_ACCEPTED\x10\x02\x12\x10\n\x0cORDER_FILLED\x10\x03\x12\x12\n\x0eORDER_REPLACED\x10\x04\x12\x13\n\x0fORDER_CANCELLED\x10\x05\x12\x11\n\rORDER_EXPIRED\x10\x06\x12\x12\n\x0eORDER_REJECTED\x10\x07\x12\x19\n\x15ORDER_CANCEL_REJECTED\x10\x08\x12\x08\n\x04SWAP\x10\t\x12\x14\n\x10\x44\x45POSIT_WITHDRAW\x10\n\x12\x16\n\x12ORDER_PARTIAL_FILL\x10\x0b\x12\x1a\n\x16\x42ONUS_DEPOSIT_WITHDRAW\x10\x0c*?\n\x16ProtoOAChangeBonusType\x12\x11\n\rBONUS_DEPOSIT\x10\x00\x12\x12\n\x0e\x42ONUS_WITHDRAW\x10\x01*\xb8\n\n\x18ProtoOAChangeBalanceType\x12\x13\n\x0f\x42\x41LANCE_DEPOSIT\x10\x00\x12\x14\n\x10\x42\x41LANCE_WITHDRAW\x10\x01\x12-\n)BALANCE_DEPOSIT_STRATEGY_COMMISSION_INNER\x10\x03\x12.\n*BALANCE_WITHDRAW_STRATEGY_COMMISSION_INNER\x10\x04\x12\"\n\x1e\x42\x41LANCE_DEPOSIT_IB_COMMISSIONS\x10\x05\x12)\n%BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE\x10\x06\x12\x34\n0BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_SUB_IB\x10\x07\x12\x34\n0BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_BROKER\x10\x08\x12\x1a\n\x16\x42\x41LANCE_DEPOSIT_REBATE\x10\t\x12\x1b\n\x17\x42\x41LANCE_WITHDRAW_REBATE\x10\n\x12-\n)BALANCE_DEPOSIT_STRATEGY_COMMISSION_OUTER\x10\x0b\x12.\n*BALANCE_WITHDRAW_STRATEGY_COMMISSION_OUTER\x10\x0c\x12\'\n#BALANCE_WITHDRAW_BONUS_COMPENSATION\x10\r\x12\x33\n/BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE_TO_BROKER\x10\x0e\x12\x1d\n\x19\x42\x41LANCE_DEPOSIT_DIVIDENDS\x10\x0f\x12\x1e\n\x1a\x42\x41LANCE_WITHDRAW_DIVIDENDS\x10\x10\x12\x1f\n\x1b\x42\x41LANCE_WITHDRAW_GSL_CHARGE\x10\x11\x12\x1d\n\x19\x42\x41LANCE_WITHDRAW_ROLLOVER\x10\x12\x12)\n%BALANCE_DEPOSIT_NONWITHDRAWABLE_BONUS\x10\x13\x12*\n&BALANCE_WITHDRAW_NONWITHDRAWABLE_BONUS\x10\x14\x12\x18\n\x14\x42\x41LANCE_DEPOSIT_SWAP\x10\x15\x12\x19\n\x15\x42\x41LANCE_WITHDRAW_SWAP\x10\x16\x12\"\n\x1e\x42\x41LANCE_DEPOSIT_MANAGEMENT_FEE\x10\x1b\x12#\n\x1f\x42\x41LANCE_WITHDRAW_MANAGEMENT_FEE\x10\x1c\x12#\n\x1f\x42\x41LANCE_DEPOSIT_PERFORMANCE_FEE\x10\x1d\x12#\n\x1f\x42\x41LANCE_WITHDRAW_FOR_SUBACCOUNT\x10\x1e\x12!\n\x1d\x42\x41LANCE_DEPOSIT_TO_SUBACCOUNT\x10\x1f\x12$\n BALANCE_WITHDRAW_FROM_SUBACCOUNT\x10 \x12#\n\x1f\x42\x41LANCE_DEPOSIT_FROM_SUBACCOUNT\x10!\x12\x1d\n\x19\x42\x41LANCE_WITHDRAW_COPY_FEE\x10\"\x12#\n\x1f\x42\x41LANCE_WITHDRAW_INACTIVITY_FEE\x10#\x12\x1c\n\x18\x42\x41LANCE_DEPOSIT_TRANSFER\x10$\x12\x1d\n\x19\x42\x41LANCE_WITHDRAW_TRANSFER\x10%\x12#\n\x1f\x42\x41LANCE_DEPOSIT_CONVERTED_BONUS\x10&\x12/\n+BALANCE_DEPOSIT_NEGATIVE_BALANCE_PROTECTION\x10\'*s\n\x11ProtoOADealStatus\x12\n\n\x06\x46ILLED\x10\x02\x12\x14\n\x10PARTIALLY_FILLED\x10\x03\x12\x0c\n\x08REJECTED\x10\x04\x12\x17\n\x13INTERNALLY_REJECTED\x10\x05\x12\t\n\x05\x45RROR\x10\x06\x12\n\n\x06MISSED\x10\x07*\x8c\x01\n\x15ProtoOATrendbarPeriod\x12\x06\n\x02M1\x10\x01\x12\x06\n\x02M2\x10\x02\x12\x06\n\x02M3\x10\x03\x12\x06\n\x02M4\x10\x04\x12\x06\n\x02M5\x10\x05\x12\x07\n\x03M10\x10\x06\x12\x07\n\x03M15\x10\x07\x12\x07\n\x03M30\x10\x08\x12\x06\n\x02H1\x10\t\x12\x06\n\x02H4\x10\n\x12\x07\n\x03H12\x10\x0b\x12\x06\n\x02\x44\x31\x10\x0c\x12\x06\n\x02W1\x10\r\x12\x07\n\x03MN1\x10\x0e*$\n\x10ProtoOAQuoteType\x12\x07\n\x03\x42ID\x10\x01\x12\x07\n\x03\x41SK\x10\x02*?\n\x1cProtoOAClientPermissionScope\x12\x0e\n\nSCOPE_VIEW\x10\x00\x12\x0f\n\x0bSCOPE_TRADE\x10\x01*s\n\x17ProtoOANotificationType\x12\x1c\n\x18MARGIN_LEVEL_THRESHOLD_1\x10=\x12\x1c\n\x18MARGIN_LEVEL_THRESHOLD_2\x10>\x12\x1c\n\x18MARGIN_LEVEL_THRESHOLD_3\x10?*\xde\x08\n\x10ProtoOAErrorCode\x12\x19\n\x15OA_AUTH_TOKEN_EXPIRED\x10\x01\x12\x1a\n\x16\x41\x43\x43OUNT_NOT_AUTHORIZED\x10\x02\x12\x15\n\x11\x41LREADY_LOGGED_IN\x10\x0e\x12\x1a\n\x16\x43H_CLIENT_AUTH_FAILURE\x10\x65\x12\x1f\n\x1b\x43H_CLIENT_NOT_AUTHENTICATED\x10\x66\x12#\n\x1f\x43H_CLIENT_ALREADY_AUTHENTICATED\x10g\x12\x1b\n\x17\x43H_ACCESS_TOKEN_INVALID\x10h\x12\x1b\n\x17\x43H_SERVER_NOT_REACHABLE\x10i\x12$\n CH_CTID_TRADER_ACCOUNT_NOT_FOUND\x10j\x12\x1a\n\x16\x43H_OA_CLIENT_NOT_FOUND\x10k\x12\x1e\n\x1aREQUEST_FREQUENCY_EXCEEDED\x10l\x12\x1f\n\x1bSERVER_IS_UNDER_MAINTENANCE\x10m\x12\x16\n\x12\x43HANNEL_IS_BLOCKED\x10n\x12\x1e\n\x1a\x43ONNECTIONS_LIMIT_EXCEEDED\x10\x43\x12\x19\n\x15WORSE_GSL_NOT_ALLOWED\x10\x44\x12\x16\n\x12SYMBOL_HAS_HOLIDAY\x10\x45\x12\x1b\n\x17NOT_SUBSCRIBED_TO_SPOTS\x10p\x12\x16\n\x12\x41LREADY_SUBSCRIBED\x10q\x12\x14\n\x10SYMBOL_NOT_FOUND\x10r\x12\x12\n\x0eUNKNOWN_SYMBOL\x10s\x12\x18\n\x14INCORRECT_BOUNDARIES\x10#\x12\r\n\tNO_QUOTES\x10u\x12\x14\n\x10NOT_ENOUGH_MONEY\x10v\x12\x18\n\x14MAX_EXPOSURE_REACHED\x10w\x12\x16\n\x12POSITION_NOT_FOUND\x10x\x12\x13\n\x0fORDER_NOT_FOUND\x10y\x12\x15\n\x11POSITION_NOT_OPEN\x10z\x12\x13\n\x0fPOSITION_LOCKED\x10{\x12\x16\n\x12TOO_MANY_POSITIONS\x10|\x12\x16\n\x12TRADING_BAD_VOLUME\x10}\x12\x15\n\x11TRADING_BAD_STOPS\x10~\x12\x16\n\x12TRADING_BAD_PRICES\x10\x7f\x12\x16\n\x11TRADING_BAD_STAKE\x10\x80\x01\x12&\n!PROTECTION_IS_TOO_CLOSE_TO_MARKET\x10\x81\x01\x12 \n\x1bTRADING_BAD_EXPIRATION_DATE\x10\x82\x01\x12\x16\n\x11PENDING_EXECUTION\x10\x83\x01\x12\x15\n\x10TRADING_DISABLED\x10\x84\x01\x12\x18\n\x13TRADING_NOT_ALLOWED\x10\x85\x01\x12\x1b\n\x16UNABLE_TO_CANCEL_ORDER\x10\x86\x01\x12\x1a\n\x15UNABLE_TO_AMEND_ORDER\x10\x87\x01\x12\x1e\n\x19SHORT_SELLING_NOT_ALLOWED\x10\x88\x01*\x81\x01\n+ProtoOALimitedRiskMarginCalculationStrategy\x12\x19\n\x15\x41\x43\x43ORDING_TO_LEVERAGE\x10\x00\x12\x14\n\x10\x41\x43\x43ORDING_TO_GSL\x10\x01\x12!\n\x1d\x41\x43\x43ORDING_TO_GSL_AND_LEVERAGE\x10\x02\x42M\n%com.xtrader.protocol.openapi.v2.modelB\x1f\x43ontainerOpenApiV2ModelMessagesP\x01\xa0\x01\x01'
 )
 
 _PROTOOAPAYLOADTYPE = _descriptor.EnumDescriptor(
@@ -405,11 +405,21 @@ _PROTOOAPAYLOADTYPE = _descriptor.EnumDescriptor(
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='PROTO_OA_ORDER_LIST_REQ', index=75, number=2175,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='PROTO_OA_ORDER_LIST_RES', index=76, number=2176,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=5751,
-  serialized_end=8450,
+  serialized_start=5807,
+  serialized_end=8566,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAPAYLOADTYPE)
 
@@ -464,8 +474,8 @@ _PROTOOADAYOFWEEK = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=8452,
-  serialized_end=8572,
+  serialized_start=8568,
+  serialized_end=8688,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOADAYOFWEEK)
 
@@ -500,8 +510,8 @@ _PROTOOACOMMISSIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=8574,
-  serialized_end=8687,
+  serialized_start=8690,
+  serialized_end=8803,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOACOMMISSIONTYPE)
 
@@ -526,8 +536,8 @@ _PROTOOASYMBOLDISTANCETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=8689,
-  serialized_end=8782,
+  serialized_start=8805,
+  serialized_end=8898,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOASYMBOLDISTANCETYPE)
 
@@ -552,8 +562,8 @@ _PROTOOAMINCOMMISSIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=8784,
-  serialized_end=8844,
+  serialized_start=8900,
+  serialized_end=8960,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAMINCOMMISSIONTYPE)
 
@@ -588,8 +598,8 @@ _PROTOOATRADINGMODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=8847,
-  serialized_end=8980,
+  serialized_start=8963,
+  serialized_end=9096,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOATRADINGMODE)
 
@@ -614,8 +624,8 @@ _PROTOOASWAPCALCULATIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=8982,
-  serialized_end=9036,
+  serialized_start=9098,
+  serialized_end=9152,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOASWAPCALCULATIONTYPE)
 
@@ -650,8 +660,8 @@ _PROTOOAACCESSRIGHTS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9038,
-  serialized_end=9122,
+  serialized_start=9154,
+  serialized_end=9238,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAACCESSRIGHTS)
 
@@ -681,8 +691,8 @@ _PROTOOATOTALMARGINCALCULATIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9124,
-  serialized_end=9186,
+  serialized_start=9240,
+  serialized_end=9302,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOATOTALMARGINCALCULATIONTYPE)
 
@@ -712,8 +722,8 @@ _PROTOOAACCOUNTTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9188,
-  serialized_end=9252,
+  serialized_start=9304,
+  serialized_end=9368,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAACCOUNTTYPE)
 
@@ -748,8 +758,8 @@ _PROTOOAPOSITIONSTATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9255,
-  serialized_end=9388,
+  serialized_start=9371,
+  serialized_end=9504,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAPOSITIONSTATUS)
 
@@ -774,8 +784,8 @@ _PROTOOATRADESIDE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9390,
-  serialized_end=9427,
+  serialized_start=9506,
+  serialized_end=9543,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOATRADESIDE)
 
@@ -820,8 +830,8 @@ _PROTOOAORDERTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9429,
-  serialized_end=9541,
+  serialized_start=9545,
+  serialized_end=9657,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAORDERTYPE)
 
@@ -861,8 +871,8 @@ _PROTOOATIMEINFORCE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9543,
-  serialized_end=9668,
+  serialized_start=9659,
+  serialized_end=9784,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOATIMEINFORCE)
 
@@ -902,8 +912,8 @@ _PROTOOAORDERSTATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9671,
-  serialized_end=9824,
+  serialized_start=9787,
+  serialized_end=9940,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAORDERSTATUS)
 
@@ -938,8 +948,8 @@ _PROTOOAORDERTRIGGERMETHOD = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9826,
-  serialized_end=9917,
+  serialized_start=9942,
+  serialized_end=10033,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAORDERTRIGGERMETHOD)
 
@@ -1009,8 +1019,8 @@ _PROTOOAEXECUTIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=9920,
-  serialized_end=10171,
+  serialized_start=10036,
+  serialized_end=10287,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAEXECUTIONTYPE)
 
@@ -1035,8 +1045,8 @@ _PROTOOACHANGEBONUSTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=10173,
-  serialized_end=10236,
+  serialized_start=10289,
+  serialized_end=10352,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOACHANGEBONUSTYPE)
 
@@ -1218,11 +1228,16 @@ _PROTOOACHANGEBALANCETYPE = _descriptor.EnumDescriptor(
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='BALANCE_DEPOSIT_NEGATIVE_BALANCE_PROTECTION', index=34, number=39,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=10239,
-  serialized_end=11526,
+  serialized_start=10355,
+  serialized_end=11691,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOACHANGEBALANCETYPE)
 
@@ -1267,8 +1282,8 @@ _PROTOOADEALSTATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=11528,
-  serialized_end=11643,
+  serialized_start=11693,
+  serialized_end=11808,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOADEALSTATUS)
 
@@ -1353,8 +1368,8 @@ _PROTOOATRENDBARPERIOD = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=11646,
-  serialized_end=11786,
+  serialized_start=11811,
+  serialized_end=11951,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOATRENDBARPERIOD)
 
@@ -1379,8 +1394,8 @@ _PROTOOAQUOTETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=11788,
-  serialized_end=11824,
+  serialized_start=11953,
+  serialized_end=11989,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAQUOTETYPE)
 
@@ -1405,8 +1420,8 @@ _PROTOOACLIENTPERMISSIONSCOPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=11826,
-  serialized_end=11889,
+  serialized_start=11991,
+  serialized_end=12054,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOACLIENTPERMISSIONSCOPE)
 
@@ -1436,8 +1451,8 @@ _PROTOOANOTIFICATIONTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=11891,
-  serialized_end=12006,
+  serialized_start=12056,
+  serialized_end=12171,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOANOTIFICATIONTYPE)
 
@@ -1657,8 +1672,8 @@ _PROTOOAERRORCODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=12009,
-  serialized_end=13127,
+  serialized_start=12174,
+  serialized_end=13292,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOAERRORCODE)
 
@@ -1688,8 +1703,8 @@ _PROTOOALIMITEDRISKMARGINCALCULATIONSTRATEGY = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=13130,
-  serialized_end=13259,
+  serialized_start=13295,
+  serialized_end=13424,
 )
 _sym_db.RegisterEnumDescriptor(_PROTOOALIMITEDRISKMARGINCALCULATIONSTRATEGY)
 
@@ -1769,6 +1784,8 @@ PROTO_OA_MARGIN_CALL_UPDATE_EVENT = 2171
 PROTO_OA_MARGIN_CALL_TRIGGER_EVENT = 2172
 PROTO_OA_REFRESH_TOKEN_REQ = 2173
 PROTO_OA_REFRESH_TOKEN_RES = 2174
+PROTO_OA_ORDER_LIST_REQ = 2175
+PROTO_OA_ORDER_LIST_RES = 2176
 NONE = 0
 MONDAY = 1
 TUESDAY = 2
@@ -1874,6 +1891,7 @@ BALANCE_WITHDRAW_INACTIVITY_FEE = 35
 BALANCE_DEPOSIT_TRANSFER = 36
 BALANCE_WITHDRAW_TRANSFER = 37
 BALANCE_DEPOSIT_CONVERTED_BONUS = 38
+BALANCE_DEPOSIT_NEGATIVE_BALANCE_PROTECTION = 39
 FILLED = 2
 PARTIALLY_FILLED = 3
 REJECTED = 4
@@ -2240,6 +2258,13 @@ _PROTOOASYMBOL = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='pnlConversionFeeRate', full_name='ProtoOASymbol.pnlConversionFeeRate', index=33,
+      number=34, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -2253,7 +2278,7 @@ _PROTOOASYMBOL = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=115,
-  serialized_end=1196,
+  serialized_end=1226,
 )
 
 
@@ -2326,8 +2351,8 @@ _PROTOOALIGHTSYMBOL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1199,
-  serialized_end=1364,
+  serialized_start=1229,
+  serialized_end=1394,
 )
 
 
@@ -2379,8 +2404,8 @@ _PROTOOAARCHIVEDSYMBOL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1366,
-  serialized_end=1474,
+  serialized_start=1396,
+  serialized_end=1504,
 )
 
 
@@ -2425,8 +2450,8 @@ _PROTOOASYMBOLCATEGORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1476,
-  serialized_end=1547,
+  serialized_start=1506,
+  serialized_end=1577,
 )
 
 
@@ -2464,8 +2489,8 @@ _PROTOOAINTERVAL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1549,
-  serialized_end=1606,
+  serialized_start=1579,
+  serialized_end=1636,
 )
 
 
@@ -2629,8 +2654,8 @@ _PROTOOATRADER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1609,
-  serialized_end=2285,
+  serialized_start=1639,
+  serialized_end=2315,
 )
 
 
@@ -2759,8 +2784,8 @@ _PROTOOAPOSITION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2288,
-  serialized_end=2714,
+  serialized_start=2318,
+  serialized_end=2744,
 )
 
 
@@ -2833,8 +2858,8 @@ _PROTOOATRADEDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2717,
-  serialized_end=2890,
+  serialized_start=2747,
+  serialized_end=2920,
 )
 
 
@@ -3019,8 +3044,8 @@ _PROTOOAORDER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2893,
-  serialized_end=3570,
+  serialized_start=2923,
+  serialized_end=3600,
 )
 
 
@@ -3114,8 +3139,8 @@ _PROTOOABONUSDEPOSITWITHDRAW = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3573,
-  serialized_end=3854,
+  serialized_start=3603,
+  serialized_end=3884,
 )
 
 
@@ -3202,8 +3227,8 @@ _PROTOOADEPOSITWITHDRAW = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3857,
-  serialized_end=4104,
+  serialized_start=3887,
+  serialized_end=4134,
 )
 
 
@@ -3346,8 +3371,8 @@ _PROTOOADEAL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4107,
-  serialized_end=4568,
+  serialized_start=4137,
+  serialized_end=4598,
 )
 
 
@@ -3422,6 +3447,13 @@ _PROTOOACLOSEPOSITIONDETAIL = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='pnlConversionFee', full_name='ProtoOAClosePositionDetail.pnlConversionFee', index=9,
+      number=10, type=3, cpp_type=2, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -3434,8 +3466,8 @@ _PROTOOACLOSEPOSITIONDETAIL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4571,
-  serialized_end=4796,
+  serialized_start=4601,
+  serialized_end=4852,
 )
 
 
@@ -3508,8 +3540,8 @@ _PROTOOATRENDBAR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4799,
-  serialized_end=4978,
+  serialized_start=4855,
+  serialized_end=5034,
 )
 
 
@@ -3554,8 +3586,8 @@ _PROTOOAEXPECTEDMARGIN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4980,
-  serialized_end=5058,
+  serialized_start=5036,
+  serialized_end=5114,
 )
 
 
@@ -3593,8 +3625,8 @@ _PROTOOATICKDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5060,
-  serialized_end=5110,
+  serialized_start=5116,
+  serialized_end=5166,
 )
 
 
@@ -3625,8 +3657,8 @@ _PROTOOACTIDPROFILE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5112,
-  serialized_end=5148,
+  serialized_start=5168,
+  serialized_end=5204,
 )
 
 
@@ -3685,8 +3717,8 @@ _PROTOOACTIDTRADERACCOUNT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5151,
-  serialized_end=5313,
+  serialized_start=5207,
+  serialized_end=5369,
 )
 
 
@@ -3724,8 +3756,8 @@ _PROTOOAASSETCLASS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5315,
-  serialized_end=5360,
+  serialized_start=5371,
+  serialized_end=5416,
 )
 
 
@@ -3777,8 +3809,8 @@ _PROTOOADEPTHQUOTE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5362,
-  serialized_end=5433,
+  serialized_start=5418,
+  serialized_end=5489,
 )
 
 
@@ -3823,8 +3855,8 @@ _PROTOOAMARGINCALL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5436,
-  serialized_end=5567,
+  serialized_start=5492,
+  serialized_end=5623,
 )
 
 
@@ -3904,8 +3936,8 @@ _PROTOOAHOLIDAY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=5570,
-  serialized_end=5748,
+  serialized_start=5626,
+  serialized_end=5804,
 )
 
 _PROTOOASYMBOL.fields_by_name['swapRollover3Days'].enum_type = _PROTOOADAYOFWEEK

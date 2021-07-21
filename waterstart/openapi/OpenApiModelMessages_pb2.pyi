@@ -12,7 +12,89 @@ import typing_extensions
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor = ...
 
+class ProtoOAPayloadType(metaclass=_ProtoOAPayloadType):
+    V = typing.NewType('V', builtins.int)
+
 global___ProtoOAPayloadType = ProtoOAPayloadType
+
+PROTO_OA_APPLICATION_AUTH_REQ = ProtoOAPayloadType.V(2100)
+PROTO_OA_APPLICATION_AUTH_RES = ProtoOAPayloadType.V(2101)
+PROTO_OA_ACCOUNT_AUTH_REQ = ProtoOAPayloadType.V(2102)
+PROTO_OA_ACCOUNT_AUTH_RES = ProtoOAPayloadType.V(2103)
+PROTO_OA_VERSION_REQ = ProtoOAPayloadType.V(2104)
+PROTO_OA_VERSION_RES = ProtoOAPayloadType.V(2105)
+PROTO_OA_NEW_ORDER_REQ = ProtoOAPayloadType.V(2106)
+PROTO_OA_TRAILING_SL_CHANGED_EVENT = ProtoOAPayloadType.V(2107)
+PROTO_OA_CANCEL_ORDER_REQ = ProtoOAPayloadType.V(2108)
+PROTO_OA_AMEND_ORDER_REQ = ProtoOAPayloadType.V(2109)
+PROTO_OA_AMEND_POSITION_SLTP_REQ = ProtoOAPayloadType.V(2110)
+PROTO_OA_CLOSE_POSITION_REQ = ProtoOAPayloadType.V(2111)
+PROTO_OA_ASSET_LIST_REQ = ProtoOAPayloadType.V(2112)
+PROTO_OA_ASSET_LIST_RES = ProtoOAPayloadType.V(2113)
+PROTO_OA_SYMBOLS_LIST_REQ = ProtoOAPayloadType.V(2114)
+PROTO_OA_SYMBOLS_LIST_RES = ProtoOAPayloadType.V(2115)
+PROTO_OA_SYMBOL_BY_ID_REQ = ProtoOAPayloadType.V(2116)
+PROTO_OA_SYMBOL_BY_ID_RES = ProtoOAPayloadType.V(2117)
+PROTO_OA_SYMBOLS_FOR_CONVERSION_REQ = ProtoOAPayloadType.V(2118)
+PROTO_OA_SYMBOLS_FOR_CONVERSION_RES = ProtoOAPayloadType.V(2119)
+PROTO_OA_SYMBOL_CHANGED_EVENT = ProtoOAPayloadType.V(2120)
+PROTO_OA_TRADER_REQ = ProtoOAPayloadType.V(2121)
+PROTO_OA_TRADER_RES = ProtoOAPayloadType.V(2122)
+PROTO_OA_TRADER_UPDATE_EVENT = ProtoOAPayloadType.V(2123)
+PROTO_OA_RECONCILE_REQ = ProtoOAPayloadType.V(2124)
+PROTO_OA_RECONCILE_RES = ProtoOAPayloadType.V(2125)
+PROTO_OA_EXECUTION_EVENT = ProtoOAPayloadType.V(2126)
+PROTO_OA_SUBSCRIBE_SPOTS_REQ = ProtoOAPayloadType.V(2127)
+PROTO_OA_SUBSCRIBE_SPOTS_RES = ProtoOAPayloadType.V(2128)
+PROTO_OA_UNSUBSCRIBE_SPOTS_REQ = ProtoOAPayloadType.V(2129)
+PROTO_OA_UNSUBSCRIBE_SPOTS_RES = ProtoOAPayloadType.V(2130)
+PROTO_OA_SPOT_EVENT = ProtoOAPayloadType.V(2131)
+PROTO_OA_ORDER_ERROR_EVENT = ProtoOAPayloadType.V(2132)
+PROTO_OA_DEAL_LIST_REQ = ProtoOAPayloadType.V(2133)
+PROTO_OA_DEAL_LIST_RES = ProtoOAPayloadType.V(2134)
+PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_REQ = ProtoOAPayloadType.V(2135)
+PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_REQ = ProtoOAPayloadType.V(2136)
+PROTO_OA_GET_TRENDBARS_REQ = ProtoOAPayloadType.V(2137)
+PROTO_OA_GET_TRENDBARS_RES = ProtoOAPayloadType.V(2138)
+PROTO_OA_EXPECTED_MARGIN_REQ = ProtoOAPayloadType.V(2139)
+PROTO_OA_EXPECTED_MARGIN_RES = ProtoOAPayloadType.V(2140)
+PROTO_OA_MARGIN_CHANGED_EVENT = ProtoOAPayloadType.V(2141)
+PROTO_OA_ERROR_RES = ProtoOAPayloadType.V(2142)
+PROTO_OA_CASH_FLOW_HISTORY_LIST_REQ = ProtoOAPayloadType.V(2143)
+PROTO_OA_CASH_FLOW_HISTORY_LIST_RES = ProtoOAPayloadType.V(2144)
+PROTO_OA_GET_TICKDATA_REQ = ProtoOAPayloadType.V(2145)
+PROTO_OA_GET_TICKDATA_RES = ProtoOAPayloadType.V(2146)
+PROTO_OA_ACCOUNTS_TOKEN_INVALIDATED_EVENT = ProtoOAPayloadType.V(2147)
+PROTO_OA_CLIENT_DISCONNECT_EVENT = ProtoOAPayloadType.V(2148)
+PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_REQ = ProtoOAPayloadType.V(2149)
+PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_RES = ProtoOAPayloadType.V(2150)
+PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_REQ = ProtoOAPayloadType.V(2151)
+PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_RES = ProtoOAPayloadType.V(2152)
+PROTO_OA_ASSET_CLASS_LIST_REQ = ProtoOAPayloadType.V(2153)
+PROTO_OA_ASSET_CLASS_LIST_RES = ProtoOAPayloadType.V(2154)
+PROTO_OA_DEPTH_EVENT = ProtoOAPayloadType.V(2155)
+PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_REQ = ProtoOAPayloadType.V(2156)
+PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_RES = ProtoOAPayloadType.V(2157)
+PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_REQ = ProtoOAPayloadType.V(2158)
+PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_RES = ProtoOAPayloadType.V(2159)
+PROTO_OA_SYMBOL_CATEGORY_REQ = ProtoOAPayloadType.V(2160)
+PROTO_OA_SYMBOL_CATEGORY_RES = ProtoOAPayloadType.V(2161)
+PROTO_OA_ACCOUNT_LOGOUT_REQ = ProtoOAPayloadType.V(2162)
+PROTO_OA_ACCOUNT_LOGOUT_RES = ProtoOAPayloadType.V(2163)
+PROTO_OA_ACCOUNT_DISCONNECT_EVENT = ProtoOAPayloadType.V(2164)
+PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_RES = ProtoOAPayloadType.V(2165)
+PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_RES = ProtoOAPayloadType.V(2166)
+PROTO_OA_MARGIN_CALL_LIST_REQ = ProtoOAPayloadType.V(2167)
+PROTO_OA_MARGIN_CALL_LIST_RES = ProtoOAPayloadType.V(2168)
+PROTO_OA_MARGIN_CALL_UPDATE_REQ = ProtoOAPayloadType.V(2169)
+PROTO_OA_MARGIN_CALL_UPDATE_RES = ProtoOAPayloadType.V(2170)
+PROTO_OA_MARGIN_CALL_UPDATE_EVENT = ProtoOAPayloadType.V(2171)
+PROTO_OA_MARGIN_CALL_TRIGGER_EVENT = ProtoOAPayloadType.V(2172)
+PROTO_OA_REFRESH_TOKEN_REQ = ProtoOAPayloadType.V(2173)
+PROTO_OA_REFRESH_TOKEN_RES = ProtoOAPayloadType.V(2174)
+PROTO_OA_ORDER_LIST_REQ = ProtoOAPayloadType.V(2175)
+PROTO_OA_ORDER_LIST_RES = ProtoOAPayloadType.V(2176)
+
 class _ProtoOAPayloadType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAPayloadType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     PROTO_OA_APPLICATION_AUTH_REQ = ProtoOAPayloadType.V(2100)
@@ -90,85 +172,23 @@ class _ProtoOAPayloadType(google.protobuf.internal.enum_type_wrapper._EnumTypeWr
     PROTO_OA_MARGIN_CALL_TRIGGER_EVENT = ProtoOAPayloadType.V(2172)
     PROTO_OA_REFRESH_TOKEN_REQ = ProtoOAPayloadType.V(2173)
     PROTO_OA_REFRESH_TOKEN_RES = ProtoOAPayloadType.V(2174)
-class ProtoOAPayloadType(metaclass=_ProtoOAPayloadType):
+    PROTO_OA_ORDER_LIST_REQ = ProtoOAPayloadType.V(2175)
+    PROTO_OA_ORDER_LIST_RES = ProtoOAPayloadType.V(2176)
+
+class ProtoOADayOfWeek(metaclass=_ProtoOADayOfWeek):
     V = typing.NewType('V', builtins.int)
-PROTO_OA_APPLICATION_AUTH_REQ = ProtoOAPayloadType.V(2100)
-PROTO_OA_APPLICATION_AUTH_RES = ProtoOAPayloadType.V(2101)
-PROTO_OA_ACCOUNT_AUTH_REQ = ProtoOAPayloadType.V(2102)
-PROTO_OA_ACCOUNT_AUTH_RES = ProtoOAPayloadType.V(2103)
-PROTO_OA_VERSION_REQ = ProtoOAPayloadType.V(2104)
-PROTO_OA_VERSION_RES = ProtoOAPayloadType.V(2105)
-PROTO_OA_NEW_ORDER_REQ = ProtoOAPayloadType.V(2106)
-PROTO_OA_TRAILING_SL_CHANGED_EVENT = ProtoOAPayloadType.V(2107)
-PROTO_OA_CANCEL_ORDER_REQ = ProtoOAPayloadType.V(2108)
-PROTO_OA_AMEND_ORDER_REQ = ProtoOAPayloadType.V(2109)
-PROTO_OA_AMEND_POSITION_SLTP_REQ = ProtoOAPayloadType.V(2110)
-PROTO_OA_CLOSE_POSITION_REQ = ProtoOAPayloadType.V(2111)
-PROTO_OA_ASSET_LIST_REQ = ProtoOAPayloadType.V(2112)
-PROTO_OA_ASSET_LIST_RES = ProtoOAPayloadType.V(2113)
-PROTO_OA_SYMBOLS_LIST_REQ = ProtoOAPayloadType.V(2114)
-PROTO_OA_SYMBOLS_LIST_RES = ProtoOAPayloadType.V(2115)
-PROTO_OA_SYMBOL_BY_ID_REQ = ProtoOAPayloadType.V(2116)
-PROTO_OA_SYMBOL_BY_ID_RES = ProtoOAPayloadType.V(2117)
-PROTO_OA_SYMBOLS_FOR_CONVERSION_REQ = ProtoOAPayloadType.V(2118)
-PROTO_OA_SYMBOLS_FOR_CONVERSION_RES = ProtoOAPayloadType.V(2119)
-PROTO_OA_SYMBOL_CHANGED_EVENT = ProtoOAPayloadType.V(2120)
-PROTO_OA_TRADER_REQ = ProtoOAPayloadType.V(2121)
-PROTO_OA_TRADER_RES = ProtoOAPayloadType.V(2122)
-PROTO_OA_TRADER_UPDATE_EVENT = ProtoOAPayloadType.V(2123)
-PROTO_OA_RECONCILE_REQ = ProtoOAPayloadType.V(2124)
-PROTO_OA_RECONCILE_RES = ProtoOAPayloadType.V(2125)
-PROTO_OA_EXECUTION_EVENT = ProtoOAPayloadType.V(2126)
-PROTO_OA_SUBSCRIBE_SPOTS_REQ = ProtoOAPayloadType.V(2127)
-PROTO_OA_SUBSCRIBE_SPOTS_RES = ProtoOAPayloadType.V(2128)
-PROTO_OA_UNSUBSCRIBE_SPOTS_REQ = ProtoOAPayloadType.V(2129)
-PROTO_OA_UNSUBSCRIBE_SPOTS_RES = ProtoOAPayloadType.V(2130)
-PROTO_OA_SPOT_EVENT = ProtoOAPayloadType.V(2131)
-PROTO_OA_ORDER_ERROR_EVENT = ProtoOAPayloadType.V(2132)
-PROTO_OA_DEAL_LIST_REQ = ProtoOAPayloadType.V(2133)
-PROTO_OA_DEAL_LIST_RES = ProtoOAPayloadType.V(2134)
-PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_REQ = ProtoOAPayloadType.V(2135)
-PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_REQ = ProtoOAPayloadType.V(2136)
-PROTO_OA_GET_TRENDBARS_REQ = ProtoOAPayloadType.V(2137)
-PROTO_OA_GET_TRENDBARS_RES = ProtoOAPayloadType.V(2138)
-PROTO_OA_EXPECTED_MARGIN_REQ = ProtoOAPayloadType.V(2139)
-PROTO_OA_EXPECTED_MARGIN_RES = ProtoOAPayloadType.V(2140)
-PROTO_OA_MARGIN_CHANGED_EVENT = ProtoOAPayloadType.V(2141)
-PROTO_OA_ERROR_RES = ProtoOAPayloadType.V(2142)
-PROTO_OA_CASH_FLOW_HISTORY_LIST_REQ = ProtoOAPayloadType.V(2143)
-PROTO_OA_CASH_FLOW_HISTORY_LIST_RES = ProtoOAPayloadType.V(2144)
-PROTO_OA_GET_TICKDATA_REQ = ProtoOAPayloadType.V(2145)
-PROTO_OA_GET_TICKDATA_RES = ProtoOAPayloadType.V(2146)
-PROTO_OA_ACCOUNTS_TOKEN_INVALIDATED_EVENT = ProtoOAPayloadType.V(2147)
-PROTO_OA_CLIENT_DISCONNECT_EVENT = ProtoOAPayloadType.V(2148)
-PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_REQ = ProtoOAPayloadType.V(2149)
-PROTO_OA_GET_ACCOUNTS_BY_ACCESS_TOKEN_RES = ProtoOAPayloadType.V(2150)
-PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_REQ = ProtoOAPayloadType.V(2151)
-PROTO_OA_GET_CTID_PROFILE_BY_TOKEN_RES = ProtoOAPayloadType.V(2152)
-PROTO_OA_ASSET_CLASS_LIST_REQ = ProtoOAPayloadType.V(2153)
-PROTO_OA_ASSET_CLASS_LIST_RES = ProtoOAPayloadType.V(2154)
-PROTO_OA_DEPTH_EVENT = ProtoOAPayloadType.V(2155)
-PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_REQ = ProtoOAPayloadType.V(2156)
-PROTO_OA_SUBSCRIBE_DEPTH_QUOTES_RES = ProtoOAPayloadType.V(2157)
-PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_REQ = ProtoOAPayloadType.V(2158)
-PROTO_OA_UNSUBSCRIBE_DEPTH_QUOTES_RES = ProtoOAPayloadType.V(2159)
-PROTO_OA_SYMBOL_CATEGORY_REQ = ProtoOAPayloadType.V(2160)
-PROTO_OA_SYMBOL_CATEGORY_RES = ProtoOAPayloadType.V(2161)
-PROTO_OA_ACCOUNT_LOGOUT_REQ = ProtoOAPayloadType.V(2162)
-PROTO_OA_ACCOUNT_LOGOUT_RES = ProtoOAPayloadType.V(2163)
-PROTO_OA_ACCOUNT_DISCONNECT_EVENT = ProtoOAPayloadType.V(2164)
-PROTO_OA_SUBSCRIBE_LIVE_TRENDBAR_RES = ProtoOAPayloadType.V(2165)
-PROTO_OA_UNSUBSCRIBE_LIVE_TRENDBAR_RES = ProtoOAPayloadType.V(2166)
-PROTO_OA_MARGIN_CALL_LIST_REQ = ProtoOAPayloadType.V(2167)
-PROTO_OA_MARGIN_CALL_LIST_RES = ProtoOAPayloadType.V(2168)
-PROTO_OA_MARGIN_CALL_UPDATE_REQ = ProtoOAPayloadType.V(2169)
-PROTO_OA_MARGIN_CALL_UPDATE_RES = ProtoOAPayloadType.V(2170)
-PROTO_OA_MARGIN_CALL_UPDATE_EVENT = ProtoOAPayloadType.V(2171)
-PROTO_OA_MARGIN_CALL_TRIGGER_EVENT = ProtoOAPayloadType.V(2172)
-PROTO_OA_REFRESH_TOKEN_REQ = ProtoOAPayloadType.V(2173)
-PROTO_OA_REFRESH_TOKEN_RES = ProtoOAPayloadType.V(2174)
 
 global___ProtoOADayOfWeek = ProtoOADayOfWeek
+
+NONE = ProtoOADayOfWeek.V(0)
+MONDAY = ProtoOADayOfWeek.V(1)
+TUESDAY = ProtoOADayOfWeek.V(2)
+WEDNESDAY = ProtoOADayOfWeek.V(3)
+THURSDAY = ProtoOADayOfWeek.V(4)
+FRIDAY = ProtoOADayOfWeek.V(5)
+SATURDAY = ProtoOADayOfWeek.V(6)
+SUNDAY = ProtoOADayOfWeek.V(7)
+
 class _ProtoOADayOfWeek(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOADayOfWeek.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     NONE = ProtoOADayOfWeek.V(0)
@@ -179,138 +199,169 @@ class _ProtoOADayOfWeek(google.protobuf.internal.enum_type_wrapper._EnumTypeWrap
     FRIDAY = ProtoOADayOfWeek.V(5)
     SATURDAY = ProtoOADayOfWeek.V(6)
     SUNDAY = ProtoOADayOfWeek.V(7)
-class ProtoOADayOfWeek(metaclass=_ProtoOADayOfWeek):
+
+class ProtoOACommissionType(metaclass=_ProtoOACommissionType):
     V = typing.NewType('V', builtins.int)
-NONE = ProtoOADayOfWeek.V(0)
-MONDAY = ProtoOADayOfWeek.V(1)
-TUESDAY = ProtoOADayOfWeek.V(2)
-WEDNESDAY = ProtoOADayOfWeek.V(3)
-THURSDAY = ProtoOADayOfWeek.V(4)
-FRIDAY = ProtoOADayOfWeek.V(5)
-SATURDAY = ProtoOADayOfWeek.V(6)
-SUNDAY = ProtoOADayOfWeek.V(7)
 
 global___ProtoOACommissionType = ProtoOACommissionType
+
+USD_PER_MILLION_USD = ProtoOACommissionType.V(1)
+USD_PER_LOT = ProtoOACommissionType.V(2)
+PERCENTAGE_OF_VALUE = ProtoOACommissionType.V(3)
+QUOTE_CCY_PER_LOT = ProtoOACommissionType.V(4)
+
 class _ProtoOACommissionType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOACommissionType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     USD_PER_MILLION_USD = ProtoOACommissionType.V(1)
     USD_PER_LOT = ProtoOACommissionType.V(2)
     PERCENTAGE_OF_VALUE = ProtoOACommissionType.V(3)
     QUOTE_CCY_PER_LOT = ProtoOACommissionType.V(4)
-class ProtoOACommissionType(metaclass=_ProtoOACommissionType):
+
+class ProtoOASymbolDistanceType(metaclass=_ProtoOASymbolDistanceType):
     V = typing.NewType('V', builtins.int)
-USD_PER_MILLION_USD = ProtoOACommissionType.V(1)
-USD_PER_LOT = ProtoOACommissionType.V(2)
-PERCENTAGE_OF_VALUE = ProtoOACommissionType.V(3)
-QUOTE_CCY_PER_LOT = ProtoOACommissionType.V(4)
 
 global___ProtoOASymbolDistanceType = ProtoOASymbolDistanceType
+
+SYMBOL_DISTANCE_IN_POINTS = ProtoOASymbolDistanceType.V(1)
+SYMBOL_DISTANCE_IN_PERCENTAGE = ProtoOASymbolDistanceType.V(2)
+
 class _ProtoOASymbolDistanceType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOASymbolDistanceType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     SYMBOL_DISTANCE_IN_POINTS = ProtoOASymbolDistanceType.V(1)
     SYMBOL_DISTANCE_IN_PERCENTAGE = ProtoOASymbolDistanceType.V(2)
-class ProtoOASymbolDistanceType(metaclass=_ProtoOASymbolDistanceType):
+
+class ProtoOAMinCommissionType(metaclass=_ProtoOAMinCommissionType):
     V = typing.NewType('V', builtins.int)
-SYMBOL_DISTANCE_IN_POINTS = ProtoOASymbolDistanceType.V(1)
-SYMBOL_DISTANCE_IN_PERCENTAGE = ProtoOASymbolDistanceType.V(2)
 
 global___ProtoOAMinCommissionType = ProtoOAMinCommissionType
+
+CURRENCY = ProtoOAMinCommissionType.V(1)
+QUOTE_CURRENCY = ProtoOAMinCommissionType.V(2)
+
 class _ProtoOAMinCommissionType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAMinCommissionType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     CURRENCY = ProtoOAMinCommissionType.V(1)
     QUOTE_CURRENCY = ProtoOAMinCommissionType.V(2)
-class ProtoOAMinCommissionType(metaclass=_ProtoOAMinCommissionType):
+
+class ProtoOATradingMode(metaclass=_ProtoOATradingMode):
     V = typing.NewType('V', builtins.int)
-CURRENCY = ProtoOAMinCommissionType.V(1)
-QUOTE_CURRENCY = ProtoOAMinCommissionType.V(2)
 
 global___ProtoOATradingMode = ProtoOATradingMode
+
+ENABLED = ProtoOATradingMode.V(0)
+DISABLED_WITHOUT_PENDINGS_EXECUTION = ProtoOATradingMode.V(1)
+DISABLED_WITH_PENDINGS_EXECUTION = ProtoOATradingMode.V(2)
+CLOSE_ONLY_MODE = ProtoOATradingMode.V(3)
+
 class _ProtoOATradingMode(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOATradingMode.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     ENABLED = ProtoOATradingMode.V(0)
     DISABLED_WITHOUT_PENDINGS_EXECUTION = ProtoOATradingMode.V(1)
     DISABLED_WITH_PENDINGS_EXECUTION = ProtoOATradingMode.V(2)
     CLOSE_ONLY_MODE = ProtoOATradingMode.V(3)
-class ProtoOATradingMode(metaclass=_ProtoOATradingMode):
+
+class ProtoOASwapCalculationType(metaclass=_ProtoOASwapCalculationType):
     V = typing.NewType('V', builtins.int)
-ENABLED = ProtoOATradingMode.V(0)
-DISABLED_WITHOUT_PENDINGS_EXECUTION = ProtoOATradingMode.V(1)
-DISABLED_WITH_PENDINGS_EXECUTION = ProtoOATradingMode.V(2)
-CLOSE_ONLY_MODE = ProtoOATradingMode.V(3)
 
 global___ProtoOASwapCalculationType = ProtoOASwapCalculationType
+
+PIPS = ProtoOASwapCalculationType.V(0)
+PERCENTAGE = ProtoOASwapCalculationType.V(1)
+
 class _ProtoOASwapCalculationType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOASwapCalculationType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     PIPS = ProtoOASwapCalculationType.V(0)
     PERCENTAGE = ProtoOASwapCalculationType.V(1)
-class ProtoOASwapCalculationType(metaclass=_ProtoOASwapCalculationType):
+
+class ProtoOAAccessRights(metaclass=_ProtoOAAccessRights):
     V = typing.NewType('V', builtins.int)
-PIPS = ProtoOASwapCalculationType.V(0)
-PERCENTAGE = ProtoOASwapCalculationType.V(1)
 
 global___ProtoOAAccessRights = ProtoOAAccessRights
+
+FULL_ACCESS = ProtoOAAccessRights.V(0)
+CLOSE_ONLY = ProtoOAAccessRights.V(1)
+NO_TRADING = ProtoOAAccessRights.V(2)
+NO_LOGIN = ProtoOAAccessRights.V(3)
+
 class _ProtoOAAccessRights(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAAccessRights.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     FULL_ACCESS = ProtoOAAccessRights.V(0)
     CLOSE_ONLY = ProtoOAAccessRights.V(1)
     NO_TRADING = ProtoOAAccessRights.V(2)
     NO_LOGIN = ProtoOAAccessRights.V(3)
-class ProtoOAAccessRights(metaclass=_ProtoOAAccessRights):
+
+class ProtoOATotalMarginCalculationType(metaclass=_ProtoOATotalMarginCalculationType):
     V = typing.NewType('V', builtins.int)
-FULL_ACCESS = ProtoOAAccessRights.V(0)
-CLOSE_ONLY = ProtoOAAccessRights.V(1)
-NO_TRADING = ProtoOAAccessRights.V(2)
-NO_LOGIN = ProtoOAAccessRights.V(3)
 
 global___ProtoOATotalMarginCalculationType = ProtoOATotalMarginCalculationType
+
+MAX = ProtoOATotalMarginCalculationType.V(0)
+SUM = ProtoOATotalMarginCalculationType.V(1)
+NET = ProtoOATotalMarginCalculationType.V(2)
+
 class _ProtoOATotalMarginCalculationType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOATotalMarginCalculationType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     MAX = ProtoOATotalMarginCalculationType.V(0)
     SUM = ProtoOATotalMarginCalculationType.V(1)
     NET = ProtoOATotalMarginCalculationType.V(2)
-class ProtoOATotalMarginCalculationType(metaclass=_ProtoOATotalMarginCalculationType):
+
+class ProtoOAAccountType(metaclass=_ProtoOAAccountType):
     V = typing.NewType('V', builtins.int)
-MAX = ProtoOATotalMarginCalculationType.V(0)
-SUM = ProtoOATotalMarginCalculationType.V(1)
-NET = ProtoOATotalMarginCalculationType.V(2)
 
 global___ProtoOAAccountType = ProtoOAAccountType
+
+HEDGED = ProtoOAAccountType.V(0)
+NETTED = ProtoOAAccountType.V(1)
+SPREAD_BETTING = ProtoOAAccountType.V(2)
+
 class _ProtoOAAccountType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAAccountType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     HEDGED = ProtoOAAccountType.V(0)
     NETTED = ProtoOAAccountType.V(1)
     SPREAD_BETTING = ProtoOAAccountType.V(2)
-class ProtoOAAccountType(metaclass=_ProtoOAAccountType):
+
+class ProtoOAPositionStatus(metaclass=_ProtoOAPositionStatus):
     V = typing.NewType('V', builtins.int)
-HEDGED = ProtoOAAccountType.V(0)
-NETTED = ProtoOAAccountType.V(1)
-SPREAD_BETTING = ProtoOAAccountType.V(2)
 
 global___ProtoOAPositionStatus = ProtoOAPositionStatus
+
+POSITION_STATUS_OPEN = ProtoOAPositionStatus.V(1)
+POSITION_STATUS_CLOSED = ProtoOAPositionStatus.V(2)
+POSITION_STATUS_CREATED = ProtoOAPositionStatus.V(3)
+POSITION_STATUS_ERROR = ProtoOAPositionStatus.V(4)
+
 class _ProtoOAPositionStatus(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAPositionStatus.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     POSITION_STATUS_OPEN = ProtoOAPositionStatus.V(1)
     POSITION_STATUS_CLOSED = ProtoOAPositionStatus.V(2)
     POSITION_STATUS_CREATED = ProtoOAPositionStatus.V(3)
     POSITION_STATUS_ERROR = ProtoOAPositionStatus.V(4)
-class ProtoOAPositionStatus(metaclass=_ProtoOAPositionStatus):
+
+class ProtoOATradeSide(metaclass=_ProtoOATradeSide):
     V = typing.NewType('V', builtins.int)
-POSITION_STATUS_OPEN = ProtoOAPositionStatus.V(1)
-POSITION_STATUS_CLOSED = ProtoOAPositionStatus.V(2)
-POSITION_STATUS_CREATED = ProtoOAPositionStatus.V(3)
-POSITION_STATUS_ERROR = ProtoOAPositionStatus.V(4)
 
 global___ProtoOATradeSide = ProtoOATradeSide
+
+BUY = ProtoOATradeSide.V(1)
+SELL = ProtoOATradeSide.V(2)
+
 class _ProtoOATradeSide(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOATradeSide.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     BUY = ProtoOATradeSide.V(1)
     SELL = ProtoOATradeSide.V(2)
-class ProtoOATradeSide(metaclass=_ProtoOATradeSide):
+
+class ProtoOAOrderType(metaclass=_ProtoOAOrderType):
     V = typing.NewType('V', builtins.int)
-BUY = ProtoOATradeSide.V(1)
-SELL = ProtoOATradeSide.V(2)
 
 global___ProtoOAOrderType = ProtoOAOrderType
+
+MARKET = ProtoOAOrderType.V(1)
+LIMIT = ProtoOAOrderType.V(2)
+STOP = ProtoOAOrderType.V(3)
+STOP_LOSS_TAKE_PROFIT = ProtoOAOrderType.V(4)
+MARKET_RANGE = ProtoOAOrderType.V(5)
+STOP_LIMIT = ProtoOAOrderType.V(6)
+
 class _ProtoOAOrderType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAOrderType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     MARKET = ProtoOAOrderType.V(1)
@@ -319,16 +370,18 @@ class _ProtoOAOrderType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrap
     STOP_LOSS_TAKE_PROFIT = ProtoOAOrderType.V(4)
     MARKET_RANGE = ProtoOAOrderType.V(5)
     STOP_LIMIT = ProtoOAOrderType.V(6)
-class ProtoOAOrderType(metaclass=_ProtoOAOrderType):
+
+class ProtoOATimeInForce(metaclass=_ProtoOATimeInForce):
     V = typing.NewType('V', builtins.int)
-MARKET = ProtoOAOrderType.V(1)
-LIMIT = ProtoOAOrderType.V(2)
-STOP = ProtoOAOrderType.V(3)
-STOP_LOSS_TAKE_PROFIT = ProtoOAOrderType.V(4)
-MARKET_RANGE = ProtoOAOrderType.V(5)
-STOP_LIMIT = ProtoOAOrderType.V(6)
 
 global___ProtoOATimeInForce = ProtoOATimeInForce
+
+GOOD_TILL_DATE = ProtoOATimeInForce.V(1)
+GOOD_TILL_CANCEL = ProtoOATimeInForce.V(2)
+IMMEDIATE_OR_CANCEL = ProtoOATimeInForce.V(3)
+FILL_OR_KILL = ProtoOATimeInForce.V(4)
+MARKET_ON_OPEN = ProtoOATimeInForce.V(5)
+
 class _ProtoOATimeInForce(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOATimeInForce.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     GOOD_TILL_DATE = ProtoOATimeInForce.V(1)
@@ -336,15 +389,18 @@ class _ProtoOATimeInForce(google.protobuf.internal.enum_type_wrapper._EnumTypeWr
     IMMEDIATE_OR_CANCEL = ProtoOATimeInForce.V(3)
     FILL_OR_KILL = ProtoOATimeInForce.V(4)
     MARKET_ON_OPEN = ProtoOATimeInForce.V(5)
-class ProtoOATimeInForce(metaclass=_ProtoOATimeInForce):
+
+class ProtoOAOrderStatus(metaclass=_ProtoOAOrderStatus):
     V = typing.NewType('V', builtins.int)
-GOOD_TILL_DATE = ProtoOATimeInForce.V(1)
-GOOD_TILL_CANCEL = ProtoOATimeInForce.V(2)
-IMMEDIATE_OR_CANCEL = ProtoOATimeInForce.V(3)
-FILL_OR_KILL = ProtoOATimeInForce.V(4)
-MARKET_ON_OPEN = ProtoOATimeInForce.V(5)
 
 global___ProtoOAOrderStatus = ProtoOAOrderStatus
+
+ORDER_STATUS_ACCEPTED = ProtoOAOrderStatus.V(1)
+ORDER_STATUS_FILLED = ProtoOAOrderStatus.V(2)
+ORDER_STATUS_REJECTED = ProtoOAOrderStatus.V(3)
+ORDER_STATUS_EXPIRED = ProtoOAOrderStatus.V(4)
+ORDER_STATUS_CANCELLED = ProtoOAOrderStatus.V(5)
+
 class _ProtoOAOrderStatus(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAOrderStatus.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     ORDER_STATUS_ACCEPTED = ProtoOAOrderStatus.V(1)
@@ -352,29 +408,41 @@ class _ProtoOAOrderStatus(google.protobuf.internal.enum_type_wrapper._EnumTypeWr
     ORDER_STATUS_REJECTED = ProtoOAOrderStatus.V(3)
     ORDER_STATUS_EXPIRED = ProtoOAOrderStatus.V(4)
     ORDER_STATUS_CANCELLED = ProtoOAOrderStatus.V(5)
-class ProtoOAOrderStatus(metaclass=_ProtoOAOrderStatus):
+
+class ProtoOAOrderTriggerMethod(metaclass=_ProtoOAOrderTriggerMethod):
     V = typing.NewType('V', builtins.int)
-ORDER_STATUS_ACCEPTED = ProtoOAOrderStatus.V(1)
-ORDER_STATUS_FILLED = ProtoOAOrderStatus.V(2)
-ORDER_STATUS_REJECTED = ProtoOAOrderStatus.V(3)
-ORDER_STATUS_EXPIRED = ProtoOAOrderStatus.V(4)
-ORDER_STATUS_CANCELLED = ProtoOAOrderStatus.V(5)
 
 global___ProtoOAOrderTriggerMethod = ProtoOAOrderTriggerMethod
+
+TRADE = ProtoOAOrderTriggerMethod.V(1)
+OPPOSITE = ProtoOAOrderTriggerMethod.V(2)
+DOUBLE_TRADE = ProtoOAOrderTriggerMethod.V(3)
+DOUBLE_OPPOSITE = ProtoOAOrderTriggerMethod.V(4)
+
 class _ProtoOAOrderTriggerMethod(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAOrderTriggerMethod.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     TRADE = ProtoOAOrderTriggerMethod.V(1)
     OPPOSITE = ProtoOAOrderTriggerMethod.V(2)
     DOUBLE_TRADE = ProtoOAOrderTriggerMethod.V(3)
     DOUBLE_OPPOSITE = ProtoOAOrderTriggerMethod.V(4)
-class ProtoOAOrderTriggerMethod(metaclass=_ProtoOAOrderTriggerMethod):
+
+class ProtoOAExecutionType(metaclass=_ProtoOAExecutionType):
     V = typing.NewType('V', builtins.int)
-TRADE = ProtoOAOrderTriggerMethod.V(1)
-OPPOSITE = ProtoOAOrderTriggerMethod.V(2)
-DOUBLE_TRADE = ProtoOAOrderTriggerMethod.V(3)
-DOUBLE_OPPOSITE = ProtoOAOrderTriggerMethod.V(4)
 
 global___ProtoOAExecutionType = ProtoOAExecutionType
+
+ORDER_ACCEPTED = ProtoOAExecutionType.V(2)
+ORDER_FILLED = ProtoOAExecutionType.V(3)
+ORDER_REPLACED = ProtoOAExecutionType.V(4)
+ORDER_CANCELLED = ProtoOAExecutionType.V(5)
+ORDER_EXPIRED = ProtoOAExecutionType.V(6)
+ORDER_REJECTED = ProtoOAExecutionType.V(7)
+ORDER_CANCEL_REJECTED = ProtoOAExecutionType.V(8)
+SWAP = ProtoOAExecutionType.V(9)
+DEPOSIT_WITHDRAW = ProtoOAExecutionType.V(10)
+ORDER_PARTIAL_FILL = ProtoOAExecutionType.V(11)
+BONUS_DEPOSIT_WITHDRAW = ProtoOAExecutionType.V(12)
+
 class _ProtoOAExecutionType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAExecutionType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     ORDER_ACCEPTED = ProtoOAExecutionType.V(2)
@@ -388,31 +456,61 @@ class _ProtoOAExecutionType(google.protobuf.internal.enum_type_wrapper._EnumType
     DEPOSIT_WITHDRAW = ProtoOAExecutionType.V(10)
     ORDER_PARTIAL_FILL = ProtoOAExecutionType.V(11)
     BONUS_DEPOSIT_WITHDRAW = ProtoOAExecutionType.V(12)
-class ProtoOAExecutionType(metaclass=_ProtoOAExecutionType):
+
+class ProtoOAChangeBonusType(metaclass=_ProtoOAChangeBonusType):
     V = typing.NewType('V', builtins.int)
-ORDER_ACCEPTED = ProtoOAExecutionType.V(2)
-ORDER_FILLED = ProtoOAExecutionType.V(3)
-ORDER_REPLACED = ProtoOAExecutionType.V(4)
-ORDER_CANCELLED = ProtoOAExecutionType.V(5)
-ORDER_EXPIRED = ProtoOAExecutionType.V(6)
-ORDER_REJECTED = ProtoOAExecutionType.V(7)
-ORDER_CANCEL_REJECTED = ProtoOAExecutionType.V(8)
-SWAP = ProtoOAExecutionType.V(9)
-DEPOSIT_WITHDRAW = ProtoOAExecutionType.V(10)
-ORDER_PARTIAL_FILL = ProtoOAExecutionType.V(11)
-BONUS_DEPOSIT_WITHDRAW = ProtoOAExecutionType.V(12)
 
 global___ProtoOAChangeBonusType = ProtoOAChangeBonusType
+
+BONUS_DEPOSIT = ProtoOAChangeBonusType.V(0)
+BONUS_WITHDRAW = ProtoOAChangeBonusType.V(1)
+
 class _ProtoOAChangeBonusType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAChangeBonusType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     BONUS_DEPOSIT = ProtoOAChangeBonusType.V(0)
     BONUS_WITHDRAW = ProtoOAChangeBonusType.V(1)
-class ProtoOAChangeBonusType(metaclass=_ProtoOAChangeBonusType):
+
+class ProtoOAChangeBalanceType(metaclass=_ProtoOAChangeBalanceType):
     V = typing.NewType('V', builtins.int)
-BONUS_DEPOSIT = ProtoOAChangeBonusType.V(0)
-BONUS_WITHDRAW = ProtoOAChangeBonusType.V(1)
 
 global___ProtoOAChangeBalanceType = ProtoOAChangeBalanceType
+
+BALANCE_DEPOSIT = ProtoOAChangeBalanceType.V(0)
+BALANCE_WITHDRAW = ProtoOAChangeBalanceType.V(1)
+BALANCE_DEPOSIT_STRATEGY_COMMISSION_INNER = ProtoOAChangeBalanceType.V(3)
+BALANCE_WITHDRAW_STRATEGY_COMMISSION_INNER = ProtoOAChangeBalanceType.V(4)
+BALANCE_DEPOSIT_IB_COMMISSIONS = ProtoOAChangeBalanceType.V(5)
+BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE = ProtoOAChangeBalanceType.V(6)
+BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_SUB_IB = ProtoOAChangeBalanceType.V(7)
+BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_BROKER = ProtoOAChangeBalanceType.V(8)
+BALANCE_DEPOSIT_REBATE = ProtoOAChangeBalanceType.V(9)
+BALANCE_WITHDRAW_REBATE = ProtoOAChangeBalanceType.V(10)
+BALANCE_DEPOSIT_STRATEGY_COMMISSION_OUTER = ProtoOAChangeBalanceType.V(11)
+BALANCE_WITHDRAW_STRATEGY_COMMISSION_OUTER = ProtoOAChangeBalanceType.V(12)
+BALANCE_WITHDRAW_BONUS_COMPENSATION = ProtoOAChangeBalanceType.V(13)
+BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE_TO_BROKER = ProtoOAChangeBalanceType.V(14)
+BALANCE_DEPOSIT_DIVIDENDS = ProtoOAChangeBalanceType.V(15)
+BALANCE_WITHDRAW_DIVIDENDS = ProtoOAChangeBalanceType.V(16)
+BALANCE_WITHDRAW_GSL_CHARGE = ProtoOAChangeBalanceType.V(17)
+BALANCE_WITHDRAW_ROLLOVER = ProtoOAChangeBalanceType.V(18)
+BALANCE_DEPOSIT_NONWITHDRAWABLE_BONUS = ProtoOAChangeBalanceType.V(19)
+BALANCE_WITHDRAW_NONWITHDRAWABLE_BONUS = ProtoOAChangeBalanceType.V(20)
+BALANCE_DEPOSIT_SWAP = ProtoOAChangeBalanceType.V(21)
+BALANCE_WITHDRAW_SWAP = ProtoOAChangeBalanceType.V(22)
+BALANCE_DEPOSIT_MANAGEMENT_FEE = ProtoOAChangeBalanceType.V(27)
+BALANCE_WITHDRAW_MANAGEMENT_FEE = ProtoOAChangeBalanceType.V(28)
+BALANCE_DEPOSIT_PERFORMANCE_FEE = ProtoOAChangeBalanceType.V(29)
+BALANCE_WITHDRAW_FOR_SUBACCOUNT = ProtoOAChangeBalanceType.V(30)
+BALANCE_DEPOSIT_TO_SUBACCOUNT = ProtoOAChangeBalanceType.V(31)
+BALANCE_WITHDRAW_FROM_SUBACCOUNT = ProtoOAChangeBalanceType.V(32)
+BALANCE_DEPOSIT_FROM_SUBACCOUNT = ProtoOAChangeBalanceType.V(33)
+BALANCE_WITHDRAW_COPY_FEE = ProtoOAChangeBalanceType.V(34)
+BALANCE_WITHDRAW_INACTIVITY_FEE = ProtoOAChangeBalanceType.V(35)
+BALANCE_DEPOSIT_TRANSFER = ProtoOAChangeBalanceType.V(36)
+BALANCE_WITHDRAW_TRANSFER = ProtoOAChangeBalanceType.V(37)
+BALANCE_DEPOSIT_CONVERTED_BONUS = ProtoOAChangeBalanceType.V(38)
+BALANCE_DEPOSIT_NEGATIVE_BALANCE_PROTECTION = ProtoOAChangeBalanceType.V(39)
+
 class _ProtoOAChangeBalanceType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAChangeBalanceType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     BALANCE_DEPOSIT = ProtoOAChangeBalanceType.V(0)
@@ -449,44 +547,20 @@ class _ProtoOAChangeBalanceType(google.protobuf.internal.enum_type_wrapper._Enum
     BALANCE_DEPOSIT_TRANSFER = ProtoOAChangeBalanceType.V(36)
     BALANCE_WITHDRAW_TRANSFER = ProtoOAChangeBalanceType.V(37)
     BALANCE_DEPOSIT_CONVERTED_BONUS = ProtoOAChangeBalanceType.V(38)
-class ProtoOAChangeBalanceType(metaclass=_ProtoOAChangeBalanceType):
+    BALANCE_DEPOSIT_NEGATIVE_BALANCE_PROTECTION = ProtoOAChangeBalanceType.V(39)
+
+class ProtoOADealStatus(metaclass=_ProtoOADealStatus):
     V = typing.NewType('V', builtins.int)
-BALANCE_DEPOSIT = ProtoOAChangeBalanceType.V(0)
-BALANCE_WITHDRAW = ProtoOAChangeBalanceType.V(1)
-BALANCE_DEPOSIT_STRATEGY_COMMISSION_INNER = ProtoOAChangeBalanceType.V(3)
-BALANCE_WITHDRAW_STRATEGY_COMMISSION_INNER = ProtoOAChangeBalanceType.V(4)
-BALANCE_DEPOSIT_IB_COMMISSIONS = ProtoOAChangeBalanceType.V(5)
-BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE = ProtoOAChangeBalanceType.V(6)
-BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_SUB_IB = ProtoOAChangeBalanceType.V(7)
-BALANCE_DEPOSIT_IB_SHARED_PERCENTAGE_FROM_BROKER = ProtoOAChangeBalanceType.V(8)
-BALANCE_DEPOSIT_REBATE = ProtoOAChangeBalanceType.V(9)
-BALANCE_WITHDRAW_REBATE = ProtoOAChangeBalanceType.V(10)
-BALANCE_DEPOSIT_STRATEGY_COMMISSION_OUTER = ProtoOAChangeBalanceType.V(11)
-BALANCE_WITHDRAW_STRATEGY_COMMISSION_OUTER = ProtoOAChangeBalanceType.V(12)
-BALANCE_WITHDRAW_BONUS_COMPENSATION = ProtoOAChangeBalanceType.V(13)
-BALANCE_WITHDRAW_IB_SHARED_PERCENTAGE_TO_BROKER = ProtoOAChangeBalanceType.V(14)
-BALANCE_DEPOSIT_DIVIDENDS = ProtoOAChangeBalanceType.V(15)
-BALANCE_WITHDRAW_DIVIDENDS = ProtoOAChangeBalanceType.V(16)
-BALANCE_WITHDRAW_GSL_CHARGE = ProtoOAChangeBalanceType.V(17)
-BALANCE_WITHDRAW_ROLLOVER = ProtoOAChangeBalanceType.V(18)
-BALANCE_DEPOSIT_NONWITHDRAWABLE_BONUS = ProtoOAChangeBalanceType.V(19)
-BALANCE_WITHDRAW_NONWITHDRAWABLE_BONUS = ProtoOAChangeBalanceType.V(20)
-BALANCE_DEPOSIT_SWAP = ProtoOAChangeBalanceType.V(21)
-BALANCE_WITHDRAW_SWAP = ProtoOAChangeBalanceType.V(22)
-BALANCE_DEPOSIT_MANAGEMENT_FEE = ProtoOAChangeBalanceType.V(27)
-BALANCE_WITHDRAW_MANAGEMENT_FEE = ProtoOAChangeBalanceType.V(28)
-BALANCE_DEPOSIT_PERFORMANCE_FEE = ProtoOAChangeBalanceType.V(29)
-BALANCE_WITHDRAW_FOR_SUBACCOUNT = ProtoOAChangeBalanceType.V(30)
-BALANCE_DEPOSIT_TO_SUBACCOUNT = ProtoOAChangeBalanceType.V(31)
-BALANCE_WITHDRAW_FROM_SUBACCOUNT = ProtoOAChangeBalanceType.V(32)
-BALANCE_DEPOSIT_FROM_SUBACCOUNT = ProtoOAChangeBalanceType.V(33)
-BALANCE_WITHDRAW_COPY_FEE = ProtoOAChangeBalanceType.V(34)
-BALANCE_WITHDRAW_INACTIVITY_FEE = ProtoOAChangeBalanceType.V(35)
-BALANCE_DEPOSIT_TRANSFER = ProtoOAChangeBalanceType.V(36)
-BALANCE_WITHDRAW_TRANSFER = ProtoOAChangeBalanceType.V(37)
-BALANCE_DEPOSIT_CONVERTED_BONUS = ProtoOAChangeBalanceType.V(38)
 
 global___ProtoOADealStatus = ProtoOADealStatus
+
+FILLED = ProtoOADealStatus.V(2)
+PARTIALLY_FILLED = ProtoOADealStatus.V(3)
+REJECTED = ProtoOADealStatus.V(4)
+INTERNALLY_REJECTED = ProtoOADealStatus.V(5)
+ERROR = ProtoOADealStatus.V(6)
+MISSED = ProtoOADealStatus.V(7)
+
 class _ProtoOADealStatus(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOADealStatus.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     FILLED = ProtoOADealStatus.V(2)
@@ -495,16 +569,27 @@ class _ProtoOADealStatus(google.protobuf.internal.enum_type_wrapper._EnumTypeWra
     INTERNALLY_REJECTED = ProtoOADealStatus.V(5)
     ERROR = ProtoOADealStatus.V(6)
     MISSED = ProtoOADealStatus.V(7)
-class ProtoOADealStatus(metaclass=_ProtoOADealStatus):
+
+class ProtoOATrendbarPeriod(metaclass=_ProtoOATrendbarPeriod):
     V = typing.NewType('V', builtins.int)
-FILLED = ProtoOADealStatus.V(2)
-PARTIALLY_FILLED = ProtoOADealStatus.V(3)
-REJECTED = ProtoOADealStatus.V(4)
-INTERNALLY_REJECTED = ProtoOADealStatus.V(5)
-ERROR = ProtoOADealStatus.V(6)
-MISSED = ProtoOADealStatus.V(7)
 
 global___ProtoOATrendbarPeriod = ProtoOATrendbarPeriod
+
+M1 = ProtoOATrendbarPeriod.V(1)
+M2 = ProtoOATrendbarPeriod.V(2)
+M3 = ProtoOATrendbarPeriod.V(3)
+M4 = ProtoOATrendbarPeriod.V(4)
+M5 = ProtoOATrendbarPeriod.V(5)
+M10 = ProtoOATrendbarPeriod.V(6)
+M15 = ProtoOATrendbarPeriod.V(7)
+M30 = ProtoOATrendbarPeriod.V(8)
+H1 = ProtoOATrendbarPeriod.V(9)
+H4 = ProtoOATrendbarPeriod.V(10)
+H12 = ProtoOATrendbarPeriod.V(11)
+D1 = ProtoOATrendbarPeriod.V(12)
+W1 = ProtoOATrendbarPeriod.V(13)
+MN1 = ProtoOATrendbarPeriod.V(14)
+
 class _ProtoOATrendbarPeriod(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOATrendbarPeriod.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     M1 = ProtoOATrendbarPeriod.V(1)
@@ -521,56 +606,95 @@ class _ProtoOATrendbarPeriod(google.protobuf.internal.enum_type_wrapper._EnumTyp
     D1 = ProtoOATrendbarPeriod.V(12)
     W1 = ProtoOATrendbarPeriod.V(13)
     MN1 = ProtoOATrendbarPeriod.V(14)
-class ProtoOATrendbarPeriod(metaclass=_ProtoOATrendbarPeriod):
+
+class ProtoOAQuoteType(metaclass=_ProtoOAQuoteType):
     V = typing.NewType('V', builtins.int)
-M1 = ProtoOATrendbarPeriod.V(1)
-M2 = ProtoOATrendbarPeriod.V(2)
-M3 = ProtoOATrendbarPeriod.V(3)
-M4 = ProtoOATrendbarPeriod.V(4)
-M5 = ProtoOATrendbarPeriod.V(5)
-M10 = ProtoOATrendbarPeriod.V(6)
-M15 = ProtoOATrendbarPeriod.V(7)
-M30 = ProtoOATrendbarPeriod.V(8)
-H1 = ProtoOATrendbarPeriod.V(9)
-H4 = ProtoOATrendbarPeriod.V(10)
-H12 = ProtoOATrendbarPeriod.V(11)
-D1 = ProtoOATrendbarPeriod.V(12)
-W1 = ProtoOATrendbarPeriod.V(13)
-MN1 = ProtoOATrendbarPeriod.V(14)
 
 global___ProtoOAQuoteType = ProtoOAQuoteType
+
+BID = ProtoOAQuoteType.V(1)
+ASK = ProtoOAQuoteType.V(2)
+
 class _ProtoOAQuoteType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAQuoteType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     BID = ProtoOAQuoteType.V(1)
     ASK = ProtoOAQuoteType.V(2)
-class ProtoOAQuoteType(metaclass=_ProtoOAQuoteType):
+
+class ProtoOAClientPermissionScope(metaclass=_ProtoOAClientPermissionScope):
     V = typing.NewType('V', builtins.int)
-BID = ProtoOAQuoteType.V(1)
-ASK = ProtoOAQuoteType.V(2)
 
 global___ProtoOAClientPermissionScope = ProtoOAClientPermissionScope
+
+SCOPE_VIEW = ProtoOAClientPermissionScope.V(0)
+SCOPE_TRADE = ProtoOAClientPermissionScope.V(1)
+
 class _ProtoOAClientPermissionScope(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAClientPermissionScope.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     SCOPE_VIEW = ProtoOAClientPermissionScope.V(0)
     SCOPE_TRADE = ProtoOAClientPermissionScope.V(1)
-class ProtoOAClientPermissionScope(metaclass=_ProtoOAClientPermissionScope):
+
+class ProtoOANotificationType(metaclass=_ProtoOANotificationType):
     V = typing.NewType('V', builtins.int)
-SCOPE_VIEW = ProtoOAClientPermissionScope.V(0)
-SCOPE_TRADE = ProtoOAClientPermissionScope.V(1)
 
 global___ProtoOANotificationType = ProtoOANotificationType
+
+MARGIN_LEVEL_THRESHOLD_1 = ProtoOANotificationType.V(61)
+MARGIN_LEVEL_THRESHOLD_2 = ProtoOANotificationType.V(62)
+MARGIN_LEVEL_THRESHOLD_3 = ProtoOANotificationType.V(63)
+
 class _ProtoOANotificationType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOANotificationType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     MARGIN_LEVEL_THRESHOLD_1 = ProtoOANotificationType.V(61)
     MARGIN_LEVEL_THRESHOLD_2 = ProtoOANotificationType.V(62)
     MARGIN_LEVEL_THRESHOLD_3 = ProtoOANotificationType.V(63)
-class ProtoOANotificationType(metaclass=_ProtoOANotificationType):
+
+class ProtoOAErrorCode(metaclass=_ProtoOAErrorCode):
     V = typing.NewType('V', builtins.int)
-MARGIN_LEVEL_THRESHOLD_1 = ProtoOANotificationType.V(61)
-MARGIN_LEVEL_THRESHOLD_2 = ProtoOANotificationType.V(62)
-MARGIN_LEVEL_THRESHOLD_3 = ProtoOANotificationType.V(63)
 
 global___ProtoOAErrorCode = ProtoOAErrorCode
+
+OA_AUTH_TOKEN_EXPIRED = ProtoOAErrorCode.V(1)
+ACCOUNT_NOT_AUTHORIZED = ProtoOAErrorCode.V(2)
+ALREADY_LOGGED_IN = ProtoOAErrorCode.V(14)
+CH_CLIENT_AUTH_FAILURE = ProtoOAErrorCode.V(101)
+CH_CLIENT_NOT_AUTHENTICATED = ProtoOAErrorCode.V(102)
+CH_CLIENT_ALREADY_AUTHENTICATED = ProtoOAErrorCode.V(103)
+CH_ACCESS_TOKEN_INVALID = ProtoOAErrorCode.V(104)
+CH_SERVER_NOT_REACHABLE = ProtoOAErrorCode.V(105)
+CH_CTID_TRADER_ACCOUNT_NOT_FOUND = ProtoOAErrorCode.V(106)
+CH_OA_CLIENT_NOT_FOUND = ProtoOAErrorCode.V(107)
+REQUEST_FREQUENCY_EXCEEDED = ProtoOAErrorCode.V(108)
+SERVER_IS_UNDER_MAINTENANCE = ProtoOAErrorCode.V(109)
+CHANNEL_IS_BLOCKED = ProtoOAErrorCode.V(110)
+CONNECTIONS_LIMIT_EXCEEDED = ProtoOAErrorCode.V(67)
+WORSE_GSL_NOT_ALLOWED = ProtoOAErrorCode.V(68)
+SYMBOL_HAS_HOLIDAY = ProtoOAErrorCode.V(69)
+NOT_SUBSCRIBED_TO_SPOTS = ProtoOAErrorCode.V(112)
+ALREADY_SUBSCRIBED = ProtoOAErrorCode.V(113)
+SYMBOL_NOT_FOUND = ProtoOAErrorCode.V(114)
+UNKNOWN_SYMBOL = ProtoOAErrorCode.V(115)
+INCORRECT_BOUNDARIES = ProtoOAErrorCode.V(35)
+NO_QUOTES = ProtoOAErrorCode.V(117)
+NOT_ENOUGH_MONEY = ProtoOAErrorCode.V(118)
+MAX_EXPOSURE_REACHED = ProtoOAErrorCode.V(119)
+POSITION_NOT_FOUND = ProtoOAErrorCode.V(120)
+ORDER_NOT_FOUND = ProtoOAErrorCode.V(121)
+POSITION_NOT_OPEN = ProtoOAErrorCode.V(122)
+POSITION_LOCKED = ProtoOAErrorCode.V(123)
+TOO_MANY_POSITIONS = ProtoOAErrorCode.V(124)
+TRADING_BAD_VOLUME = ProtoOAErrorCode.V(125)
+TRADING_BAD_STOPS = ProtoOAErrorCode.V(126)
+TRADING_BAD_PRICES = ProtoOAErrorCode.V(127)
+TRADING_BAD_STAKE = ProtoOAErrorCode.V(128)
+PROTECTION_IS_TOO_CLOSE_TO_MARKET = ProtoOAErrorCode.V(129)
+TRADING_BAD_EXPIRATION_DATE = ProtoOAErrorCode.V(130)
+PENDING_EXECUTION = ProtoOAErrorCode.V(131)
+TRADING_DISABLED = ProtoOAErrorCode.V(132)
+TRADING_NOT_ALLOWED = ProtoOAErrorCode.V(133)
+UNABLE_TO_CANCEL_ORDER = ProtoOAErrorCode.V(134)
+UNABLE_TO_AMEND_ORDER = ProtoOAErrorCode.V(135)
+SHORT_SELLING_NOT_ALLOWED = ProtoOAErrorCode.V(136)
+
 class _ProtoOAErrorCode(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOAErrorCode.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     OA_AUTH_TOKEN_EXPIRED = ProtoOAErrorCode.V(1)
@@ -614,61 +738,21 @@ class _ProtoOAErrorCode(google.protobuf.internal.enum_type_wrapper._EnumTypeWrap
     UNABLE_TO_CANCEL_ORDER = ProtoOAErrorCode.V(134)
     UNABLE_TO_AMEND_ORDER = ProtoOAErrorCode.V(135)
     SHORT_SELLING_NOT_ALLOWED = ProtoOAErrorCode.V(136)
-class ProtoOAErrorCode(metaclass=_ProtoOAErrorCode):
+
+class ProtoOALimitedRiskMarginCalculationStrategy(metaclass=_ProtoOALimitedRiskMarginCalculationStrategy):
     V = typing.NewType('V', builtins.int)
-OA_AUTH_TOKEN_EXPIRED = ProtoOAErrorCode.V(1)
-ACCOUNT_NOT_AUTHORIZED = ProtoOAErrorCode.V(2)
-ALREADY_LOGGED_IN = ProtoOAErrorCode.V(14)
-CH_CLIENT_AUTH_FAILURE = ProtoOAErrorCode.V(101)
-CH_CLIENT_NOT_AUTHENTICATED = ProtoOAErrorCode.V(102)
-CH_CLIENT_ALREADY_AUTHENTICATED = ProtoOAErrorCode.V(103)
-CH_ACCESS_TOKEN_INVALID = ProtoOAErrorCode.V(104)
-CH_SERVER_NOT_REACHABLE = ProtoOAErrorCode.V(105)
-CH_CTID_TRADER_ACCOUNT_NOT_FOUND = ProtoOAErrorCode.V(106)
-CH_OA_CLIENT_NOT_FOUND = ProtoOAErrorCode.V(107)
-REQUEST_FREQUENCY_EXCEEDED = ProtoOAErrorCode.V(108)
-SERVER_IS_UNDER_MAINTENANCE = ProtoOAErrorCode.V(109)
-CHANNEL_IS_BLOCKED = ProtoOAErrorCode.V(110)
-CONNECTIONS_LIMIT_EXCEEDED = ProtoOAErrorCode.V(67)
-WORSE_GSL_NOT_ALLOWED = ProtoOAErrorCode.V(68)
-SYMBOL_HAS_HOLIDAY = ProtoOAErrorCode.V(69)
-NOT_SUBSCRIBED_TO_SPOTS = ProtoOAErrorCode.V(112)
-ALREADY_SUBSCRIBED = ProtoOAErrorCode.V(113)
-SYMBOL_NOT_FOUND = ProtoOAErrorCode.V(114)
-UNKNOWN_SYMBOL = ProtoOAErrorCode.V(115)
-INCORRECT_BOUNDARIES = ProtoOAErrorCode.V(35)
-NO_QUOTES = ProtoOAErrorCode.V(117)
-NOT_ENOUGH_MONEY = ProtoOAErrorCode.V(118)
-MAX_EXPOSURE_REACHED = ProtoOAErrorCode.V(119)
-POSITION_NOT_FOUND = ProtoOAErrorCode.V(120)
-ORDER_NOT_FOUND = ProtoOAErrorCode.V(121)
-POSITION_NOT_OPEN = ProtoOAErrorCode.V(122)
-POSITION_LOCKED = ProtoOAErrorCode.V(123)
-TOO_MANY_POSITIONS = ProtoOAErrorCode.V(124)
-TRADING_BAD_VOLUME = ProtoOAErrorCode.V(125)
-TRADING_BAD_STOPS = ProtoOAErrorCode.V(126)
-TRADING_BAD_PRICES = ProtoOAErrorCode.V(127)
-TRADING_BAD_STAKE = ProtoOAErrorCode.V(128)
-PROTECTION_IS_TOO_CLOSE_TO_MARKET = ProtoOAErrorCode.V(129)
-TRADING_BAD_EXPIRATION_DATE = ProtoOAErrorCode.V(130)
-PENDING_EXECUTION = ProtoOAErrorCode.V(131)
-TRADING_DISABLED = ProtoOAErrorCode.V(132)
-TRADING_NOT_ALLOWED = ProtoOAErrorCode.V(133)
-UNABLE_TO_CANCEL_ORDER = ProtoOAErrorCode.V(134)
-UNABLE_TO_AMEND_ORDER = ProtoOAErrorCode.V(135)
-SHORT_SELLING_NOT_ALLOWED = ProtoOAErrorCode.V(136)
 
 global___ProtoOALimitedRiskMarginCalculationStrategy = ProtoOALimitedRiskMarginCalculationStrategy
+
+ACCORDING_TO_LEVERAGE = ProtoOALimitedRiskMarginCalculationStrategy.V(0)
+ACCORDING_TO_GSL = ProtoOALimitedRiskMarginCalculationStrategy.V(1)
+ACCORDING_TO_GSL_AND_LEVERAGE = ProtoOALimitedRiskMarginCalculationStrategy.V(2)
+
 class _ProtoOALimitedRiskMarginCalculationStrategy(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoOALimitedRiskMarginCalculationStrategy.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     ACCORDING_TO_LEVERAGE = ProtoOALimitedRiskMarginCalculationStrategy.V(0)
     ACCORDING_TO_GSL = ProtoOALimitedRiskMarginCalculationStrategy.V(1)
     ACCORDING_TO_GSL_AND_LEVERAGE = ProtoOALimitedRiskMarginCalculationStrategy.V(2)
-class ProtoOALimitedRiskMarginCalculationStrategy(metaclass=_ProtoOALimitedRiskMarginCalculationStrategy):
-    V = typing.NewType('V', builtins.int)
-ACCORDING_TO_LEVERAGE = ProtoOALimitedRiskMarginCalculationStrategy.V(0)
-ACCORDING_TO_GSL = ProtoOALimitedRiskMarginCalculationStrategy.V(1)
-ACCORDING_TO_GSL_AND_LEVERAGE = ProtoOALimitedRiskMarginCalculationStrategy.V(2)
 
 class ProtoOAAsset(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
@@ -727,6 +811,7 @@ class ProtoOASymbol(google.protobuf.message.Message):
     PRECISETRADINGCOMMISSIONRATE_FIELD_NUMBER: builtins.int
     PRECISEMINCOMMISSION_FIELD_NUMBER: builtins.int
     HOLIDAY_FIELD_NUMBER: builtins.int
+    PNLCONVERSIONFEERATE_FIELD_NUMBER: builtins.int
     symbolId: builtins.int = ...
     digits: builtins.int = ...
     pipPosition: builtins.int = ...
@@ -758,6 +843,7 @@ class ProtoOASymbol(google.protobuf.message.Message):
     lotSize: builtins.int = ...
     preciseTradingCommissionRate: builtins.int = ...
     preciseMinCommission: builtins.int = ...
+    pnlConversionFeeRate: builtins.int = ...
 
     @property
     def schedule(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ProtoOAInterval]: ...
@@ -800,9 +886,10 @@ class ProtoOASymbol(google.protobuf.message.Message):
         preciseTradingCommissionRate : typing.Optional[builtins.int] = ...,
         preciseMinCommission : typing.Optional[builtins.int] = ...,
         holiday : typing.Optional[typing.Iterable[global___ProtoOAHoliday]] = ...,
+        pnlConversionFeeRate : typing.Optional[builtins.int] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"commission",b"commission",u"commissionType",b"commissionType",u"digits",b"digits",u"distanceSetIn",b"distanceSetIn",u"enableShortSelling",b"enableShortSelling",u"gslCharge",b"gslCharge",u"gslDistance",b"gslDistance",u"guaranteedStopLoss",b"guaranteedStopLoss",u"lotSize",b"lotSize",u"maxExposure",b"maxExposure",u"maxVolume",b"maxVolume",u"minCommission",b"minCommission",u"minCommissionAsset",b"minCommissionAsset",u"minCommissionType",b"minCommissionType",u"minVolume",b"minVolume",u"pipPosition",b"pipPosition",u"preciseMinCommission",b"preciseMinCommission",u"preciseTradingCommissionRate",b"preciseTradingCommissionRate",u"rolloverCommission",b"rolloverCommission",u"rolloverCommission3Days",b"rolloverCommission3Days",u"scheduleTimeZone",b"scheduleTimeZone",u"skipRolloverDays",b"skipRolloverDays",u"slDistance",b"slDistance",u"stepVolume",b"stepVolume",u"swapCalculationType",b"swapCalculationType",u"swapLong",b"swapLong",u"swapRollover3Days",b"swapRollover3Days",u"swapShort",b"swapShort",u"symbolId",b"symbolId",u"tpDistance",b"tpDistance",u"tradingMode",b"tradingMode"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"commission",b"commission",u"commissionType",b"commissionType",u"digits",b"digits",u"distanceSetIn",b"distanceSetIn",u"enableShortSelling",b"enableShortSelling",u"gslCharge",b"gslCharge",u"gslDistance",b"gslDistance",u"guaranteedStopLoss",b"guaranteedStopLoss",u"holiday",b"holiday",u"lotSize",b"lotSize",u"maxExposure",b"maxExposure",u"maxVolume",b"maxVolume",u"minCommission",b"minCommission",u"minCommissionAsset",b"minCommissionAsset",u"minCommissionType",b"minCommissionType",u"minVolume",b"minVolume",u"pipPosition",b"pipPosition",u"preciseMinCommission",b"preciseMinCommission",u"preciseTradingCommissionRate",b"preciseTradingCommissionRate",u"rolloverCommission",b"rolloverCommission",u"rolloverCommission3Days",b"rolloverCommission3Days",u"schedule",b"schedule",u"scheduleTimeZone",b"scheduleTimeZone",u"skipRolloverDays",b"skipRolloverDays",u"slDistance",b"slDistance",u"stepVolume",b"stepVolume",u"swapCalculationType",b"swapCalculationType",u"swapLong",b"swapLong",u"swapRollover3Days",b"swapRollover3Days",u"swapShort",b"swapShort",u"symbolId",b"symbolId",u"tpDistance",b"tpDistance",u"tradingMode",b"tradingMode"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"commission",b"commission",u"commissionType",b"commissionType",u"digits",b"digits",u"distanceSetIn",b"distanceSetIn",u"enableShortSelling",b"enableShortSelling",u"gslCharge",b"gslCharge",u"gslDistance",b"gslDistance",u"guaranteedStopLoss",b"guaranteedStopLoss",u"lotSize",b"lotSize",u"maxExposure",b"maxExposure",u"maxVolume",b"maxVolume",u"minCommission",b"minCommission",u"minCommissionAsset",b"minCommissionAsset",u"minCommissionType",b"minCommissionType",u"minVolume",b"minVolume",u"pipPosition",b"pipPosition",u"pnlConversionFeeRate",b"pnlConversionFeeRate",u"preciseMinCommission",b"preciseMinCommission",u"preciseTradingCommissionRate",b"preciseTradingCommissionRate",u"rolloverCommission",b"rolloverCommission",u"rolloverCommission3Days",b"rolloverCommission3Days",u"scheduleTimeZone",b"scheduleTimeZone",u"skipRolloverDays",b"skipRolloverDays",u"slDistance",b"slDistance",u"stepVolume",b"stepVolume",u"swapCalculationType",b"swapCalculationType",u"swapLong",b"swapLong",u"swapRollover3Days",b"swapRollover3Days",u"swapShort",b"swapShort",u"symbolId",b"symbolId",u"tpDistance",b"tpDistance",u"tradingMode",b"tradingMode"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"commission",b"commission",u"commissionType",b"commissionType",u"digits",b"digits",u"distanceSetIn",b"distanceSetIn",u"enableShortSelling",b"enableShortSelling",u"gslCharge",b"gslCharge",u"gslDistance",b"gslDistance",u"guaranteedStopLoss",b"guaranteedStopLoss",u"holiday",b"holiday",u"lotSize",b"lotSize",u"maxExposure",b"maxExposure",u"maxVolume",b"maxVolume",u"minCommission",b"minCommission",u"minCommissionAsset",b"minCommissionAsset",u"minCommissionType",b"minCommissionType",u"minVolume",b"minVolume",u"pipPosition",b"pipPosition",u"pnlConversionFeeRate",b"pnlConversionFeeRate",u"preciseMinCommission",b"preciseMinCommission",u"preciseTradingCommissionRate",b"preciseTradingCommissionRate",u"rolloverCommission",b"rolloverCommission",u"rolloverCommission3Days",b"rolloverCommission3Days",u"schedule",b"schedule",u"scheduleTimeZone",b"scheduleTimeZone",u"skipRolloverDays",b"skipRolloverDays",u"slDistance",b"slDistance",u"stepVolume",b"stepVolume",u"swapCalculationType",b"swapCalculationType",u"swapLong",b"swapLong",u"swapRollover3Days",b"swapRollover3Days",u"swapShort",b"swapShort",u"symbolId",b"symbolId",u"tpDistance",b"tpDistance",u"tradingMode",b"tradingMode"]) -> None: ...
 global___ProtoOASymbol = ProtoOASymbol
 
 class ProtoOALightSymbol(google.protobuf.message.Message):
@@ -1283,6 +1370,7 @@ class ProtoOAClosePositionDetail(google.protobuf.message.Message):
     CLOSEDVOLUME_FIELD_NUMBER: builtins.int
     BALANCEVERSION_FIELD_NUMBER: builtins.int
     MONEYDIGITS_FIELD_NUMBER: builtins.int
+    PNLCONVERSIONFEE_FIELD_NUMBER: builtins.int
     entryPrice: builtins.float = ...
     grossProfit: builtins.int = ...
     swap: builtins.int = ...
@@ -1292,6 +1380,7 @@ class ProtoOAClosePositionDetail(google.protobuf.message.Message):
     closedVolume: builtins.int = ...
     balanceVersion: builtins.int = ...
     moneyDigits: builtins.int = ...
+    pnlConversionFee: builtins.int = ...
 
     def __init__(self,
         *,
@@ -1304,9 +1393,10 @@ class ProtoOAClosePositionDetail(google.protobuf.message.Message):
         closedVolume : typing.Optional[builtins.int] = ...,
         balanceVersion : typing.Optional[builtins.int] = ...,
         moneyDigits : typing.Optional[builtins.int] = ...,
+        pnlConversionFee : typing.Optional[builtins.int] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"balance",b"balance",u"balanceVersion",b"balanceVersion",u"closedVolume",b"closedVolume",u"commission",b"commission",u"entryPrice",b"entryPrice",u"grossProfit",b"grossProfit",u"moneyDigits",b"moneyDigits",u"quoteToDepositConversionRate",b"quoteToDepositConversionRate",u"swap",b"swap"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"balance",b"balance",u"balanceVersion",b"balanceVersion",u"closedVolume",b"closedVolume",u"commission",b"commission",u"entryPrice",b"entryPrice",u"grossProfit",b"grossProfit",u"moneyDigits",b"moneyDigits",u"quoteToDepositConversionRate",b"quoteToDepositConversionRate",u"swap",b"swap"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"balance",b"balance",u"balanceVersion",b"balanceVersion",u"closedVolume",b"closedVolume",u"commission",b"commission",u"entryPrice",b"entryPrice",u"grossProfit",b"grossProfit",u"moneyDigits",b"moneyDigits",u"pnlConversionFee",b"pnlConversionFee",u"quoteToDepositConversionRate",b"quoteToDepositConversionRate",u"swap",b"swap"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"balance",b"balance",u"balanceVersion",b"balanceVersion",u"closedVolume",b"closedVolume",u"commission",b"commission",u"entryPrice",b"entryPrice",u"grossProfit",b"grossProfit",u"moneyDigits",b"moneyDigits",u"pnlConversionFee",b"pnlConversionFee",u"quoteToDepositConversionRate",b"quoteToDepositConversionRate",u"swap",b"swap"]) -> None: ...
 global___ProtoOAClosePositionDetail = ProtoOAClosePositionDetail
 
 class ProtoOATrendbar(google.protobuf.message.Message):

@@ -9,19 +9,37 @@ import typing
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor = ...
 
+class ProtoPayloadType(metaclass=_ProtoPayloadType):
+    V = typing.NewType('V', builtins.int)
+
 global___ProtoPayloadType = ProtoPayloadType
+
+PROTO_MESSAGE = ProtoPayloadType.V(5)
+ERROR_RES = ProtoPayloadType.V(50)
+HEARTBEAT_EVENT = ProtoPayloadType.V(51)
+
 class _ProtoPayloadType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoPayloadType.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     PROTO_MESSAGE = ProtoPayloadType.V(5)
     ERROR_RES = ProtoPayloadType.V(50)
     HEARTBEAT_EVENT = ProtoPayloadType.V(51)
-class ProtoPayloadType(metaclass=_ProtoPayloadType):
+
+class ProtoErrorCode(metaclass=_ProtoErrorCode):
     V = typing.NewType('V', builtins.int)
-PROTO_MESSAGE = ProtoPayloadType.V(5)
-ERROR_RES = ProtoPayloadType.V(50)
-HEARTBEAT_EVENT = ProtoPayloadType.V(51)
 
 global___ProtoErrorCode = ProtoErrorCode
+
+UNKNOWN_ERROR = ProtoErrorCode.V(1)
+UNSUPPORTED_MESSAGE = ProtoErrorCode.V(2)
+INVALID_REQUEST = ProtoErrorCode.V(3)
+TIMEOUT_ERROR = ProtoErrorCode.V(5)
+ENTITY_NOT_FOUND = ProtoErrorCode.V(6)
+CANT_ROUTE_REQUEST = ProtoErrorCode.V(7)
+FRAME_TOO_LONG = ProtoErrorCode.V(8)
+MARKET_CLOSED = ProtoErrorCode.V(9)
+CONCURRENT_MODIFICATION = ProtoErrorCode.V(10)
+BLOCKED_PAYLOAD_TYPE = ProtoErrorCode.V(11)
+
 class _ProtoErrorCode(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[ProtoErrorCode.V], builtins.type):
     DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
     UNKNOWN_ERROR = ProtoErrorCode.V(1)
@@ -34,15 +52,3 @@ class _ProtoErrorCode(google.protobuf.internal.enum_type_wrapper._EnumTypeWrappe
     MARKET_CLOSED = ProtoErrorCode.V(9)
     CONCURRENT_MODIFICATION = ProtoErrorCode.V(10)
     BLOCKED_PAYLOAD_TYPE = ProtoErrorCode.V(11)
-class ProtoErrorCode(metaclass=_ProtoErrorCode):
-    V = typing.NewType('V', builtins.int)
-UNKNOWN_ERROR = ProtoErrorCode.V(1)
-UNSUPPORTED_MESSAGE = ProtoErrorCode.V(2)
-INVALID_REQUEST = ProtoErrorCode.V(3)
-TIMEOUT_ERROR = ProtoErrorCode.V(5)
-ENTITY_NOT_FOUND = ProtoErrorCode.V(6)
-CANT_ROUTE_REQUEST = ProtoErrorCode.V(7)
-FRAME_TOO_LONG = ProtoErrorCode.V(8)
-MARKET_CLOSED = ProtoErrorCode.V(9)
-CONCURRENT_MODIFICATION = ProtoErrorCode.V(10)
-BLOCKED_PAYLOAD_TYPE = ProtoErrorCode.V(11)

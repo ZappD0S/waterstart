@@ -1,7 +1,6 @@
 #!/bin/bash
 
-files=(Open-API-2.0-protobuf-messages/*/)
-proto_path="${files[0]}"
+proto_path="openapi-proto-messages/"
 
 protoc \
     --plugin=protoc-gen-mypy="$(which protoc-gen-mypy)" \
