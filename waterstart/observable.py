@@ -1,6 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod
-from collections import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import (
@@ -103,6 +103,8 @@ class Observable(ABC, Generic[T]):
         add_setter: Callable[[Callable[[T], None]], AsyncContextManager[None]],
         maxsize: int,
     ) -> AsyncIterator[AsyncIterator[U]]:
+        # TODO: we might make this async and use put with a timeout (wait_for)
+        # if it fails we use get_nowait and put_nowait
         def set_result(val: T):
             if queue.full():
                 _ = queue.get_nowait()

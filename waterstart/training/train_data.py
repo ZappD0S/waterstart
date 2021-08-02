@@ -267,7 +267,7 @@ class TrainDataManager:
         rand_perm = torch.randperm(batch_inds.shape[0])
         return iter(batch_inds[rand_perm])
 
-    def load(self) -> ModelInput[RawMarketState]:
+    def load(self) -> ModelInput:
         if (batch_inds := self._next_batch_inds) is None:
             self._batch_inds_it = self._build_batch_inds_it()
             batch_inds = self._next_batch_inds = next(self._batch_inds_it)

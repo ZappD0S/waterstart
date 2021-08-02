@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from collections import AsyncIterator, Awaitable, Callable, Mapping
-from functools import partial
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Optional, TypeVar, Union
 
 from google.protobuf.message import Message
@@ -47,7 +46,7 @@ class TraderClient(BaseReconnectingClient):
         )
 
     def _belongs_to_trader(
-        self, pred: Optional[Callable[[Message], bool]], res: Message
+        self, res: T, pred: Optional[Callable[[T], bool]] = None
     ) -> bool:
         if (trader_id := getattr(res, "ctidTraderAccountId", None)) is None:
             return False
@@ -67,8 +66,7 @@ class TraderClient(BaseReconnectingClient):
             ctidTraderAccountId=self._trader_id, accessToken=self._access_token
         )
         app_auth_req = ProtoOAApplicationAuthReq(
-            clientId=self._client_id,
-            clientSecret=self._client_secret,
+            clientId=self._client_id, clientSecret=self._client_secret
         )
 
         while True:
@@ -113,27 +111,29 @@ class TraderClient(BaseReconnectingClient):
             build_req(self._trader_id),
             res_type,
             gen,
-            partial(self._belongs_to_trader, pred),
+            lambda res: self._belongs_to_trader(res, pred),
         )
 
     def send_requests_from_trader(
         self,
         build_key_to_req: Callable[[int], Mapping[S, Message]],
         res_type: type[T],
-        get_key: Callable[[T], S],
+        get_key: Callable[[T], Optional[S]],
         gen: Optional[AsyncIterator[Union[T, ProtoOAErrorRes]]] = None,
-        pred: Optional[Callable[[T], bool]] = None,
     ) -> AsyncIterator[tuple[S, T]]:
+        def _get_key(x: T) -> Optional[S]:
+            if not self._belongs_to_trader(x):
+                return None
+
+            return get_key(x)
+
         return self.send_requests(
-            build_key_to_req(self._trader_id),
-            res_type,
-            get_key,
-            gen,
-            partial(self._belongs_to_trader, pred),
+            build_key_to_req(self._trader_id), res_type, _get_key, gen
         )
 
     async def close(self) -> None:
         self._refresh_token_on_expiry_task.cancel()
+        # TODO: account logout
 
         await super().close()
 

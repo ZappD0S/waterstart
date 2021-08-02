@@ -1,4 +1,4 @@
-from collections import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Optional, TypeVar
 

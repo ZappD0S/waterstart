@@ -103,7 +103,7 @@ class LossEvaluator(nn.Module):
         new_balance = account_state.balance + profits_losses.detach().sum()
         assert torch.all(new_balance > 0)
 
-        account_state = self._engine.open_trades(
+        account_state, _ = self._engine.open_trades(
             AccountState(
                 account_state.trades_sizes.detach(),
                 account_state.trades_prices,

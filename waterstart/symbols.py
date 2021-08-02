@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from collections import AsyncIterator, Iterator, Mapping, Sequence, Set
+from collections.abc import AsyncIterator, Iterator, Mapping, Sequence, Set
 from dataclasses import InitVar, dataclass
 from typing import Counter, Optional, TypeVar
 from zoneinfo import ZoneInfo

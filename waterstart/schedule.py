@@ -1,7 +1,7 @@
 import datetime
 from abc import ABC, abstractmethod
 from bisect import bisect_right
-from collections import Sequence, Collection
+from collections.abc import Sequence, Collection
 from typing import Final, Optional
 
 from .symbols import SymbolInfo, TradedSymbolInfo, Holiday, Schedule

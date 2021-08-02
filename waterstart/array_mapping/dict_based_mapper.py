@@ -1,4 +1,4 @@
-from collections import Iterator, Mapping, Set
+from collections.abc import Iterator, Mapping, Set
 from typing import TypeVar, Any, overload
 
 from .base_mapper import BaseArrayMapper, FieldData

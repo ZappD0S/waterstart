@@ -1,4 +1,4 @@
-from collections import Iterator, Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any, Generic, Sequence, TypeVar
 
@@ -33,6 +33,9 @@ class MaskedArrays(Generic[T_float]):
     def __iter__(self) -> Iterator[npt.NDArray[T_float]]:
         return iter(self.data.T)
 
+    def __len__(self) -> int:
+        return self.data.shape[1]
+
 
 def obj_to_array(
     mapper: BaseArrayMapper[T],
@@ -64,7 +67,7 @@ def array_to_obj(mapper: BaseArrayMapper[T], arr: npt.NDArray[T_float]) -> T:
 def map_to_arrays(
     mapper: DictBasedArrayMapper[int],
     mapping: Mapping[int, tuple[float, ...]],
-    dtype: type[T_float] = np.float64,  # type: ignore
+    dtype: type[T_float]
 ) -> Iterator[npt.NDArray[np.float64]]:
     masked_arr = partial_map_to_masked_arrays(mapper, mapping, dtype)
 
@@ -77,7 +80,7 @@ def map_to_arrays(
 def partial_map_to_masked_arrays(
     mapper: DictBasedArrayMapper[int],
     mapping: Mapping[int, tuple[float, ...]],
-    dtype: type[T_float] = np.float64,  # type: ignore
+    dtype: type[T_float]
 ) -> MaskedArrays[T_float]:
     tuple_len = len(next(iter(mapping.values())))
     keys_len = len(mapper.keys)
@@ -105,6 +108,9 @@ def masked_array_to_partial_map(
     mapper: DictBasedArrayMapper[int], masked_arrs: MaskedArrays[T_float]
 ) -> Mapping[int, float]:
     res: dict[int, float] = {}
+
+    if len(masked_arrs) != 1:
+        raise ValueError()
 
     for idx, vals in masked_arrays_to_partial_map(mapper, masked_arrs).items():
         [val] = vals

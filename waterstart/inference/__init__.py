@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from collections import Mapping
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Generic, TypeVar
 
 import torch
-
-from ..price import MarketData
 
 
 @dataclass
@@ -21,11 +17,11 @@ class AccountState:
     def pos_size(self) -> torch.Tensor:
         return self.trades_sizes.sum(0)
 
-
-@dataclass
-class MarketState:
-    prev_market_data_arr: torch.Tensor
-    latest_market_data: MarketData[float]
+    @cached_property
+    def availabe_trades_mask(self) -> torch.Tensor:
+        # NOTE: if the last trade is 0 it means that there
+        # is at least one trade can be opened
+        return self.trades_sizes[0] == 0
 
 
 @dataclass
@@ -38,27 +34,10 @@ class RawMarketState:
     quote_to_dep_rate: torch.Tensor
 
 
-T = TypeVar("T", MarketState, RawMarketState)
-
-
 @dataclass
-class ModelInput(Generic[T]):
-    market_state: T
+class ModelInput:
+    market_state: RawMarketState
     account_state: AccountState
-    hidden_state: torch.Tensor
-
-
-# TODO: make abstract?
-@dataclass
-class ModelInference:
-    pos_sizes: torch.Tensor
-
-
-# TODO: we need a better name..
-@dataclass
-class ModelInferenceWithMap(ModelInference):
-    pos_sizes_map: Mapping[int, float]
-    market_data_arr: torch.Tensor
     hidden_state: torch.Tensor
 
 
@@ -77,5 +56,6 @@ class RawModelOutput:
 
 
 @dataclass
-class ModelInferenceWithRawOutput(ModelInference):
+class ModelOutput:
+    pos_sizes: torch.Tensor
     raw_model_output: RawModelOutput

@@ -1,6 +1,6 @@
 import asyncio
 import time
-from collections import AsyncIterator, Collection, Iterator, Mapping, Sequence, Set
+from collections.abc import AsyncIterator, Collection, Iterator, Mapping, Sequence, Set
 from contextlib import asynccontextmanager
 from enum import IntEnum
 from typing import ClassVar, Final, Optional, Union
@@ -19,6 +19,7 @@ from ..price import TickData
 from ..symbols import TradedSymbolInfo
 from . import Tick, TickType
 from .tick_producer import BaseTicksProducer, BaseTicksProducerFactory
+from ..utils import ComposableAsyncIterator
 
 
 class SizeType(IntEnum):
@@ -49,18 +50,29 @@ class State:
         narrowing = self._narrowing
         size_type = self._size_type
 
-        exp = -1 if narrowing else size_type
+        exp = -1 if narrowing else 1
 
+        # TODO: if one of the two ifs below is true,
+        # we have to skip the update too, right?
         if self._step == 1 and exp == -1:
             exp = 0
 
-        abs_step = self._step = int(self._step * 2 ** exp)
-        step = size_type * abs_step
+        # abs_step = self._step = int(self._step * 2 ** exp)
+        abs_step = int(self._step * 2 ** exp)
+        # step = size_type * abs_step
 
-        if self._ref_chunk == 1 and step < 0:
-            step = 0
+        probe_chunk = self._ref_chunk + size_type * abs_step
 
-        probe_chunk = self._probe_chunk = self._ref_chunk + step
+        # TODO: loop while probe_chunk < 1 or (self._step == 1 and exp == -1)
+
+        if probe_chunk < 1:
+            probe_chunk = 1
+            # what about step?
+
+        # if self._ref_chunk == 1 and step < 0:
+        #     step = 0
+
+        self._probe_chunk = probe_chunk  # = self._ref_chunk + step
         return self._latest_done + probe_chunk
 
     def update(self, has_more: Optional[bool], latest_downloaded: int) -> None:
@@ -230,12 +242,12 @@ class HistoricalTicksProducerFactory(BaseTicksProducerFactory):
         self._client = client
 
     @asynccontextmanager
-    async def get_ticks_gen_starting_from(
-        self, start: float
-    ) -> AsyncIterator[BaseTicksProducer]:
-        async with self._client.register_types(
-            (ProtoOAGetTickDataRes, ProtoOAErrorRes)
-        ) as gen:
+    async def get_ticks_gen(self, start: float) -> AsyncIterator[BaseTicksProducer]:
+        res_gen_cm = self._client.register_type(ProtoOAGetTickDataRes)
+        err_gen_cm = self._client.register_type(ProtoOAErrorRes)
+
+        async with res_gen_cm as res_gen, err_gen_cm as err_gen:
+            gen = ComposableAsyncIterator.from_it(res_gen) | err_gen
             yield HistoricalTicksProducer(
                 self._client, gen, self._id_to_sym.keys(), start
             )

@@ -4,9 +4,8 @@ from datetime import datetime
 from typing import Optional, TypeVar
 
 import numpy as np
-from aioitertools import next
 from google.protobuf.message import Message
-from waterstart.client import OpenApiClient
+from waterstart.client.app import AppClient
 from waterstart.openapi import (
     M1,
     M30,
@@ -29,36 +28,31 @@ from waterstart.openapi import (
 HOST = "demo.ctraderapi.com"
 PORT = 5035
 ACCOUNT_ID = 20783271
+CLIENT_ID = "2396_zKg1chyHLMkfP4ahuqh5924VjbWaz4m0YPW3jlIrFc1j8cf7TB"
+CLIENT_SECRET = "B9ExeJTkUHnNbJb13Pi1POmUwgKG0YpOiVzswE0QI1g5rXhNwC"
+
 
 T = TypeVar("T", bound=Message)
 
 
 async def main() -> None:
-    client = await OpenApiClient.create(HOST, PORT)
+    client = await AppClient.create(HOST, PORT, CLIENT_ID, CLIENT_SECRET)
 
     # refresh_token => wwJXiEBoC-7Uu4NzyNf90iWIZRlFCUdW4jUWBYoDOYs
     sorted_pairs = np.load("../financelab/train_data/train_data.npz")["sorted_pairs"]
     pairs_set = set(pair.lower() for pair in sorted_pairs)
 
     try:
-        app_auth_req = ProtoOAApplicationAuthReq(
-            clientId="2396_zKg1chyHLMkfP4ahuqh5924VjbWaz4m0YPW3jlIrFc1j8cf7TB",
-            clientSecret="B9ExeJTkUHnNbJb13Pi1POmUwgKG0YpOiVzswE0QI1g5rXhNwC",
-        )
-        app_auth_res = await client.send_and_wait_response(
-            app_auth_req, ProtoOAApplicationAuthRes
-        )
-
         acc_auth_req = ProtoOAAccountAuthReq(
             ctidTraderAccountId=ACCOUNT_ID,
             accessToken="FpNGIMCt16aMrPRM5jiqNxxnBzAsYB8aOxY15r1_EIU",
         )
-        acc_auth_res = await client.send_and_wait_response(
+        acc_auth_res = await client.send_request(
             acc_auth_req, ProtoOAAccountAuthRes
         )
 
         light_sym_list_req = ProtoOASymbolsListReq(ctidTraderAccountId=ACCOUNT_ID)
-        light_sym_list_res = await client.send_and_wait_response(
+        light_sym_list_res = await client.send_request(
             light_sym_list_req, ProtoOASymbolsListRes
         )
         symbol_id_to_name = {
@@ -73,7 +67,7 @@ async def main() -> None:
             ctidTraderAccountId=ACCOUNT_ID,
             symbolId=[sym.symbolId for sym in light_sym_list_res.symbol],
         )
-        sym_list_res = await client.send_and_wait_response(
+        sym_list_res = await client.send_request(
             sym_list_req, ProtoOASymbolByIdRes
         )
 
@@ -94,7 +88,7 @@ async def main() -> None:
         sub_spot_req = ProtoOASubscribeSpotsReq(
             ctidTraderAccountId=ACCOUNT_ID, symbolId=symbol_ids
         )
-        sub_spot_res = await client.send_and_wait_response(
+        sub_spot_res = await client.send_request(
             sub_spot_req, ProtoOASubscribeSpotsRes
         )
 
@@ -104,7 +98,7 @@ async def main() -> None:
                 ctidTraderAccountId=ACCOUNT_ID, symbolId=sym_id, period=M30
             )
             task = asyncio.create_task(
-                client.send_and_wait_response(
+                client.send_request(
                     sub_trendbar_req, ProtoOASubscribeLiveTrendbarRes
                 )
             )
@@ -117,7 +111,7 @@ async def main() -> None:
         # symbols_left = set(symbols_set)
         t0: Optional[float] = None
 
-        async with client.register_types(ProtoOASpotEvent) as gen:
+        async with client.register_type(ProtoOASpotEvent) as gen:
             async for spot_event in gen:
                 if isinstance(spot_event, ProtoOAErrorRes):
                     raise RuntimeError(spot_event.description)

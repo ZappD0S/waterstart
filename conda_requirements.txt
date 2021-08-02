@@ -9,6 +9,7 @@ pip
 protobuf
 python
 pytorch
+cpuonly
 pyro-ppl
 tensorboard
 uvloop

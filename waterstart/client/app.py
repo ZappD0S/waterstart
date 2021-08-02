@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import StreamReader, StreamWriter
-from collections import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from ..openapi import ProtoOAApplicationAuthReq, ProtoOAApplicationAuthRes
 from .base import BaseReconnectingClient, HelperClient
@@ -47,6 +47,9 @@ class AppClient(BaseReconnectingClient):
                 _ = await helper_client.send_request(
                     auth_req, ProtoOAApplicationAuthRes
                 )
+            except RuntimeError as e:
+                print(e)
+                continue
             except Exception:  # TODO: correct exception...
                 continue
 

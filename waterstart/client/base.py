@@ -4,7 +4,7 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from asyncio import StreamReader, StreamWriter
-from collections import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from typing import AsyncContextManager, Final, Optional, TypeVar, Union
 
@@ -12,6 +12,7 @@ from google.protobuf.message import Message
 
 from ..observable import Observable
 from ..openapi import ProtoHeartbeatEvent, ProtoMessage, ProtoOAErrorRes, messages_dict
+from ..utils import ComposableAsyncIterator
 
 S = TypeVar("S")
 T = TypeVar("T", bound=Message)
@@ -32,21 +33,18 @@ class BaseClient(Observable[Message], ABC):
         self._global_lock = asyncio.Lock()
 
     def register_type(
-        self, message_type: type[T], pred: Optional[Callable[[T], bool]] = None
+        self,
+        message_type: type[T],
+        pred: Optional[Callable[[T], bool]] = None,
+        maxsize: int = 0,
     ) -> AsyncContextManager[AsyncIterator[T]]:
-        def nofilter(_: T) -> bool:
-            return True
+        def map_f(x: Message):
+            if isinstance(x, message_type) and (True if pred is None else pred(x)):
+                return x
+            else:
+                None
 
-        def get_map_f(pred: Callable[[T], bool]):
-            def map_f(x: Message):
-                return x if isinstance(x, message_type) and pred(x) else None
-
-            return map_f
-
-        if pred is None:
-            pred = nofilter
-
-        return self.register(get_map_f(pred))
+        return self.register(map_f, maxsize)
 
     async def _get_async_generator(self) -> AsyncGenerator[Message, None]:
         while True:
@@ -59,30 +57,6 @@ class BaseClient(Observable[Message], ABC):
     @abstractmethod
     async def _read_message(self) -> Message:
         ...
-
-    def register_types(
-        self,
-        message_types: tuple[type[T], type[U]],
-        pred: Optional[Callable[[T], bool]] = None,
-    ) -> AsyncContextManager[AsyncIterator[Union[T, U]]]:
-        def nofilter(_: T) -> bool:
-            return True
-
-        def get_map_f(pred: Callable[[T], bool]):
-            def map_f(x: Message):
-                if isinstance(x, message_types[1]) or (
-                    isinstance(x, message_types[0]) and pred(x)
-                ):
-                    return x
-                else:
-                    return None
-
-            return map_f
-
-        if pred is None:
-            pred = nofilter
-
-        return self.register(get_map_f(pred))
 
     @asynccontextmanager
     async def _type_lock(self, res_type: type[T]):
@@ -109,7 +83,11 @@ class BaseClient(Observable[Message], ABC):
         if gen is not None:
             return await self._send_request(req, res_type, gen)
 
-        async with self.register_types((res_type, ProtoOAErrorRes), pred) as gen:
+        res_gen_cm = self.register_type(res_type, pred)
+        err_gen_cm = self.register_type(ProtoOAErrorRes)
+
+        async with res_gen_cm as res_gen, err_gen_cm as err_gen:
+            gen = ComposableAsyncIterator.from_it(res_gen) | err_gen
             return await self._send_request(req, res_type, gen)
 
     async def _send_request(
@@ -138,9 +116,8 @@ class BaseClient(Observable[Message], ABC):
         self,
         key_to_req: Mapping[S, Message],
         res_type: type[T],
-        get_key: Callable[[T], S],
+        get_key: Callable[[T], Optional[S]],
         gen: Optional[AsyncIterator[Union[T, ProtoOAErrorRes]]] = None,
-        pred: Optional[Callable[[T], bool]] = None,
     ) -> AsyncIterator[tuple[S, T]]:
         def res_iterator(gen: AsyncIterator[Union[T, ProtoOAErrorRes]]):
             return self._send_requests(key_to_req, res_type, get_key, gen)
@@ -149,8 +126,11 @@ class BaseClient(Observable[Message], ABC):
             async for key_res in res_iterator(gen):
                 yield key_res
         else:
-            types = (res_type, ProtoOAErrorRes)
-            async with self.register_types(types, pred) as gen:
+            res_gen_cm = self.register_type(res_type)
+            err_gen_cm = self.register_type(ProtoOAErrorRes)
+
+            async with res_gen_cm as res_gen, err_gen_cm as err_gen:
+                gen = ComposableAsyncIterator.from_it(res_gen) | err_gen
                 async for key_res in res_iterator(gen):
                     yield key_res
 
@@ -158,7 +138,7 @@ class BaseClient(Observable[Message], ABC):
         self,
         key_to_req: Mapping[S, Message],
         res_type: type[T],
-        get_key: Callable[[T], S],
+        get_key: Callable[[T], Optional[S]],
         gen: AsyncIterator[Union[T, ProtoOAErrorRes]],
     ) -> AsyncIterator[tuple[S, T]]:
         if not key_to_req:
@@ -175,6 +155,9 @@ class BaseClient(Observable[Message], ABC):
                     raise OpenApiErrorResException(res)
 
                 key = get_key(res)
+
+                if key is None:
+                    continue
 
                 if key not in keys_left:
                     raise RuntimeError()

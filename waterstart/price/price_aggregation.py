@@ -1,4 +1,4 @@
-from collections import Collection, Sequence
+from collections.abc import Collection, Sequence
 from typing import TypeVar
 
 import numpy as np
@@ -11,6 +11,7 @@ from . import AggregationData, SymbolData, Tick, TrendBar
 T = TypeVar("T", bound=np.floating)
 
 
+# TODO: make this class generic on the floating type?
 class PriceAggregator:
     def __init__(
         self,
@@ -132,8 +133,8 @@ class PriceAggregator:
         if not data:
             raise ValueError()
 
-        data_arr = np.array(  # type: ignore
-            data, dtype=[("time", "f4"), ("price", "f4")]
+        data_arr = np.fromiter(  # type: ignore
+            data, dtype=[("time", np.float32), ("price", np.float32)]
         )
 
         time: npt.NDArray[np.float32] = data_arr["time"]
@@ -170,10 +171,10 @@ class PriceAggregator:
 
     # TODO: split this into multiple methods
     def aggregate(self, aggreg_data: AggregationData) -> AggregationData:
-        tick_data_map = aggreg_data.tick_data_map
+        bid_ask_ticks_map = aggreg_data.bid_ask_ticks_map
         sym_tb_data_map = aggreg_data.tb_data_map
 
-        if tick_data_map.keys() != self._symbols:
+        if bid_ask_ticks_map.keys() != self._symbols:
             raise ValueError()
 
         if sym_tb_data_map.keys() != self._traded_symbols:
@@ -190,9 +191,9 @@ class PriceAggregator:
         dt = np.inf
         start, end = -np.inf, np.inf
 
-        for sym_id, tick_data in tick_data_map.items():
-            bid_times, bid_prices = self._build_interp_data(tick_data.bid)
-            ask_times, ask_prices = self._build_interp_data(tick_data.ask)
+        for sym_id, bid_ask_ticks in bid_ask_ticks_map.items():
+            bid_times, bid_prices = self._build_interp_data(bid_ask_ticks.bid)
+            ask_times, ask_prices = self._build_interp_data(bid_ask_ticks.ask)
             sym_to_data_points[sym_id] = (
                 (bid_times, bid_prices),
                 (ask_times, ask_prices),
@@ -215,7 +216,7 @@ class PriceAggregator:
 
         sym_id_to_idx = self._sym_id_to_idx
 
-        for sym_id, bid_ask_ticks in tick_data_map.items():
+        for sym_id, bid_ask_ticks in bid_ask_ticks_map.items():
             traded_sym_idx = sym_id_to_idx[sym_id]
             data_points = sym_to_data_points[sym_id]
 
@@ -294,4 +295,4 @@ class PriceAggregator:
 
             new_sym_tb_data[traded_sym_id] = new_sym_data
 
-        return AggregationData(tick_data_map, new_sym_tb_data)
+        return AggregationData(bid_ask_ticks_map, new_sym_tb_data)

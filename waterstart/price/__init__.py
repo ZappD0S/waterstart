@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Mapping, MutableSequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Generic, NamedTuple, TypeVar
@@ -61,11 +61,14 @@ class TickData:
 
 
 class BidAskTicks(NamedTuple):
-    bid: MutableSequence[Tick]
-    ask: MutableSequence[Tick]
+    bid: list[Tick]
+    ask: list[Tick]
+
+    def __add__(self, other: BidAskTicks) -> BidAskTicks:  # type: ignore
+        return BidAskTicks(self.bid + other.bid, self.ask + other.ask)
 
 
 @dataclass
 class AggregationData:
-    tick_data_map: Mapping[int, BidAskTicks]
+    bid_ask_ticks_map: Mapping[int, BidAskTicks]
     tb_data_map: Mapping[int, SymbolData[float]]

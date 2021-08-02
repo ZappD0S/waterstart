@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Collection, Mapping
 
@@ -15,14 +15,16 @@ from ..array_mapping.market_data_mapper import MarketDataArrayMapper
 from ..array_mapping.utils import map_to_arrays
 from ..inference.model import CNN, Emitter, GatedTransition
 from ..symbols import TradedSymbolInfo
-from . import (
-    AccountState,
-    ModelInferenceWithRawOutput,
-    ModelInput,
-    RawMarketState,
-    RawModelOutput,
-)
+from . import AccountState, ModelInput, ModelOutput, RawModelOutput
 
+
+@dataclass
+class AccountUpdateData:
+    account_state: AccountState
+    new_pos_size: torch.Tensor
+
+    def mask(self):
+        ...
 
 
 class NetworkModules(nn.Module):
@@ -213,9 +215,7 @@ class LowLevelInferenceEngine:
 
         return new_pos_sizes
 
-    def evaluate(
-        self, model_input: ModelInput[RawMarketState]
-    ) -> ModelInferenceWithRawOutput:
+    def evaluate(self, model_input: ModelInput) -> ModelOutput:
         market_state = model_input.market_state
 
         # TODO: check input?
@@ -257,7 +257,7 @@ class LowLevelInferenceEngine:
             unused,
         )
 
-        return ModelInferenceWithRawOutput(new_pos_sizes, model_output)
+        return ModelOutput(new_pos_sizes, model_output)
 
     # TODO: find better name
     def _evaluate(
@@ -324,13 +324,10 @@ class LowLevelInferenceEngine:
         account_state: AccountState,
         new_pos_size: torch.Tensor,
         open_price: torch.Tensor,
-    ) -> AccountState:
+    ) -> tuple[AccountState, torch.Tensor]:
         pos_size = account_state.pos_size
         trades_sizes = account_state.trades_sizes
-
-        # NOTE: if the last trade is 0 it means that there
-        # is at least one trade can be opened
-        available_trade_mask = trades_sizes[0] == 0
+        available_trade_mask = account_state.availabe_trades_mask
 
         # NOTE: this mask matches the case pos_size != 0 and new_pos_size == 0
         # but is eliminated by the following condition
@@ -357,13 +354,18 @@ class LowLevelInferenceEngine:
         )
         assert cls._get_validity_mask(new_trades_sizes).all()
 
-        return AccountState(new_trades_sizes, new_trades_prices, account_state.balance)
+        new_account_state = AccountState(
+            new_trades_sizes, new_trades_prices, account_state.balance
+        )
+        return new_account_state, open_pos_mask
 
     @classmethod
     def close_or_reduce_trades(
         cls,
         account_state: AccountState,
         new_pos_size: torch.Tensor,
+        # close_price: torch.Tensor,
+        # update_balance: bool = True,
     ) -> AccountState:
         trades_sizes = account_state.trades_sizes
 
@@ -388,6 +390,8 @@ class LowLevelInferenceEngine:
         new_trades_prices = trades_prices.clone()
         new_trades_prices[close_trade_mask] = 0.0
 
+        # if update_balance:
+        #     ...
         assert not torch.any((new_trades_sizes == 0) != (new_trades_prices == 0))
         assert torch.all(
             torch.all(new_trades_sizes >= 0, dim=0)

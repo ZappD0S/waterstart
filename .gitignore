@@ -4,3 +4,5 @@ old_stuff/
 *.egg-info/
 runs/
 checkpoints/
+.mypy_cache/
+tests/
