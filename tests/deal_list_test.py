@@ -74,7 +74,7 @@ async def main() -> None:
             print(deal)
 
     finally:
-        await client.close()
+        await client.aclose()
 
 
 asyncio.run(main(), debug=True)

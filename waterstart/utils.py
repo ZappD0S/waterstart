@@ -1,10 +1,10 @@
 from __future__ import annotations
-import asyncio
+from abc import ABC, abstractmethod
 
-from asyncio import Task
-from collections.abc import Sequence, AsyncIterator, AsyncGenerator, Awaitable
-from types import TracebackType
-from typing import Generic, Optional, TYPE_CHECKING, TypeVar, Union
+import asyncio
+from collections.abc import AsyncIterable, AsyncIterator, Sequence
+from typing import Optional, TYPE_CHECKING, TypeVar, Union
+from contextlib import asynccontextmanager
 
 if TYPE_CHECKING:
     from _typeshed import SupportsLessThan
@@ -20,95 +20,109 @@ def is_contiguous(seq: Sequence[int]) -> bool:
 
 T = TypeVar("T")
 U = TypeVar("U")
+V = TypeVar("V")
 
 
-class ComposableAsyncIterator(Generic[T], AsyncGenerator[T, None]):
-    def __init__(self, task_to_it: dict[Task[T], AsyncIterator[T]]) -> None:
-        self._task_to_it = task_to_it
-
+class ComposableAsyncIterable(ABC, AsyncIterable[T]):
     @staticmethod
-    def from_it(it: AsyncIterator[U]) -> ComposableAsyncIterator[U]:
-        if isinstance(it, ComposableAsyncIterator):
-            return ComposableAsyncIterator(it._task_to_it)  # type: ignore
+    @asynccontextmanager
+    async def from_it(
+        iterable: AsyncIterable[U],
+    ) -> AsyncIterator[ComposableAsyncIterable[U]]:
+        comp_it = SingleComposableAsyncIterable(iterable)
+        try:
+            yield comp_it
+        finally:
+            await comp_it.aclose()
 
-        task_to_it = {asyncio.create_task(it.__anext__()): it}
-        return ComposableAsyncIterator(task_to_it)
+    @abstractmethod
+    def __or__(
+        self, other: ComposableAsyncIterable[U]
+    ) -> ComposableAsyncIterable[Union[T, U]]:
+        ...
 
-    def __or__(self, other: AsyncIterator[U]) -> ComposableAsyncIterator[Union[T, U]]:
-        task_to_it: dict[Task[Union[T, U]], AsyncIterator[Union[T, U]]]
-        task_to_it = self._task_to_it.copy()  # type: ignore
+    @abstractmethod
+    def _get_tasks(self) -> tuple[asyncio.Task[T], ...]:
+        ...
 
-        task_to_it[asyncio.create_task(other.__anext__())] = other  # type: ignore
-        return ComposableAsyncIterator(task_to_it)
 
-    def __aiter__(self) -> AsyncGenerator[T, None]:
-        return self
+class SingleComposableAsyncIterable(ComposableAsyncIterable[T]):
+    def __init__(self, iterable: AsyncIterable[T]) -> None:
+        it = iterable.__aiter__()
+        self._wrapped_it = it
+        self._task: Optional[asyncio.Task[T]] = None
+        self._it = self._get_iterator()
 
-    async def __anext__(self) -> T:
-        task_to_it = self._task_to_it
+    def __or__(
+        self, other: ComposableAsyncIterable[U]
+    ) -> ComposableAsyncIterable[Union[T, U]]:
+        return MultipleComposableAsyncIterable(self, other)  # type: ignore
+
+    def __aiter__(self) -> AsyncIterator[T]:
+        return self._it
+
+    async def _get_iterator(self) -> AsyncIterator[T]:
+        it = self._wrapped_it
 
         while True:
-            done_tasks, _ = await asyncio.wait(
-                task_to_it, return_when=asyncio.FIRST_COMPLETED
-            )
+            if (task := self._task) is None:
+                yield await it.__anext__()
+            else:
+                yield await task
+                self._task = None
 
-            if not done_tasks:
-                raise StopAsyncIteration()
+    def _get_tasks(self) -> tuple[asyncio.Task[T], ...]:
+        if (task := self._task) is None or (task.done() and task.exception() is None):
+            task = self._task = asyncio.create_task(self._wrapped_it.__anext__())
 
-            for task in done_tasks:
-                it = task_to_it.pop(task)
-
-                try:
-                    val = await task
-                except StopAsyncIteration:
-                    continue
-
-                task_to_it[asyncio.create_task(it.__anext__())] = it
-                return val
-
-    def asend(self, value: None) -> Awaitable[T]:
-        return super().asend(value)
-
-    def athrow(
-        self,
-        typ: BaseException,
-        val: None,
-        tb: Optional[TracebackType],
-    ) -> Awaitable[T]:
-        return super().athrow(typ, val, tb)
+        return (task,)
 
     async def aclose(self) -> None:
-        for task in self._task_to_it:
-            task.cancel()
+        if (task := self._task) is None:
+            return
 
-            try:
-                await task
-            except Exception:
-                pass
+        task.cancel()
 
-        self._task_to_it.clear()
+        try:
+            await task
+        except (asyncio.CancelledError, StopAsyncIteration):
+            pass
 
 
-# async def combine_iterators(
-#     it1: AsyncIterator[T], it2: AsyncIterator[U]
-# ) -> AsyncIterator[Union[T, U]]:
+class MultipleComposableAsyncIterable(ComposableAsyncIterable[Union[T, U]]):
+    def __init__(
+        self, first: ComposableAsyncIterable[T], second: ComposableAsyncIterable[U]
+    ) -> None:
+        self._first = first
+        self._second = second
+        self._it = self._get_iterator()
 
-#     task_to_it: dict[Task[Union[T, U]], AsyncIterator[Union[T, U]]]
-#     task_to_it = {  # type: ignore
-#         asyncio.create_task(it1.__anext__()): it1,
-#         asyncio.create_task(it2.__anext__()): it2,
-#     }
+    def _get_tasks(self) -> tuple[asyncio.Task[Union[T, U]], ...]:  # type: ignore
+        return self._first._get_tasks() + self._second._get_tasks()  # type: ignore
 
-#     while task_to_it:
-#         dones, _ = await asyncio.wait(task_to_it, return_when=asyncio.FIRST_COMPLETED)
+    def __or__(
+        self, other: ComposableAsyncIterable[V]
+    ) -> ComposableAsyncIterable[Union[T, U, V]]:
+        return MultipleComposableAsyncIterable(self, other)  # type: ignore
 
-#         for done in dones:
-#             it = task_to_it.pop(done)
+    def __aiter__(self) -> AsyncIterator[Union[T, U]]:
+        return self._it
 
-#             try:
-#                 yield await done
-#             except StopAsyncIteration:
-#                 continue
+    async def _get_iterator(self) -> AsyncIterator[Union[T, U]]:
+        while True:
+            done_tasks, _ = await asyncio.wait(
+                self._get_tasks(), return_when=asyncio.FIRST_COMPLETED
+            )
 
-#             task = asyncio.create_task(it.__anext__())
-#             task_to_it[task] = it
+            done = True
+
+            for task in done_tasks:
+                try:
+                    yield await task
+                except StopAsyncIteration:
+                    pass
+                else:
+                    done = False
+
+            if done:
+                break

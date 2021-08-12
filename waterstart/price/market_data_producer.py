@@ -51,9 +51,6 @@ class BaseMarketDataProducer(ABC):
         last_trading_time: datetime.datetime,
     ) -> AsyncIterator[MarketData[float]]:
 
-        default_bid_ask_ticks_map = {
-            sym.id: BidAskTicks([], []) for sym in self._symbols
-        }
         default_tb_data_map = {
             sym.id: SymbolData.build_default() for sym in self._traded_symbols
         }
@@ -66,7 +63,7 @@ class BaseMarketDataProducer(ABC):
         loop = asyncio.get_running_loop()
 
         for next_trading_time in trading_times:
-            bid_ask_ticks_map = default_bid_ask_ticks_map.copy()
+            bid_ask_ticks_map = {sym.id: BidAskTicks([], []) for sym in self._symbols}
             aggreg_task: Awaitable[AggregationData]
             aggreg_task = get_default_aggreg_data(bid_ask_ticks_map)
 
@@ -85,7 +82,6 @@ class BaseMarketDataProducer(ABC):
                 except asyncio.TimeoutError:
                     continue
 
-                # TODO: we can also try to use the default executor by passing None
                 aggreg_task = loop.run_in_executor(
                     None,
                     self._aggregator.aggregate,

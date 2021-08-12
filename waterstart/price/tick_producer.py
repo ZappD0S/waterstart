@@ -4,7 +4,7 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Collection, Iterable, Iterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncContextManager, Final
 
 from ..client.trader import TraderClient
@@ -16,8 +16,8 @@ from ..openapi import (
     ProtoOAUnsubscribeSpotsRes,
 )
 from ..symbols import SymbolInfo, TradedSymbolInfo
+from ..utils import ComposableAsyncIterable
 from . import Tick, TickData, TickType
-from ..utils import ComposableAsyncIterator
 
 
 class BaseTicksProducer(ABC):
@@ -71,7 +71,7 @@ class LiveTicksProducerFactory(BaseTicksProducerFactory):
     async def get_ticks_gen(self, start: float) -> AsyncIterator[BaseTicksProducer]:
         _ = await self._client.send_request_from_trader(
             lambda trader_id: ProtoOASubscribeSpotsReq(
-                ctidTraderAccountId=trader_id, symbolId=self._id_to_sym,
+                ctidTraderAccountId=trader_id, symbolId=self._id_to_sym
             ),
             ProtoOASubscribeSpotsRes,
         )
@@ -80,12 +80,12 @@ class LiveTicksProducerFactory(BaseTicksProducerFactory):
             # TODO: ideally we would like to have maxsize=1
             # so that we are sure that the events returned are up to date
             # but we need to check if this way we lose too many of them
-            async with self._client.register_type(ProtoOASpotEvent) as gen:
-                yield LiveTicksProducer(start, gen)
+            async with self._client.register_type_for_trader(ProtoOASpotEvent) as gen:
+                yield LiveTicksProducer(start, gen)  # type: ignore
         finally:
             _ = await self._client.send_request_from_trader(
                 lambda trader_id: ProtoOAUnsubscribeSpotsReq(
-                    ctidTraderAccountId=trader_id, symbolId=self._id_to_sym,
+                    ctidTraderAccountId=trader_id, symbolId=self._id_to_sym
                 ),
                 ProtoOAUnsubscribeSpotsRes,
             )
@@ -106,16 +106,27 @@ class LiveTicksProducer(BaseTicksProducer):
         await asyncio.sleep(self._start - now)
         sentinel = object()
         timeout = asyncio.sleep(end - now, result=sentinel)
-        gen = ComposableAsyncIterator.from_it(self._gen) | timeout_it()
 
-        async for maybe_event in gen:
-            if maybe_event is sentinel:
-                break
+        async with AsyncExitStack() as stack:
+            event_gen = await stack.enter_async_context(
+                ComposableAsyncIterable.from_it(self._gen)
+            )
 
-            t = time.time()
-            event = maybe_event
-            assert isinstance(event, ProtoOASpotEvent)
-            sym_id = event.symbolId
+            timeout_gen = await stack.enter_async_context(
+                ComposableAsyncIterable.from_it(timeout_it())
+            )
 
-            yield TickData(sym_id, TickType.BID, Tick(event.bid / PRICE_CONV_FACTOR, t))
-            yield TickData(sym_id, TickType.ASK, Tick(event.ask / PRICE_CONV_FACTOR, t))
+            async for maybe_event in event_gen | timeout_gen:
+                if maybe_event is sentinel:
+                    break
+
+                t = time.time()
+                event = maybe_event
+                assert isinstance(event, ProtoOASpotEvent)
+                sym_id = event.symbolId
+
+                bid_tick = Tick(event.bid / PRICE_CONV_FACTOR, t)
+                ask_tick = Tick(event.ask / PRICE_CONV_FACTOR, t)
+
+                yield TickData(sym_id, TickType.BID, bid_tick)
+                yield TickData(sym_id, TickType.ASK, ask_tick)

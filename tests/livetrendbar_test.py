@@ -157,7 +157,7 @@ async def main() -> None:
     except Exception as ex:
         print(ex)
     finally:
-        await client.close()
+        await client.aclose()
 
 
 asyncio.run(main(), debug=True)

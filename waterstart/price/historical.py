@@ -3,13 +3,12 @@ import time
 from collections.abc import AsyncIterator, Collection, Iterator, Mapping, Sequence, Set
 from contextlib import asynccontextmanager
 from enum import IntEnum
-from typing import ClassVar, Final, Optional, Union
+from typing import ClassVar, Final, Optional
 
 from ..client.trader import TraderClient
 from ..openapi import (
     ASK,
     BID,
-    ProtoOAErrorRes,
     ProtoOAGetTickDataReq,
     ProtoOAGetTickDataRes,
     ProtoOAQuoteType,
@@ -17,9 +16,9 @@ from ..openapi import (
 )
 from ..price import TickData
 from ..symbols import TradedSymbolInfo
+from ..utils import ComposableAsyncIterable
 from . import Tick, TickType
 from .tick_producer import BaseTicksProducer, BaseTicksProducerFactory
-from ..utils import ComposableAsyncIterator
 
 
 class SizeType(IntEnum):
@@ -118,7 +117,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
     def __init__(
         self,
         client: TraderClient,
-        gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
+        gen: ComposableAsyncIterable[ProtoOAGetTickDataRes],
         sym_ids: Set[int],
         start: float,
     ):
@@ -153,7 +152,7 @@ class HistoricalTicksProducer(BaseTicksProducer):
 
     async def _download_chunk(
         self,
-        gen: AsyncIterator[Union[ProtoOAGetTickDataRes, ProtoOAErrorRes]],
+        gen: ComposableAsyncIterable[ProtoOAGetTickDataRes],
         sym_id: int,
         tick_type: TickType,
         chunk_start: int,
@@ -243,11 +242,12 @@ class HistoricalTicksProducerFactory(BaseTicksProducerFactory):
 
     @asynccontextmanager
     async def get_ticks_gen(self, start: float) -> AsyncIterator[BaseTicksProducer]:
-        res_gen_cm = self._client.register_type(ProtoOAGetTickDataRes)
-        err_gen_cm = self._client.register_type(ProtoOAErrorRes)
-
-        async with res_gen_cm as res_gen, err_gen_cm as err_gen:
-            gen = ComposableAsyncIterator.from_it(res_gen) | err_gen
+        async with self._client.register_type_for_trader(
+            ProtoOAGetTickDataRes
+        ) as res_gen:
             yield HistoricalTicksProducer(
-                self._client, gen, self._id_to_sym.keys(), start
+                self._client,
+                res_gen,  # type: ignore
+                self._id_to_sym.keys(),
+                start,
             )

@@ -1,16 +1,10 @@
 import asyncio
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import (
-    AsyncContextManager,
-    Collection,
-    Generic,
-    Optional,
-    Set,
-    TypeVar,
-)
+from typing import AsyncContextManager, Collection, Generic, Optional, Set, TypeVar
+
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -36,19 +30,18 @@ class Observable(ABC, Generic[T]):
 
     @staticmethod
     async def _call_setters(
-        gen: AsyncIterator[T], setters: Collection[Callable[[T], None]]
+        gen: AsyncIterable[T], setters: Collection[Callable[[T], None]]
     ) -> None:
         async for value in gen:
             for setter in setters:
                 setter(value)
 
     @asynccontextmanager
-    async def _add_setter(
-        self, setter: Callable[[T], None]
-    ) -> AsyncGenerator[None, None]:
+    async def _add_setter(self, setter: Callable[[T], None]) -> AsyncIterator[None]:
         if (state := self._state) is None:
             setters: Set[Callable[[T], None]] = set()
             gen = self._get_async_generator()
+            # TODO: if this task fails we don't see it until the generator cm exits
             call_setters_task = asyncio.create_task(self._call_setters(gen, setters))
             state = self._state = State(setters, gen, call_setters_task)
 
@@ -74,7 +67,7 @@ class Observable(ABC, Generic[T]):
     # TODO: maybe rename these to `subscribe`?
 
     def _register_with_iterable(
-        self, func: Callable[[T], Optional[U]], it: AsyncIterator[T], maxsize: int = 0
+        self, func: Callable[[T], Optional[U]], it: AsyncIterable[T], maxsize: int = 0
     ) -> AsyncContextManager[AsyncIterator[U]]:
         @asynccontextmanager
         async def add_setter(setter: Callable[[T], None]):

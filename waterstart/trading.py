@@ -1,18 +1,27 @@
 import datetime
 from collections.abc import Mapping
+from contextlib import AsyncExitStack
 from math import copysign
-from typing import AsyncIterator, Optional
+from typing import Optional, Union
+from waterstart.openapi.OpenApiModelMessages_pb2 import (
+    NOT_ENOUGH_MONEY,
+    ORDER_FILLED,
+    ORDER_REJECTED,
+)
+from waterstart.price import MarketData
 
 from .client.trader import TraderClient
-
 from .inference.engine import InferenceEngine
 from .openapi import (
     BUY,
     MARKET,
+    ORDER_ACCEPTED,
+    DEPOSIT_WITHDRAW,
     SELL,
     ProtoOAClosePositionReq,
     ProtoOAExecutionEvent,
     ProtoOANewOrderReq,
+    ProtoOAOrderErrorEvent,
     ProtoOAPosition,
     ProtoOAReconcileReq,
     ProtoOAReconcileRes,
@@ -24,6 +33,7 @@ from .price.market_data_producer import (
     LiveMarketDataProducer,
 )
 from .schedule import ExecutionSchedule
+from .utils import ComposableAsyncIterable
 
 
 class Trader:
@@ -49,7 +59,10 @@ class Trader:
 
         start = datetime.datetime.now()
         self._historical_market_data_producer = HistoricalMarketDataProducer(
-            client, schedule, start, window_size - 1
+            client,
+            schedule,
+            start,
+            window_size - 1,  # TODO: is this correct?
         )
 
         self._live_market_data_producer = LiveMarketDataProducer(
@@ -65,7 +78,7 @@ class Trader:
 
         assert i == self._window_size - 1
 
-    async def _get_positions_map(self) -> Mapping[int, ProtoOAPosition]:
+    async def _get_positions_map(self) -> dict[int, ProtoOAPosition]:
         reconcile_res = await self._client.send_request_from_trader(
             lambda trader_id: ProtoOAReconcileReq(ctidTraderAccountId=trader_id),
             ProtoOAReconcileRes,
@@ -73,8 +86,8 @@ class Trader:
 
         positions = reconcile_res.position
         pos_map = {pos.tradeData.symbolId: pos for pos in positions}
+        assert len(pos_map) == len(positions)
 
-        assert len(pos_map) == positions
         return pos_map
 
     async def _init_balance(self) -> None:
@@ -89,81 +102,161 @@ class Trader:
     async def _init_account_state(self, pos_map: Mapping[int, ProtoOAPosition]) -> None:
         # TODO: use ProtoOADealListReq to retrieve the prices and sizes of
         # currently open trades
-        # TODO: also check there are no pending order (or wait for the correspoding deals)
+        # TODO: also check there are no pending order
+        # (or wait for the correspoding deals)
 
-        size_price_map: dict[int, tuple[float, float]] = {}
         TRADE_SIDE_TO_SIGN = self.TRADE_SIDE_TO_SIGN
         for sym_id, pos in pos_map.items():
             trade_data = pos.tradeData
             sign = TRADE_SIDE_TO_SIGN[trade_data.tradeSide]
             size = sign * trade_data.volume / 100
             sym_id = trade_data.symbolId
-            size_price_map[sym_id] = (size, pos.price)
+            self._engine.update_symbol_state(sym_id, size, pos.price)
 
-        self._engine.update_trades(size_price_map)
-
-    @staticmethod
-    def _get_confim_order_res(res: ProtoOAExecutionEvent) -> Optional[int]:
-        # if res.order.is
-        ...
-
-    async def trade(self) -> None:
-        async with self._client.register_type(
-            ProtoOAExecutionEvent, lambda res: self._get_confim_order_res(res) is None
-        ) as exec_event_gen:
-            ...
-
-    async def _trade(
-        self, exec_event_gen: AsyncIterator[ProtoOAExecutionEvent]
+    async def _create_orders(
+        self,
+        new_pos_sizes_map: Mapping[int, float],
+        pos_map: Mapping[int, ProtoOAPosition],
+        exec_gen: ComposableAsyncIterable[
+            Union[ProtoOAExecutionEvent, ProtoOAOrderErrorEvent]
+        ],
     ) -> None:
-
         SIGN_TO_TRADE_SIDE = self.SIGN_TO_TRADE_SIDE
 
+        def pred(
+            res: Union[ProtoOAExecutionEvent, ProtoOAOrderErrorEvent]
+        ) -> Optional[int]:
+            if (
+                isinstance(res, ProtoOAExecutionEvent)
+                and res.executionType == ORDER_ACCEPTED
+            ):
+                return res.position.tradeData.symbolId
+            else:
+                return None
+
+        def build_key_to_req(trader_id: int):
+            def get_req(sym_id: int, size: float):
+                if size == 0:
+                    return ProtoOAClosePositionReq(
+                        ctidTraderAccountId=trader_id,
+                        positionId=(pos := pos_map[sym_id]).positionId,
+                        volume=pos.tradeData.volume,
+                    )
+
+                return ProtoOANewOrderReq(
+                    ctidTraderAccountId=trader_id,
+                    symbolId=sym_id,
+                    orderType=MARKET,
+                    tradeSide=SIGN_TO_TRADE_SIDE[copysign(1, size)],
+                    volume=int(size * 100),
+                )
+
+            return {
+                sym_id: get_req(sym_id, size)
+                for sym_id, size in new_pos_sizes_map.items()
+            }
+
+        async for _ in self._client.send_requests_from_trader(
+            build_key_to_req, ProtoOAExecutionEvent, pred, exec_gen
+        ):
+            pass
+
+    async def trade(self) -> None:
         await self._init_market_data_arr()
         pos_map = await self._get_positions_map()
         await self._init_account_state(pos_map)
         await self._init_balance()
 
-        # sym_to_pos_id = {sym_id: pos.positionId for sym_id, pos in pos_map.items()}
-
-        live_producer = self._live_market_data_producer
-        async for market_data in live_producer.generate_market_data():
-            new_pos_sizes_map = self._engine.evaluate(market_data)
-
-            self._client.send_requests_from_trader(
-                lambda trader_id: {
-                    sym_id: ProtoOANewOrderReq(
-                        ctidTraderAccountId=trader_id,
-                        symbolId=sym_id,
-                        orderType=MARKET,
-                        tradeSide=SIGN_TO_TRADE_SIDE[copysign(1, size)],
-                        volume=int(size * 100),
-                    )
-                    if size != 0
-                    else ProtoOAClosePositionReq(
-                        ctidTraderAccountId=trader_id,
-                        positionId=(pos := pos_map[sym_id]).positionId,
-                        volume=pos.tradeData.volume,
-                    )
-                    for sym_id, size in new_pos_sizes_map.items()
-                },
-                ProtoOAExecutionEvent,
-                self._get_confim_order_res,
+        async with AsyncExitStack() as stack:
+            res_gen = await stack.enter_async_context(
+                self._client.register_type_for_trader(ProtoOAExecutionEvent)
             )
-            ...
-        # iterate live producer
-        # transform market data object into array
-        # shift market_data arr and insert new data
-        # compute new_pos_sizes using the engine
+            order_err_gen = await stack.enter_async_context(
+                self._client.register_type_for_trader(ProtoOAOrderErrorEvent)
+            )
 
-        # execute trades in order to match new_pos_sizes
-        # use either ProtoOANewOrderReq or ProtoOAClosePositionReq depending on the value
+            exec_gen = res_gen | order_err_gen
 
-        # listen to ProtoOAExecutionEvent and ProtoOAOrderErrorEvent
-        # until we have received something for each order executed. Also save
-        # the open prices of the trades
-        #  IMPORTANT: ProtoOAExecutionEvent also happens if we withdraw or deposit money. Skip those!
+            market_data_gen = await stack.enter_async_context(
+                ComposableAsyncIterable.from_it(
+                    self._live_market_data_producer.generate_market_data()
+                )
+            )
 
-        # when done, update accout_state using engine
-        # repeat
-        ...
+            async for event in exec_gen | market_data_gen:
+                if isinstance(market_data := event, MarketData):
+                    self._engine.update_market_state(market_data)
+
+                    while not await self._execute(pos_map, exec_gen):
+                        pass
+
+                    self._engine.shift_market_state_arr()
+                elif isinstance(exec_event := event, ProtoOAExecutionEvent):
+                    if exec_event.executionType != DEPOSIT_WITHDRAW:
+                        raise RuntimeError()
+
+                    dw = exec_event.depositWithdraw
+                    balance = dw.balance / 10 ** dw.moneyDigits
+                    self._engine.update_balance(balance)
+                else:
+                    raise RuntimeError()
+
+    async def _execute(
+        self,
+        pos_map: dict[int, ProtoOAPosition],
+        exec_gen: ComposableAsyncIterable[
+            Union[ProtoOAExecutionEvent, ProtoOAOrderErrorEvent]
+        ],
+    ) -> bool:
+        TRADE_SIDE_TO_SIGN = self.TRADE_SIDE_TO_SIGN
+        engine = self._engine
+
+        target_pos_sizes_map = engine.evaluate()
+        await self._create_orders(target_pos_sizes_map, pos_map, exec_gen)
+
+        success = True
+        done = False
+
+        # BUG: since we don't know the order of events, we need to check the
+        # balance version parameter to know which is the latest value!
+        async for exec_event in exec_gen:
+            if isinstance(exec_event, ProtoOAOrderErrorEvent):
+                raise RuntimeError()
+
+            exec_type = exec_event.executionType
+
+            if exec_type == DEPOSIT_WITHDRAW:
+                dw = exec_event.depositWithdraw
+                balance = dw.balance / 10 ** dw.moneyDigits
+                self._engine.update_balance(balance)
+                continue
+
+            if exec_type == ORDER_REJECTED:
+                assert exec_event.errorCode == NOT_ENOUGH_MONEY
+                sym_id = exec_event.order.tradeData.symbolId
+                done = engine.skip_symbol_update(sym_id)
+                success = False
+            elif exec_type == ORDER_FILLED:
+                deal = exec_event.deal
+                sym_id = deal.symbolId
+
+                volume = deal.volume
+                assert volume == deal.filledVolume
+                sign = TRADE_SIDE_TO_SIGN[deal.tradeSide]
+                size = sign * volume / 10 ** deal.moneyDigits
+                price = deal.executionPrice
+
+                balance = None
+                if (cpd := deal.closePositionDetail).IsInitialized():
+                    balance = cpd.balance / 10 ** cpd.moneyDigits
+
+                done = engine.update_symbol_state(sym_id, size, price, balance)
+
+                pos_map[sym_id] = exec_event.position
+            else:
+                raise RuntimeError()
+
+            if done:
+                break
+
+        return success

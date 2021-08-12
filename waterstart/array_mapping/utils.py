@@ -98,7 +98,7 @@ def partial_map_to_masked_arrays(
     mask[inds] = True
 
     data: npt.NDArray[T_float]
-    data = np.empty((keys_len, tuple_len), dtype=dtype)  # type: ignore
+    data = np.zeros((keys_len, tuple_len), dtype=dtype)  # type: ignore
 
     data[inds] = vals
     return MaskedArrays(data, mask)

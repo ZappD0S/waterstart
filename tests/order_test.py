@@ -1,5 +1,7 @@
 import asyncio
-from typing import TypeVar
+from contextlib import AsyncExitStack
+from typing import TypeVar, Union
+from waterstart.openapi.OpenApiMessages_pb2 import ProtoOAOrderErrorEvent
 
 from google.protobuf.message import Message
 from waterstart.client.app import AppClient
@@ -16,7 +18,6 @@ from waterstart.openapi import (
     ProtoOASymbolsListReq,
     ProtoOASymbolsListRes,
 )
-from waterstart.utils import ComposableAsyncIterator
 
 HOST = "demo.ctraderapi.com"
 PORT = 5035
@@ -31,11 +32,11 @@ async def main() -> None:
     client = await AppClient.create(HOST, PORT, CLIENT_ID, CLIENT_SECRET)
 
     try:
-        # acc_auth_req = ProtoOAAccountAuthReq(
-        #     ctidTraderAccountId=ACCOUNT_ID,
-        #     accessToken="tSn9WhMJ1sK79D-kreB5lAmtphSW6YDuDGh-5Tn_wl8",
-        # )
-        # _ = await client.send_request(acc_auth_req, ProtoOAAccountAuthRes)
+        acc_auth_req = ProtoOAAccountAuthReq(
+            ctidTraderAccountId=ACCOUNT_ID,
+            accessToken="uMkVFVFF2T8AaxyOgqyRq29hL4wKtMX2aYqRSn_ILNA",
+        )
+        _ = await client.send_request(acc_auth_req, ProtoOAAccountAuthRes)
 
         sym_list_req = ProtoOASymbolsListReq(ctidTraderAccountId=ACCOUNT_ID)
         sym_list_res = await client.send_request(sym_list_req, ProtoOASymbolsListRes)
@@ -52,28 +53,38 @@ async def main() -> None:
         sym_res = await client.send_request(sym_req, ProtoOASymbolByIdRes)
         [symbol] = sym_res.symbol
 
-        exec_events: list[ProtoOAExecutionEvent] = []
+        exec_events: list[Union[ProtoOAExecutionEvent, ProtoOAOrderErrorEvent]] = []
 
-        exec_event = await client.send_request(
-            ProtoOANewOrderReq(
-                ctidTraderAccountId=ACCOUNT_ID,
-                symbolId=symbol.symbolId,
-                orderType=MARKET,
-                tradeSide=SELL,
-                # positionId=...,
-                volume=int(0.02 * symbol.lotSize),
-            ),
-            ProtoOAExecutionEvent,
-        )
+        async with AsyncExitStack() as stack:
+            res_gen = await stack.enter_async_context(
+                client.register_type(ProtoOAExecutionEvent)
+            )
+            order_err_gen = await stack.enter_async_context(
+                client.register_type(ProtoOAOrderErrorEvent)
+            )
+            err_gen = await stack.enter_async_context(
+                client.register_type(ProtoOAErrorRes)
+            )
 
-        print(exec_event)
-        exec_events.append(exec_event)
+            gen = res_gen | order_err_gen | err_gen
 
-        res_gen_cm = client.register_type(ProtoOAExecutionEvent)
-        err_gen_cm = client.register_type(ProtoOAErrorRes)
+            exec_event = await client.send_request(
+                ProtoOANewOrderReq(
+                    ctidTraderAccountId=ACCOUNT_ID,
+                    symbolId=symbol.symbolId,
+                    orderType=MARKET,
+                    tradeSide=SELL,
+                    # positionId=...,
+                    # volume=int(0.02 * symbol.lotSize),
+                    volume=int(10.0 * symbol.lotSize),
+                ),
+                Union[ProtoOAExecutionEvent, ProtoOAOrderErrorEvent],
+                gen,
+            )
 
-        async with res_gen_cm as res_gen, err_gen_cm as err_gen:
-            gen = ComposableAsyncIterator.from_it(res_gen) | err_gen
+            print(exec_event)
+            exec_events.append(exec_event)
+
             async for event in gen:
                 if isinstance(event, ProtoOAErrorRes):
                     raise Exception()
@@ -82,7 +93,7 @@ async def main() -> None:
                 exec_events.append(event)
 
     finally:
-        await client.close()
+        await client.aclose()
 
 
 asyncio.run(main(), debug=True)

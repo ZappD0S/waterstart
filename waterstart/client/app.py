@@ -47,10 +47,8 @@ class AppClient(BaseReconnectingClient):
                 _ = await helper_client.send_request(
                     auth_req, ProtoOAApplicationAuthRes
                 )
-            except RuntimeError as e:
+            except Exception as e:  # TODO: correct exception...
                 print(e)
-                continue
-            except Exception:  # TODO: correct exception...
                 continue
 
             return helper_client

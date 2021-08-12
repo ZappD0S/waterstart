@@ -18,7 +18,7 @@ class AccountState:
         return self.trades_sizes.sum(0)
 
     @cached_property
-    def availabe_trades_mask(self) -> torch.Tensor:
+    def available_trades_mask(self) -> torch.Tensor:
         # NOTE: if the last trade is 0 it means that there
         # is at least one trade can be opened
         return self.trades_sizes[0] == 0

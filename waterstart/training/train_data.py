@@ -1,5 +1,6 @@
+from collections.abc import Collection, Iterator, Mapping
 from dataclasses import InitVar, dataclass
-from typing import Collection, Iterator, Mapping, Optional
+from typing import Optional
 
 import torch
 
