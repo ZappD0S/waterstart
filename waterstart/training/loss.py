@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import torch
 import torch.nn as nn
 
-from ..inference import ModelInput, RawMarketState, AccountState
+from ..inference import ModelInput, AccountState
 from ..inference.low_level_engine import LowLevelInferenceEngine
 
 
@@ -36,50 +36,52 @@ class LossEvaluator(nn.Module):
         self._net_modules = engine.net_modules
         self._nn_baseline = nn_baseline
 
-    def forward(  # type: ignore
-        self, model_input: ModelInput[RawMarketState]
-    ) -> LossOutput:
+    def forward(self, model_input: ModelInput) -> LossOutput:  # type: ignore
         model_infer = self._engine.evaluate(model_input)
         raw_model_output = model_infer.raw_model_output
+        market_state = model_input.market_state
         old_account_state = model_input.account_state
 
-        new_pos_sizes = model_infer.pos_sizes
-        market_state = model_input.market_state
+        trade_size = model_infer.pos_sizes - old_account_state.pos_size
 
         midpoint_prices = market_state.midpoint_prices
         half_spreads = market_state.spreads / 2
         bid_prices = midpoint_prices - half_spreads
         ask_prices = midpoint_prices + half_spreads
+        trade_price = torch.where(
+            trade_size > 0,
+            ask_prices,
+            torch.where(trade_size < 0, bid_prices, bid_prices.new_zeros([])),
+        )
 
         account_state = self._engine.close_or_reduce_trades(
-            old_account_state, new_pos_sizes
+            old_account_state, trade_size
         )
 
         closed_trades_sizes = (
             old_account_state.trades_sizes - account_state.trades_sizes
         )
-        close_size = closed_trades_sizes.sum(0)
 
-        close_prices = torch.where(
-            close_size > 0,
-            bid_prices,
-            torch.where(close_size < 0, ask_prices, midpoint_prices.new_zeros([])),
-        )
         profits_losses = torch.sum(
             closed_trades_sizes.abs()
-            * (close_prices - old_account_state.trades_prices)
+            * (trade_price - old_account_state.trades_prices)
             / market_state.quote_to_dep_rate,
             dim=0,
         )
 
-        cum_balances = old_account_state.balance + profits_losses.cumsum(0)
+        shifted_profits_losses = torch.empty_like(profits_losses)
+        shifted_profits_losses[0] = 0
+        shifted_profits_losses[1:] = profits_losses[:-1]
+
+        cum_balances = old_account_state.balance + shifted_profits_losses.cumsum(0)
         ratio = profits_losses / cum_balances
         assert torch.all(ratio > -1)
         costs = torch.log1p_(ratio)
 
         exec_logprobs = raw_model_output.exec_logprobs
         exec_logprobs = exec_logprobs.where(
-            close_size != 0, exec_logprobs.new_zeros([])
+            torch.any(closed_trades_sizes != 0, dim=0),
+            exec_logprobs.new_zeros([]),
         )
 
         tot_logprobs = raw_model_output.z_logprob + exec_logprobs
@@ -94,12 +96,6 @@ class LossEvaluator(nn.Module):
         surrogate_loss = tot_logprobs * torch.detach_(costs - baselines) + costs
         baseline_loss = (costs.detach() - baselines) ** 2
 
-        open_prices = torch.where(
-            new_pos_sizes > 0,
-            ask_prices,
-            torch.where(new_pos_sizes < 0, bid_prices, bid_prices.new_zeros([])),
-        )
-
         new_balance = account_state.balance + profits_losses.detach().sum()
         assert torch.all(new_balance > 0)
 
@@ -109,8 +105,8 @@ class LossEvaluator(nn.Module):
                 account_state.trades_prices,
                 new_balance,
             ),
-            new_pos_sizes.detach(),
-            open_prices,
+            trade_size.detach(),
+            trade_price,
         )
 
         return LossOutput(

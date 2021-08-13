@@ -89,8 +89,8 @@ class ReadonlyBatchManager:
         self,
         storage: torch.Tensor,
         batch_dims: int,
+        load_lag: int,
         batch_dims_last: bool = True,
-        load_lag: int = 1,
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__()
@@ -98,10 +98,13 @@ class ReadonlyBatchManager:
         if batch_dims > storage.ndim:
             raise ValueError()
 
+        if load_lag < 0:
+            raise ValueError()
+
         self._storage = storage
         self._batch_dims = batch_dims
-        self._batch_dims_last = batch_dims_last
         self._load_lag = load_lag
+        self._batch_dims_last = batch_dims_last
         self._device = device
 
     def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
@@ -122,15 +125,15 @@ class ExpandableBatchManagager(ReadonlyBatchManager):
         storage: torch.Tensor,
         expand_size: int,
         batch_dims: int,
+        load_lag: int,
         batch_dims_last: bool = True,
-        load_lag: int = 1,
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__(
             storage.unsqueeze(batch_dims),
             batch_dims + 1,
-            batch_dims_last,
             load_lag,
+            batch_dims_last,
             device,
         )
         self._expand_size = expand_size
@@ -150,11 +153,11 @@ class BatchManager(ReadonlyBatchManager):
         self,
         storage: torch.Tensor,
         batch_dims: int,
+        load_lag: int,
         batch_dims_last: bool = True,
-        load_lag: int = 1,
         device: Optional[torch.device] = None,
     ) -> None:
-        super().__init__(storage, batch_dims, batch_dims_last, load_lag, device)
+        super().__init__(storage, batch_dims, load_lag, batch_dims_last, device)
         self._inds: Optional[torch.Tensor] = None
 
     def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
@@ -200,21 +203,25 @@ class TrainDataManager:
         self._balances_batch_manager = BatchManager(
             torch.full((n_timestemps, n_samples), initial_balance),
             batch_dims=2,
+            load_lag=1,
             device=device,
         )
         self._trade_sizes_batch_manager = BatchManager(
             torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
             batch_dims=2,
+            load_lag=1,
             device=device,
         )
         self._trade_prices_batch_manager = BatchManager(
             torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
             batch_dims=2,
+            load_lag=1,
             device=device,
         )
         self._hidden_states_batch_manager = BatchManager(
             torch.zeros((n_timestemps, n_samples, hidden_state_size)),
             batch_dims=2,
+            load_lag=1,
             batch_dims_last=False,
             device=device,
         )
@@ -222,8 +229,8 @@ class TrainDataManager:
             training_data.market_data.unfold(0, window_size, step=1),
             expand_size=n_samples,
             batch_dims=1,
-            batch_dims_last=False,
             load_lag=window_size - 1,
+            batch_dims_last=False,
             device=device,
         )
 
@@ -231,24 +238,28 @@ class TrainDataManager:
             training_data.midpoint_prices,
             expand_size=n_samples,
             batch_dims=1,
+            load_lag=0,
             device=device,
         )
         self._spreads_batch_manager = ExpandableBatchManagager(
             training_data.spreads,
             expand_size=n_samples,
             batch_dims=1,
+            load_lag=0,
             device=device,
         )
         self._base_to_dep_rates_batch_manager = ExpandableBatchManagager(
             training_data.base_to_dep_rates,
             expand_size=n_samples,
             batch_dims=1,
+            load_lag=0,
             device=device,
         )
         self._quote_to_dep_rates_batch_manager = ExpandableBatchManagager(
             training_data.quote_to_dep_rates,
             expand_size=n_samples,
             batch_dims=1,
+            load_lag=0,
             device=device,
         )
 

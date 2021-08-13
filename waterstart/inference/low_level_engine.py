@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Collection, Mapping
 
 import numpy as np
 import torch
@@ -16,15 +15,6 @@ from ..array_mapping.utils import map_to_arrays
 from ..inference.model import CNN, Emitter, GatedTransition
 from ..symbols import TradedSymbolInfo
 from . import AccountState, ModelInput, ModelOutput, RawModelOutput
-
-
-@dataclass
-class AccountUpdateData:
-    account_state: AccountState
-    new_pos_size: torch.Tensor
-
-    def mask(self):
-        ...
 
 
 class NetworkModules(nn.Module):
@@ -181,21 +171,21 @@ class LowLevelInferenceEngine:
         self,
         fractions: torch.Tensor,
         exec_mask: torch.Tensor,
-        dep_cur_pos_sizes: torch.Tensor,
+        pos_used_margins: torch.Tensor,
         margin_rate: torch.Tensor,
         unused_margin: torch.Tensor,
     ) -> torch.Tensor:
-        new_pos_sizes = torch.empty_like(dep_cur_pos_sizes)  # type: ignore
+        new_pos_sizes = torch.empty_like(pos_used_margins)  # type: ignore
         leverage = self._leverage
         min_step_max = self._min_step_max
 
         for i in range(self._n_traded_sym):
-            available_margin = dep_cur_pos_sizes[i].abs() + unused_margin
-            dep_cur_new_pos_size = torch.where(
-                exec_mask[i], fractions[i] * available_margin, dep_cur_pos_sizes[i]
+            available_margin = pos_used_margins[i].abs() + unused_margin
+            new_pos_used_margin = torch.where(
+                exec_mask[i], fractions[i] * available_margin, pos_used_margins[i]
             )
 
-            new_pos_size = dep_cur_new_pos_size * margin_rate[i] * leverage
+            new_pos_size = new_pos_used_margin * margin_rate[i] * leverage
 
             abs_new_pos_size = new_pos_size.abs()
             new_pos_sign = new_pos_size.sign()
@@ -210,8 +200,8 @@ class LowLevelInferenceEngine:
             )
 
             new_pos_sizes[i] = new_pos_sign * abs_new_pos_size
-            dep_cur_abs_new_pos_size = abs_new_pos_size / (margin_rate[i] * leverage)
-            unused_margin = available_margin - dep_cur_abs_new_pos_size
+            abs_new_pos_used_margin = abs_new_pos_size / (margin_rate[i] * leverage)
+            unused_margin = available_margin - abs_new_pos_used_margin
 
         return new_pos_sizes
 
@@ -229,18 +219,17 @@ class LowLevelInferenceEngine:
         account_state = model_input.account_state
         rel_prices = account_state.trades_prices / market_state.midpoint_prices
 
-        # TODO: make dep_cur_trade_sizes this a cached property?
-        dep_cur_trade_sizes = account_state.trades_sizes / (
+        trades_used_margins = account_state.trades_sizes / (
             market_state.margin_rate * self._leverage
         )
-        dep_cur_pos_sizes = dep_cur_trade_sizes.sum(0)
+        pos_used_margins = trades_used_margins.sum(0)
 
         balance = account_state.balance
-        unused = balance - dep_cur_pos_sizes.abs().sum(0)
-        unused = torch.maximum(unused, unused.new_zeros([]))
+        unused_margin = balance - pos_used_margins.abs().sum(0)
+        unused_margin = torch.maximum(unused_margin, unused_margin.new_zeros([]))
 
         rel_margins = (
-            torch.cat((dep_cur_trade_sizes.flatten(0, 1), unused.unsqueeze(0)))
+            torch.cat((trades_used_margins.flatten(0, 1), unused_margin.unsqueeze(0)))
             / balance
         )
         trades_data = torch.cat((rel_margins, rel_prices.flatten(0, 1))).movedim(0, -1)
@@ -252,9 +241,9 @@ class LowLevelInferenceEngine:
         new_pos_sizes = self._compute_new_pos_sizes(
             model_output.fractions,
             model_output.exec_mask,
-            dep_cur_pos_sizes,
+            pos_used_margins,
             market_state.margin_rate,
-            unused,
+            unused_margin,
         )
 
         return ModelOutput(new_pos_sizes, model_output)
@@ -322,30 +311,27 @@ class LowLevelInferenceEngine:
     def open_trades(
         cls,
         account_state: AccountState,
-        new_pos_size: torch.Tensor,
+        open_trade_size: torch.Tensor,
         open_price: torch.Tensor,
     ) -> tuple[AccountState, torch.Tensor]:
         pos_size = account_state.pos_size
         trades_sizes = account_state.trades_sizes
-        available_trade_mask = account_state.availabe_trades_mask
+        available_trade_mask = account_state.available_trades_mask
 
-        # NOTE: this mask matches the case pos_size != 0 and new_pos_size == 0
-        # but is eliminated by the following condition
-        same_sign_mask = pos_size * new_pos_size >= 0
-        open_trade_size = new_pos_size - pos_size
-        valid_new_pos_mask = new_pos_size * open_trade_size > 0
-        open_pos_mask = available_trade_mask & same_sign_mask & valid_new_pos_mask
+        new_pos_mask = (pos_size == 0) & (open_trade_size != 0)
+        valid_trade_mask = new_pos_mask | (pos_size * open_trade_size > 0)
+        open_trade_mask = available_trade_mask & valid_trade_mask
 
         new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[:-1] = trades_sizes[1:]
         new_trades_sizes[-1] = open_trade_size
-        new_trades_sizes = new_trades_sizes.where(open_pos_mask, trades_sizes)
+        new_trades_sizes = new_trades_sizes.where(open_trade_mask, trades_sizes)
 
         trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()
         new_trades_prices[:-1] = trades_prices[1:]
         new_trades_prices[-1] = open_price
-        new_trades_prices = new_trades_prices.where(open_pos_mask, trades_prices)
+        new_trades_prices = new_trades_prices.where(open_trade_mask, trades_prices)
 
         assert not torch.any((new_trades_sizes == 0) != (new_trades_prices == 0))
         assert torch.all(
@@ -357,26 +343,26 @@ class LowLevelInferenceEngine:
         new_account_state = AccountState(
             new_trades_sizes, new_trades_prices, account_state.balance
         )
-        return new_account_state, open_pos_mask
+        return new_account_state, open_trade_mask
 
     @classmethod
     def close_or_reduce_trades(
         cls,
         account_state: AccountState,
-        new_pos_size: torch.Tensor,
+        close_trade_size: torch.Tensor,
         # close_price: torch.Tensor,
         # update_balance: bool = True,
     ) -> AccountState:
         trades_sizes = account_state.trades_sizes
+        pos_size = account_state.pos_size
 
-        close_trade_size = new_pos_size - account_state.pos_size
         left_diffs = close_trade_size + trades_sizes.cumsum(0)
 
         right_diffs = torch.empty_like(left_diffs)
         right_diffs[1:] = left_diffs[:-1]
         right_diffs[0] = close_trade_size
 
-        close_trade_mask = new_pos_size * left_diffs <= 0
+        close_trade_mask = (pos_size != 0) & (pos_size * left_diffs <= 0)
         reduce_trade_mask = left_diffs * right_diffs < 0
 
         assert not torch.any(close_trade_mask & reduce_trade_mask)
@@ -390,8 +376,6 @@ class LowLevelInferenceEngine:
         new_trades_prices = trades_prices.clone()
         new_trades_prices[close_trade_mask] = 0.0
 
-        # if update_balance:
-        #     ...
         assert not torch.any((new_trades_sizes == 0) != (new_trades_prices == 0))
         assert torch.all(
             torch.all(new_trades_sizes >= 0, dim=0)
@@ -399,4 +383,9 @@ class LowLevelInferenceEngine:
         )
         assert cls._get_validity_mask(new_trades_sizes).all()
 
-        return AccountState(new_trades_sizes, new_trades_prices, account_state.balance)
+        new_account_state = AccountState(
+            new_trades_sizes, new_trades_prices, account_state.balance
+        )
+        assert torch.allclose(pos_size + close_trade_size, new_account_state.pos_size)
+
+        return new_account_state
