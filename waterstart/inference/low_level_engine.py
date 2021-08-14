@@ -48,6 +48,7 @@ class NetworkModules(nn.Module):
         self._cnn = cnn
         self._gated_trans = gated_trans
         self._iafs = iafs
+        self._iafs_module_list = nn.ModuleList(iafs)
         self._emitter = emitter
         self._market_data_arr_mapper = market_data_arr_mapper
         self._traded_sym_arr_mapper = traded_sym_arr_mapper
