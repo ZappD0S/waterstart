@@ -210,10 +210,9 @@ def main(args: TraingingArgs):
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
-    device = torch.device("cuda" if args.use_cuda else "cpu")
-    net_modules.to(device)  # type: ignore
-    nn_baseline.to(device)  # type: ignore
     loss_eval = LossEvaluator(LowLevelInferenceEngine(net_modules), nn_baseline)
+    device = torch.device("cuda" if args.use_cuda else "cpu")
+    loss_eval.to(device)  # type: ignore
 
     parameters_groups: list[dict[Any, Any]] = [
         {"params": list(net_modules.parameters())},

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -114,18 +113,22 @@ class NetworkModules(nn.Module):
         return self._id_to_traded_sym
 
 
-@dataclass
-class MinStepMax:
-    min: torch.Tensor
-    step: torch.Tensor
-    max: torch.Tensor
+class MinStepMax(nn.Module):
+    def __init__(self, min: torch.Tensor, step: torch.Tensor, max: torch.Tensor):
+        super().__init__()
 
-    def __post_init__(self):
-        if not self.min.ndim == self.step.ndim == self.max.ndim == 1:
+        if not min.ndim == step.ndim == max.ndim == 1:
             raise ValueError()
 
-        if not (size := self.min.numel()) == self.step.numel() == self.max.numel():
+        if not (size := min.numel()) == step.numel() == max.numel():
             raise ValueError()
+
+        self._min: torch.Tensor
+        self._step: torch.Tensor
+        self._max: torch.Tensor
+        self.register_buffer("_min", min)
+        self.register_buffer("_step", step)
+        self.register_buffer("_max", max)
 
         self._size = size
 
@@ -133,10 +136,23 @@ class MinStepMax:
     def size(self) -> int:
         return self._size
 
+    @property
+    def min(self) -> torch.Tensor:
+        return self._min
+
+    @property
+    def step(self) -> torch.Tensor:
+        return self._step
+
+    @property
+    def max(self) -> torch.Tensor:
+        return self._max
+
 
 # TODO: maybe rename to ModelEvaluator?
-class LowLevelInferenceEngine:
+class LowLevelInferenceEngine(nn.Module):
     def __init__(self, net_modules: NetworkModules) -> None:
+        super().__init__()
         self._net_modules = net_modules
         self._min_step_max = self._compute_min_step_max_arr(net_modules)
         self._scaling_idx = net_modules.market_data_arr_mapper.scaling_idxs
