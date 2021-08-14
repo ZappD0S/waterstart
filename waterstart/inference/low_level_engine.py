@@ -413,7 +413,7 @@ class LowLevelInferenceEngine(nn.Module):
             new_trades_sizes, new_trades_prices, account_state.balance
         )
 
-        close_or_reduce_mask = close_trade_mask | reduce_trade_mask
+        close_or_reduce_mask = torch.any(close_trade_mask | reduce_trade_mask, dim=0)
         close_pos_size = closed_trades_sizes.sum(0)
         assert torch.all(new_account_state.pos_size == pos_size - close_pos_size)
 
