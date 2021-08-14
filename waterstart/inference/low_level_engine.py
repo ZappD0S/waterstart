@@ -396,7 +396,7 @@ class LowLevelInferenceEngine(nn.Module):
         new_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
 
         closed_trades_sizes[close_trade_mask] = trades_sizes[close_trade_mask]
-        closed_trades_sizes[reduce_trade_mask] = right_diffs[reduce_trade_mask]
+        closed_trades_sizes[reduce_trade_mask] = -right_diffs[reduce_trade_mask]
 
         trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()
