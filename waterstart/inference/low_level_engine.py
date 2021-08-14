@@ -311,13 +311,14 @@ class LowLevelInferenceEngine:
     def open_trades(
         cls,
         account_state: AccountState,
-        open_trade_size: torch.Tensor,
+        new_pos_size: torch.Tensor,
         open_price: torch.Tensor,
     ) -> tuple[AccountState, torch.Tensor]:
         pos_size = account_state.pos_size
         trades_sizes = account_state.trades_sizes
         available_trade_mask = account_state.available_trades_mask
 
+        open_trade_size = new_pos_size - pos_size
         new_pos_mask = (pos_size == 0) & (open_trade_size != 0)
         valid_trade_mask = new_pos_mask | (pos_size * open_trade_size > 0)
         open_trade_mask = available_trade_mask & valid_trade_mask
@@ -343,19 +344,22 @@ class LowLevelInferenceEngine:
         new_account_state = AccountState(
             new_trades_sizes, new_trades_prices, account_state.balance
         )
+        assert (new_account_state.pos_size == new_pos_size)[open_trade_mask].all()
+
         return new_account_state, open_trade_mask
 
     @classmethod
     def close_or_reduce_trades(
         cls,
         account_state: AccountState,
-        close_trade_size: torch.Tensor,
+        new_pos_size: torch.Tensor,
         # close_price: torch.Tensor,
         # update_balance: bool = True,
-    ) -> AccountState:
+    ) -> tuple[AccountState, torch.Tensor]:
         trades_sizes = account_state.trades_sizes
         pos_size = account_state.pos_size
 
+        close_trade_size = new_pos_size - pos_size
         left_diffs = close_trade_size + trades_sizes.cumsum(0)
 
         right_diffs = torch.empty_like(left_diffs)
@@ -365,12 +369,17 @@ class LowLevelInferenceEngine:
         close_trade_mask = (pos_size != 0) & (pos_size * left_diffs <= 0)
         reduce_trade_mask = left_diffs * right_diffs < 0
 
+        closed_trades_sizes = torch.zeros_like(trades_sizes)
+
         assert not torch.any(close_trade_mask & reduce_trade_mask)
         assert torch.all(reduce_trade_mask.sum(0) <= 1)
 
         new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[close_trade_mask] = 0.0
         new_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
+
+        closed_trades_sizes[close_trade_mask] = trades_sizes[close_trade_mask]
+        closed_trades_sizes[reduce_trade_mask] = right_diffs[reduce_trade_mask]
 
         trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()
@@ -386,6 +395,16 @@ class LowLevelInferenceEngine:
         new_account_state = AccountState(
             new_trades_sizes, new_trades_prices, account_state.balance
         )
-        assert torch.allclose(pos_size + close_trade_size, new_account_state.pos_size)
 
-        return new_account_state
+        close_or_reduce_mask = close_trade_mask | reduce_trade_mask
+        close_pos_size = closed_trades_sizes.sum(0)
+        assert torch.all(new_account_state.pos_size == pos_size - close_pos_size)
+
+        assert (
+            close_pos_size
+            == torch.where(
+                close_trade_size.abs() > pos_size.abs(), pos_size, -close_trade_size
+            )
+        )[close_or_reduce_mask].all()
+
+        return new_account_state, closed_trades_sizes
