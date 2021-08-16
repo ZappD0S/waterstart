@@ -45,9 +45,10 @@ class TraingingArgs(argparse.Namespace):
     leverage: float = 20.0
     initial_balance: float = 1000.0
     tensorboard_log_dir: Optional[str] = None
-    checkpoint_interval: int = 100
-    checkpoints_dir: str = "./checkpoints"
+    checkpoint_interval: int = 1000
+    checkpoints_dir: Optional[str] = None
     load_checkpoint: bool = False
+    replay_buffers_save_dir: Optional[str] = None
 
 
 def load_training_data(path: str) -> TrainingData:
@@ -163,10 +164,10 @@ def build_modules(
 def get_modules(
     args: TraingingArgs, training_data: TrainingData
 ) -> tuple[NetworkModules, NeuralBaseline]:
-    if not args.load_checkpoint:
+    if args.checkpoints_dir is None or not args.load_checkpoint:
         return build_modules(args, training_data)
 
-    checkpoints_dir = Path(args.checkpoint_dir)
+    checkpoints_dir = Path(args.checkpoints_dir)
     latest_checkpoint_dir: Optional[Path] = None
     latest_dt: datetime.datetime = datetime.datetime.min
 
@@ -196,9 +197,11 @@ def get_modules(
     return net_modules, nn_baseline
 
 
-def save_modules(net_modules: NetworkModules, nn_baseline: NeuralBaseline) -> None:
+def save_modules(
+    checkpoints_dir: str, net_modules: NetworkModules, nn_baseline: NeuralBaseline
+) -> None:
     now = datetime.datetime.now()
-    save_dir = args.checkpoints_dir / Path(now.strftime(SAVE_FOLDER_NAME_FORMAT))
+    save_dir = checkpoints_dir / Path(now.strftime(SAVE_FOLDER_NAME_FORMAT))
     save_dir.mkdir(parents=True)
     torch.save(net_modules, save_dir / "net_modules.pt")  # type: ignore
     torch.save(nn_baseline, save_dir / "nn_baseline.pt")  # type: ignore
@@ -235,28 +238,42 @@ def main(args: TraingingArgs):
         device,
     )
 
-    n_iter: int
-    for n_iter in tqdm(range(args.iterations)):  # type: ignore
-        model_input = train_data_manager.load()
-        loss_out: LossOutput = loss_eval(model_input)  # type: ignore
+    max_gradient_norm = args.max_gradient_norm
+    checkpoint_interval = args.checkpoint_interval
+    checkpoints_dir = args.checkpoints_dir
 
-        # TODO: mean?
-        loss_out.loss.sum().backward()  # type: ignore
+    try:
+        n_iter: int
+        for n_iter in tqdm(range(args.iterations)):  # type: ignore
+            model_input = train_data_manager.load()
+            loss_out: LossOutput = loss_eval(model_input)  # type: ignore
 
-        grad_norm = nn.utils.clip_grad_norm_(
-            parameters, max_norm=args.max_gradient_norm, error_if_nonfinite=True
-        )
-        optimizer.step()
-        optimizer.zero_grad()
+            # TODO: test both mean and sum extensively to see
+            # if it makes any difference
+            loss_out.surrogate_loss.mean().backward()  # type: ignore
 
-        write_summary(
-            writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
-        )
+            grad_norm = nn.utils.clip_grad_norm_(
+                parameters, max_norm=max_gradient_norm, error_if_nonfinite=True
+            )
+            optimizer.step()
+            optimizer.zero_grad()
 
-        train_data_manager.save(loss_out.account_state, loss_out.hidden_state)
+            write_summary(
+                writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
+            )
 
-        if (n_iter + 1) % args.checkpoint_interval == 0:
-            save_modules(net_modules, nn_baseline)
+            train_data_manager.save(loss_out.account_state, loss_out.hidden_state)
+
+            if checkpoints_dir is not None and (n_iter + 1) % checkpoint_interval == 0:
+                save_modules(checkpoints_dir, net_modules, nn_baseline)
+    finally:
+        if args.replay_buffers_save_dir is not None:
+            np.savez_compressed(  # type: ignore
+                Path(args.replay_buffers_save_dir) / "replay_buffers.npz",
+                balances=train_data_manager.balances,
+                trades_sizes=train_data_manager.trades_sizes,
+                trades_prices=train_data_manager.trades_prices,
+            )
 
 
 # TODO: use a config file...
@@ -288,6 +305,7 @@ parser.add_argument("--tensorboard-log-dir", type=str)
 parser.add_argument("--checkpoint-interval", type=int)
 parser.add_argument("--checkpoints-dir", type=str)
 parser.add_argument("--load-checkpoint", action="store_true")
+parser.add_argument("--replay-buffers-save-dir", type=str)
 
 nsp = TraingingArgs()
 args = parser.parse_args(namespace=nsp)

@@ -188,21 +188,19 @@ class LowLevelInferenceEngine(nn.Module):
         self,
         fractions: torch.Tensor,
         exec_mask: torch.Tensor,
-        pos_used_margins: torch.Tensor,
+        pos_sizes: torch.Tensor,
         margin_rate: torch.Tensor,
         unused_margin: torch.Tensor,
     ) -> torch.Tensor:
-        new_pos_sizes = torch.empty_like(pos_used_margins)  # type: ignore
+        new_pos_sizes = torch.empty_like(pos_sizes)  # type: ignore
         leverage = self._leverage
         min_step_max = self._min_step_max
 
         for i in range(self._n_traded_sym):
-            available_margin = pos_used_margins[i].abs() + unused_margin
-            new_pos_used_margin = torch.where(
-                exec_mask[i], fractions[i] * available_margin, pos_used_margins[i]
+            max_pos_size = (
+                pos_sizes[i].abs() + unused_margin * margin_rate[i] * leverage
             )
-
-            new_pos_size = new_pos_used_margin * margin_rate[i] * leverage
+            new_pos_size = fractions[i] * max_pos_size
 
             abs_new_pos_size = new_pos_size.abs()
             new_pos_sign = new_pos_size.sign()
@@ -212,13 +210,14 @@ class LowLevelInferenceEngine(nn.Module):
             abs_new_pos_size = abs_new_pos_size.new_zeros([]).where(
                 abs_new_pos_size < min_step_max.min[i], abs_new_pos_size
             )
-            abs_new_pos_size = min_step_max.max[i].where(
-                abs_new_pos_size > min_step_max.max[i], abs_new_pos_size
-            )
+            abs_new_pos_size = abs_new_pos_size.minimum(min_step_max.max[i])
 
-            new_pos_sizes[i] = new_pos_sign * abs_new_pos_size
-            abs_new_pos_used_margin = abs_new_pos_size / (margin_rate[i] * leverage)
-            unused_margin = available_margin - abs_new_pos_used_margin
+            new_pos_sizes[i] = torch.where(
+                exec_mask[i], new_pos_sign * abs_new_pos_size, pos_sizes[i]
+            )
+            unused_margin = (max_pos_size - abs_new_pos_size) / (
+                margin_rate[i] * leverage
+            )
 
         return new_pos_sizes
 
@@ -233,6 +232,8 @@ class LowLevelInferenceEngine(nn.Module):
                 ..., src_ind, None, -1, None
             ]
 
+        assert scaled_market_data.isfinite().all()
+
         account_state = model_input.account_state
         rel_prices = account_state.trades_prices / market_state.midpoint_prices
 
@@ -243,7 +244,7 @@ class LowLevelInferenceEngine(nn.Module):
 
         balance = account_state.balance
         unused_margin = balance - pos_used_margins.abs().sum(0)
-        unused_margin = torch.maximum(unused_margin, unused_margin.new_zeros([]))
+        unused_margin = unused_margin.maximum(unused_margin.new_zeros([]))
 
         rel_margins = (
             torch.cat((trades_used_margins.flatten(0, 1), unused_margin.unsqueeze(0)))
@@ -258,10 +259,12 @@ class LowLevelInferenceEngine(nn.Module):
         new_pos_sizes = self._compute_new_pos_sizes(
             model_output.fractions,
             model_output.exec_mask,
-            pos_used_margins,
+            account_state.pos_size,
             market_state.margin_rate,
             unused_margin,
         )
+
+        assert (account_state.pos_size == new_pos_sizes)[~model_output.exec_mask].all()
 
         return ModelOutput(new_pos_sizes, model_output)
 
@@ -338,6 +341,7 @@ class LowLevelInferenceEngine(nn.Module):
         open_trade_size = new_pos_size - pos_size
         new_pos_mask = (pos_size == 0) & (open_trade_size != 0)
         valid_trade_mask = new_pos_mask | (pos_size * open_trade_size > 0)
+        assert torch.all(valid_trade_mask | (open_trade_size == 0))
         open_trade_mask = available_trade_mask & valid_trade_mask
 
         new_trades_sizes = trades_sizes.clone()

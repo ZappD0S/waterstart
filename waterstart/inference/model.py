@@ -107,11 +107,11 @@ class CNN(nn.Module):
         # prev_step_data: (batch_size, prev_step_features)
 
         out1: torch.Tensor = self.conv1(market_data).relu_()
-        out1 = self.conv2(out1).squeeze(2).relu_()
+        out1 = self.conv2(out1).squeeze(2)
 
         out2: torch.Tensor = self.lin1(prev_step_data)
 
-        out = torch.cat((out1, out2), dim=1)
-        out = self.lin2(out)
+        out = torch.cat((out1, out2), dim=1).relu_()
+        out = self.lin2(out).relu_()
 
         return out

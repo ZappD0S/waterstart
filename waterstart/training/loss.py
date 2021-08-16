@@ -11,18 +11,20 @@ class NeuralBaseline(nn.Module):
     def __init__(self, n_features: int, z_dim: int, hidden_dim: int, n_traded_sym: int):
         super().__init__()
         self.lin1 = nn.Linear(n_features + z_dim, hidden_dim)
-        self.lin2 = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin2 = nn.Linear(hidden_dim, hidden_dim)
+        self.lin3 = nn.Linear(hidden_dim, n_traded_sym)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
         out = self.lin1(x).relu_()
-        out = self.lin2(out)
+        out = self.lin2(out).relu_()
 
-        return out
+        return self.lin3(out)
 
 
 @dataclass
 class LossOutput:
     loss: torch.Tensor
+    surrogate_loss: torch.Tensor
     account_state: AccountState
     hidden_state: torch.Tensor
 
@@ -79,12 +81,11 @@ class LossEvaluator(nn.Module):
         costs = torch.log1p_(ratio)
 
         exec_logprobs = raw_model_output.exec_logprobs
-        exec_logprobs = exec_logprobs.where(
-            torch.any(closed_trades_sizes != 0, dim=0),
-            exec_logprobs.new_zeros([]),
+        exec_logprobs = exec_logprobs.new_zeros([]).where(
+            torch.all(closed_trades_sizes == 0, dim=0), exec_logprobs
         )
 
-        tot_logprobs = raw_model_output.z_logprob + exec_logprobs
+        tot_logprobs = raw_model_output.z_logprob + exec_logprobs.cumsum(0)
 
         nn_baseline_input = torch.cat(
             [raw_model_output.cnn_output.detach(), model_input.hidden_state], dim=-1
@@ -92,7 +93,7 @@ class LossEvaluator(nn.Module):
         assert not nn_baseline_input.requires_grad
         baselines: torch.Tensor = self._nn_baseline(nn_baseline_input).movedim(-1, 0)
 
-        # TODO: compute both regular loss a surrogate loss
+        loss = -costs.detach()
         surrogate_loss = tot_logprobs * torch.detach_(costs - baselines) + costs
         baseline_loss = (costs.detach() - baselines) ** 2
 
@@ -110,6 +111,7 @@ class LossEvaluator(nn.Module):
         )
 
         return LossOutput(
+            loss,
             -surrogate_loss + baseline_loss,
             account_state,
             raw_model_output.z_sample.detach(),

@@ -107,6 +107,10 @@ class ReadonlyBatchManager:
         self._batch_dims_last = batch_dims_last
         self._device = device
 
+    @property
+    def storage(self) -> torch.Tensor:
+        return self._storage
+
     def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
         batch: torch.Tensor = self._storage[inds - self._load_lag]
         batch = self._transform_batch(batch, self._batch_dims + inds.ndim - 1)
@@ -206,13 +210,13 @@ class TrainDataManager:
             load_lag=1,
             device=device,
         )
-        self._trade_sizes_batch_manager = BatchManager(
+        self._trades_sizes_batch_manager = BatchManager(
             torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
             batch_dims=2,
             load_lag=1,
             device=device,
         )
-        self._trade_prices_batch_manager = BatchManager(
+        self._trades_prices_batch_manager = BatchManager(
             torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
             batch_dims=2,
             load_lag=1,
@@ -270,6 +274,18 @@ class TrainDataManager:
         self._next_batch_inds: Optional[torch.Tensor] = next(self._batch_inds_it)
         self._save_pending: bool = False
 
+    @property
+    def balances(self) -> torch.Tensor:
+        return self._balances_batch_manager.storage
+
+    @property
+    def trades_sizes(self) -> torch.Tensor:
+        return self._trades_sizes_batch_manager.storage
+
+    @property
+    def trades_prices(self) -> torch.Tensor:
+        return self._trades_prices_batch_manager.storage
+
     def _build_batch_inds_it(self) -> Iterator[torch.Tensor]:
         batch_size = self._batch_size
         batch_inds = torch.arange(
@@ -297,8 +313,8 @@ class TrainDataManager:
         )
 
         account_state = AccountState(
-            trades_sizes=self._trade_sizes_batch_manager.build_batch(batch_inds),
-            trades_prices=self._trade_prices_batch_manager.build_batch(batch_inds),
+            trades_sizes=self._trades_sizes_batch_manager.build_batch(batch_inds),
+            trades_prices=self._trades_prices_batch_manager.build_batch(batch_inds),
             balance=self._balances_batch_manager.build_batch(batch_inds),
         )
 
@@ -310,8 +326,8 @@ class TrainDataManager:
 
     # TODO: maybe return the transformed balance batch from here (smth else?)
     def save(self, account_state: AccountState, hidden_state: torch.Tensor) -> None:
-        self._trade_sizes_batch_manager.store_batch(account_state.trades_sizes)
-        self._trade_prices_batch_manager.store_batch(account_state.trades_prices)
+        self._trades_sizes_batch_manager.store_batch(account_state.trades_sizes)
+        self._trades_prices_batch_manager.store_batch(account_state.trades_prices)
         self._balances_batch_manager.store_batch(account_state.balance)
 
         self._hidden_states_batch_manager.store_batch(hidden_state)
