@@ -30,7 +30,7 @@ while true; do
         break
         ;;
     *)
-        echo "programming error"
+        echo >&2 "programming error"
         exit 1
         ;;
     esac
@@ -41,6 +41,11 @@ if [ $condaPath ]; then
 fi
 
 source activate
+
+if [ ! -e conda_requirements.txt ]; then
+    echo >&2 "cd into waterstart folder before running this script."
+    exit 1
+fi
 
 create_env=(conda create -y -n waterstart --file conda_requirements.txt)
 

@@ -381,13 +381,13 @@ class LowLevelInferenceEngine(nn.Module):
         pos_size = account_state.pos_size
 
         close_trade_size = new_pos_size - pos_size
-        left_diffs = close_trade_size + trades_sizes.cumsum(0)
+        right_diffs = close_trade_size + trades_sizes.cumsum(0)
 
-        right_diffs = torch.empty_like(left_diffs)
-        right_diffs[1:] = left_diffs[:-1]
-        right_diffs[0] = close_trade_size
+        left_diffs = torch.empty_like(right_diffs)
+        left_diffs[1:] = right_diffs[:-1]
+        left_diffs[0] = close_trade_size
 
-        close_trade_mask = (pos_size != 0) & (pos_size * left_diffs <= 0)
+        close_trade_mask = (pos_size != 0) & (pos_size * right_diffs <= 0)
         reduce_trade_mask = left_diffs * right_diffs < 0
 
         closed_trades_sizes = torch.zeros_like(trades_sizes)
@@ -397,10 +397,10 @@ class LowLevelInferenceEngine(nn.Module):
 
         new_trades_sizes = trades_sizes.clone()
         new_trades_sizes[close_trade_mask] = 0.0
-        new_trades_sizes[reduce_trade_mask] = left_diffs[reduce_trade_mask]
+        new_trades_sizes[reduce_trade_mask] = right_diffs[reduce_trade_mask]
 
         closed_trades_sizes[close_trade_mask] = trades_sizes[close_trade_mask]
-        closed_trades_sizes[reduce_trade_mask] = -right_diffs[reduce_trade_mask]
+        closed_trades_sizes[reduce_trade_mask] = -left_diffs[reduce_trade_mask]
 
         trades_prices = account_state.trades_prices
         new_trades_prices = trades_prices.clone()

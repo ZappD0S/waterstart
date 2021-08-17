@@ -26,7 +26,7 @@ class TraingingArgs(argparse.Namespace):
     train_data_file: str = ""
     iterations: int = 0
     learning_rate: float = 3e-4
-    baseline_learning_rate: float = 1e-3
+    baseline_learning_rate: float = 5e-4
     weight_decay: float = 0.1
     max_gradient_norm: float = 10.0
     detect_anomaly: bool = False
@@ -248,9 +248,7 @@ def main(args: TraingingArgs):
             model_input = train_data_manager.load()
             loss_out: LossOutput = loss_eval(model_input)  # type: ignore
 
-            # TODO: test both mean and sum extensively to see
-            # if it makes any difference
-            loss_out.surrogate_loss.mean().backward()  # type: ignore
+            loss_out.surrogate_loss.sum().backward()  # type: ignore
 
             grad_norm = nn.utils.clip_grad_norm_(
                 parameters, max_norm=max_gradient_norm, error_if_nonfinite=True

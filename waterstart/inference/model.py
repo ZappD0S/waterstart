@@ -28,6 +28,7 @@ class GatedTransition(nn.Module):
         self.lin_hm = nn.Linear(z_dim, z_dim)
 
         self.lin_m_s = nn.Linear(z_dim, z_dim)
+        self._eps = torch.finfo(torch.get_default_dtype()).eps
 
     def forward(  # type: ignore
         self, x: torch.Tensor, h: torch.Tensor
@@ -38,7 +39,7 @@ class GatedTransition(nn.Module):
         g = torch.sigmoid_(self.lin_xg(x) + self.lin_hg(h))
 
         mean: torch.Tensor = (1 - g) * self.lin_hm(h) + g * mean_
-        sigma = self.softplus(self.lin_m_s(mean_.relu()))
+        sigma = self.softplus(self.lin_m_s(mean_.relu())) + self._eps
 
         return mean, sigma
 
