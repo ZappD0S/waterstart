@@ -197,23 +197,33 @@ class LowLevelInferenceEngine(nn.Module):
         min_step_max = self._min_step_max
 
         for i in range(self._n_traded_sym):
-            max_pos_size = (
-                pos_sizes[i].abs() + unused_margin * margin_rate[i] * leverage
+            fraction = fractions[i]
+            pos_size = pos_sizes[i]
+
+            unused_size = unused_margin * margin_rate[i] * leverage
+            max_pos_size = pos_size.abs() + unused_size
+
+            new_pos_size = fraction * (
+                max_pos_size
+                - torch.where(
+                    pos_size * fraction > 0,
+                    unused_size.minimum(unused_size.new_zeros([])),
+                    max_pos_size.minimum(max_pos_size.new_zeros([])),
+                )
             )
-            new_pos_size = fractions[i] * max_pos_size
 
             abs_new_pos_size = new_pos_size.abs()
             new_pos_sign = new_pos_size.sign()
 
             step = min_step_max.step[i]
-            abs_new_pos_size = torch.round(abs_new_pos_size / step) * step
+            abs_new_pos_size = torch.floor(abs_new_pos_size / step) * step
             abs_new_pos_size = abs_new_pos_size.new_zeros([]).where(
                 abs_new_pos_size < min_step_max.min[i], abs_new_pos_size
             )
             abs_new_pos_size = abs_new_pos_size.minimum(min_step_max.max[i])
 
             new_pos_sizes[i] = torch.where(
-                exec_mask[i], new_pos_sign * abs_new_pos_size, pos_sizes[i]
+                exec_mask[i], new_pos_sign * abs_new_pos_size, pos_size
             )
             unused_margin = (max_pos_size - abs_new_pos_size) / (
                 margin_rate[i] * leverage
@@ -244,7 +254,7 @@ class LowLevelInferenceEngine(nn.Module):
 
         balance = account_state.balance
         unused_margin = balance - pos_used_margins.abs().sum(0)
-        unused_margin = unused_margin.maximum(unused_margin.new_zeros([]))
+        # unused_margin = unused_margin.maximum(unused_margin.new_zeros([]))
 
         rel_margins = (
             torch.cat((trades_used_margins.flatten(0, 1), unused_margin.unsqueeze(0)))

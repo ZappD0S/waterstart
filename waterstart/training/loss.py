@@ -63,7 +63,7 @@ class LossEvaluator(nn.Module):
         )
 
         profits_losses = torch.sum(
-            closed_trades_sizes.abs()
+            closed_trades_sizes
             * (trade_price - old_account_state.trades_prices)
             / market_state.quote_to_dep_rate,
             dim=0,
