@@ -2,7 +2,7 @@ import argparse
 import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import numpy as np
 import torch
@@ -15,7 +15,8 @@ from tqdm import tqdm  # type: ignore
 
 from ..inference.low_level_engine import LowLevelInferenceEngine, NetworkModules
 from ..inference.model import CNN, Emitter, GatedTransition
-from .loss import LossEvaluator, LossOutput, NeuralBaseline
+from .loss import LossEvaluator, LossOutput, Critic
+
 from .train_data import TrainDataManager, TrainingData
 
 SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
@@ -25,8 +26,8 @@ SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
 class TraingingArgs(argparse.Namespace):
     train_data_file: str = ""
     iterations: int = 0
-    learning_rate: float = 3e-4
-    baseline_learning_rate: float = 5e-4
+    learning_rate: float = 1e-4
+    baseline_learning_rate: float = 1e-4
     weight_decay: float = 0.1
     max_gradient_norm: float = 10.0
     detect_anomaly: bool = False
@@ -38,7 +39,7 @@ class TraingingArgs(argparse.Namespace):
     max_trades: int = 10
     hidden_state_size: int = 128
     gated_trans_hidden_size: int = 200
-    nn_baseline_hidden_size: int = 200
+    critic_hidden_size: int = 200
     emitter_hidden_size: int = 200
     n_iafs: int = 2
     iafs_hidden_sizes: list[int] = field(default_factory=lambda: [200])
@@ -87,7 +88,7 @@ def write_summary(
         "single step/negative fraction", negative_log_rates / tot_log_rates, n_iter
     )
 
-    avg_step_gain = step_log_rates.mean(-1).exp_().mean().item()
+    avg_step_gain = step_log_rates.mean(-1).exp().mean().item()
     writer.add_scalar("single step/average gain", avg_step_gain, n_iter)  # type: ignore
 
     whole_seq_log_rates = balance[..., -1, :].log() - balance[..., 0, :].log()
@@ -101,7 +102,7 @@ def write_summary(
         "whole sequence/negative fraction", negative_log_rates / tot_log_rates, n_iter
     )
 
-    avg_whole_seq_gain = whole_seq_log_rates.mean(-1).exp_().mean().item()
+    avg_whole_seq_gain = whole_seq_log_rates.mean(-1).exp().mean().item()
     writer.add_scalar(  # type: ignore
         "whole sequence/average gain", avg_whole_seq_gain, n_iter
     )
@@ -123,7 +124,7 @@ def write_summary(
 
 def build_modules(
     args: TraingingArgs, training_data: TrainingData
-) -> tuple[NetworkModules, NeuralBaseline]:
+) -> tuple[NetworkModules, Critic]:
     cnn = CNN(
         args.batch_size,
         args.window_size,
@@ -153,17 +154,17 @@ def build_modules(
         training_data.traded_sym_arr_mapper,
         training_data.traded_symbols,
         args.leverage,
-    ), NeuralBaseline(
+    ), Critic(
         args.cnn_out_features,
         args.hidden_state_size,
-        args.nn_baseline_hidden_size,
+        args.critic_hidden_size,
         training_data.n_traded_sym,
     )
 
 
 def get_modules(
     args: TraingingArgs, training_data: TrainingData
-) -> tuple[NetworkModules, NeuralBaseline]:
+) -> tuple[NetworkModules, Critic]:
     if args.checkpoints_dir is None or not args.load_checkpoint:
         return build_modules(args, training_data)
 
@@ -190,40 +191,36 @@ def get_modules(
     net_modules: NetworkModules = torch.load(  # type: ignore
         latest_checkpoint_dir / "net_modules.pt"
     )
-    nn_baseline: NeuralBaseline = torch.load(  # type: ignore
-        latest_checkpoint_dir / "nn_baseline.pt"
+    critic: Critic = torch.load(  # type: ignore
+        latest_checkpoint_dir / "critic.pt"
     )
 
-    return net_modules, nn_baseline
+    return net_modules, critic
 
 
 def save_modules(
-    checkpoints_dir: str, net_modules: NetworkModules, nn_baseline: NeuralBaseline
+    checkpoints_dir: str, net_modules: NetworkModules, critic: Critic
 ) -> None:
     now = datetime.datetime.now()
     save_dir = checkpoints_dir / Path(now.strftime(SAVE_FOLDER_NAME_FORMAT))
     save_dir.mkdir(parents=True)
     torch.save(net_modules, save_dir / "net_modules.pt")  # type: ignore
-    torch.save(nn_baseline, save_dir / "nn_baseline.pt")  # type: ignore
+    torch.save(critic, save_dir / "critic.pt")  # type: ignore
 
 
 def main(args: TraingingArgs):
     training_data = load_training_data(args.train_data_file)
-    net_modules, nn_baseline = get_modules(args, training_data)
+    net_modules, critic = get_modules(args, training_data)
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
-    loss_eval = LossEvaluator(LowLevelInferenceEngine(net_modules), nn_baseline)
+    loss_eval = LossEvaluator(LowLevelInferenceEngine(net_modules), critic)
     device = torch.device("cuda" if args.use_cuda else "cpu")
     loss_eval.to(device)  # type: ignore
 
-    parameters_groups: list[dict[Any, Any]] = [
-        {"params": list(net_modules.parameters())},
-        {"params": list(nn_baseline.parameters()), "lr": args.baseline_learning_rate},
-    ]
-    parameters = [param for group in parameters_groups for param in group["params"]]
+    parameters = list(loss_eval.parameters())
     optimizer = torch.optim.Adam(
-        parameters_groups, lr=args.learning_rate, weight_decay=args.weight_decay
+        parameters, lr=args.learning_rate, weight_decay=args.weight_decay
     )
     writer = SummaryWriter(args.tensorboard_log_dir)
 
@@ -248,7 +245,7 @@ def main(args: TraingingArgs):
             model_input = train_data_manager.load()
             loss_out: LossOutput = loss_eval(model_input)  # type: ignore
 
-            loss_out.surrogate_loss.sum().backward()  # type: ignore
+            loss_out.surrogate_loss.mean().backward()  # type: ignore
 
             grad_norm = nn.utils.clip_grad_norm_(
                 parameters, max_norm=max_gradient_norm, error_if_nonfinite=True
@@ -263,7 +260,7 @@ def main(args: TraingingArgs):
             train_data_manager.save(loss_out.account_state, loss_out.hidden_state)
 
             if checkpoints_dir is not None and (n_iter + 1) % checkpoint_interval == 0:
-                save_modules(checkpoints_dir, net_modules, nn_baseline)
+                save_modules(checkpoints_dir, net_modules, critic)
     finally:
         if args.replay_buffers_save_dir is not None:
             np.savez_compressed(  # type: ignore

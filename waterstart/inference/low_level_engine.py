@@ -206,10 +206,8 @@ class LowLevelInferenceEngine(nn.Module):
             new_pos_size = fraction * (
                 max_pos_size
                 - torch.where(
-                    pos_size * fraction > 0,
-                    unused_size.minimum(unused_size.new_zeros([])),
-                    max_pos_size.minimum(max_pos_size.new_zeros([])),
-                )
+                    pos_size * fraction > 0, unused_size, max_pos_size
+                ).minimum(max_pos_size.new_zeros([]))
             )
 
             abs_new_pos_size = new_pos_size.abs()
@@ -297,9 +295,10 @@ class LowLevelInferenceEngine(nn.Module):
         z_scale: torch.Tensor
         z_loc, z_scale = net_modules.gated_trans(cnn_output, hidden_state)
 
-        z_dist = dist.TransformedDistribution(
-            dist.Normal(z_loc, z_scale), net_modules.iafs
-        )
+        # z_dist = dist.TransformedDistribution(
+        #     dist.Normal(z_loc, z_scale), net_modules.iafs
+        # )0
+        z_dist = dist.Independent(dist.Normal(z_loc, z_scale), 1)
         z_sample: torch.Tensor = z_dist.rsample()  # type: ignore
         z_logprob: torch.Tensor = z_dist.log_prob(z_sample)  # type: ignore
 

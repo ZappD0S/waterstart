@@ -6,19 +6,18 @@ from ..inference import ModelInput, AccountState
 from ..inference.low_level_engine import LowLevelInferenceEngine
 
 
-# TODO: maybe use 3 layers?
-class NeuralBaseline(nn.Module):
+class Critic(nn.Module):
     def __init__(self, n_features: int, z_dim: int, hidden_dim: int, n_traded_sym: int):
         super().__init__()
         self.lin1 = nn.Linear(n_features + z_dim, hidden_dim)
         self.lin2 = nn.Linear(hidden_dim, hidden_dim)
-        self.lin3 = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin3 = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
-        out = self.lin1(x).relu_()
-        out = self.lin2(out).relu_()
+        out = self.lin1(x).relu()
+        out = self.lin2(out).relu()
 
-        return self.lin3(out)
+        return self.lin3(out).squeeze(-1)
 
 
 @dataclass
@@ -30,13 +29,11 @@ class LossOutput:
 
 
 class LossEvaluator(nn.Module):
-    def __init__(
-        self, engine: LowLevelInferenceEngine, nn_baseline: NeuralBaseline
-    ) -> None:
+    def __init__(self, engine: LowLevelInferenceEngine, critic: Critic) -> None:
         super().__init__()
         self._engine = engine
         self._net_modules = engine.net_modules
-        self._nn_baseline = nn_baseline
+        self._critic = critic
 
     def forward(self, model_input: ModelInput) -> LossOutput:  # type: ignore
         market_state = model_input.market_state
@@ -62,57 +59,63 @@ class LossEvaluator(nn.Module):
             old_account_state, new_pos_size
         )
 
-        profits_losses = torch.sum(
+        closed_size = closed_trades_sizes.sum(0)
+        close_price = torch.where(
+            closed_size > 0,
+            ask_prices,
+            torch.where(closed_size < 0, bid_prices, bid_prices.new_zeros([])),
+        )
+        profit_loss = torch.sum(
             closed_trades_sizes
-            * (trade_price - old_account_state.trades_prices)
+            * (close_price - old_account_state.trades_prices)
             / market_state.quote_to_dep_rate,
-            dim=0,
+            dim=[0, 1],
         )
 
         old_balance = old_account_state.balance
-        cum_balances = old_balance + profits_losses.cumsum(0)
-
-        shifted_cum_balances = torch.empty_like(cum_balances)
-        shifted_cum_balances[0] = old_balance
-        shifted_cum_balances[1:] = cum_balances[:-1]
-
-        ratio = profits_losses / shifted_cum_balances
+        ratio = profit_loss / old_balance
         assert torch.all(ratio > -1)
-        costs = torch.log1p_(ratio)
+        rewards = torch.log1p(ratio)
 
         exec_logprobs = raw_model_output.exec_logprobs
-        exec_logprobs = exec_logprobs.new_zeros([]).where(
-            torch.all(closed_trades_sizes == 0, dim=0), exec_logprobs
-        )
+        tot_logprob = raw_model_output.z_logprob + exec_logprobs.sum(0)
 
-        tot_logprobs = raw_model_output.z_logprob + exec_logprobs.cumsum(0)
-
-        nn_baseline_input = torch.cat(
+        critic_input = torch.cat(
             [raw_model_output.cnn_output.detach(), model_input.hidden_state], dim=-1
         )
-        assert not nn_baseline_input.requires_grad
-        baselines: torch.Tensor = self._nn_baseline(nn_baseline_input).movedim(-1, 0)
+        assert not critic_input.requires_grad
+        values: torch.Tensor = self._critic(critic_input)
 
-        loss = -costs.detach()
-        surrogate_loss = tot_logprobs * torch.detach_(costs - baselines) + costs
-        baseline_loss = (costs.detach() - baselines) ** 2
+        loss = -rewards.detach()
+        deltas = rewards[:-1] + 0.99 * values[1:] - values[:-1]
 
-        new_balance = cum_balances[-1].detach()
+        surrogate_loss = tot_logprob[:-1] * deltas.detach()
+        baseline_loss = (values[:-1] - (rewards[:-1].detach() + 0.99 * values[1:])) ** 2
+
+        new_balance = old_balance + profit_loss
         assert torch.all(new_balance > 0)
+
+        open_size = new_pos_size - account_state.pos_size
+        open_price = torch.where(
+            open_size > 0,
+            ask_prices,
+            torch.where(open_size < 0, bid_prices, bid_prices.new_zeros([])),
+        )
+        assert not open_price.requires_grad
 
         account_state, _ = self._engine.open_trades(
             AccountState(
                 account_state.trades_sizes.detach(),
                 account_state.trades_prices,
-                new_balance,
+                new_balance.detach(),
             ),
             new_pos_size.detach(),
-            trade_price,
+            open_price,
         )
 
         return LossOutput(
             loss,
-            -surrogate_loss + baseline_loss,
+            -surrogate_loss + 0.5 * baseline_loss,
             account_state,
             raw_model_output.z_sample.detach(),
         )

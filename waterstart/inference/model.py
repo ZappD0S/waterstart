@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 
 
-def clamp_preserve_gradients(x: torch.Tensor, min: float, max: float) -> torch.Tensor:
-    return x + torch.detach_(x.clamp(min, max) - x)
+# def clamp_preserve_gradients(x: torch.Tensor, min: float, max: float) -> torch.Tensor:
+#     return x + torch.detach(x.clamp(min, max) - x)
 
 
 class GatedTransition(nn.Module):
@@ -33,10 +33,10 @@ class GatedTransition(nn.Module):
     def forward(  # type: ignore
         self, x: torch.Tensor, h: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        r = torch.relu_(self.lin_xr(x) + self.lin_hr(h))
+        r = torch.relu(self.lin_xr(x) + self.lin_hr(h))
         mean_: torch.Tensor = self.lin_xm_(x) + self.lin_rm_(r)
 
-        g = torch.sigmoid_(self.lin_xg(x) + self.lin_hg(h))
+        g = torch.sigmoid(self.lin_xg(x) + self.lin_hg(h))
 
         mean: torch.Tensor = (1 - g) * self.lin_hm(h) + g * mean_
         sigma = self.softplus(self.lin_m_s(mean_.relu())) + self._eps
@@ -58,8 +58,8 @@ class Emitter(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # z: (..., z_dim)
 
-        out = self.lin1(z).relu_()
-        out = self.lin2(out).relu_()
+        out = self.lin1(z).relu()
+        out = self.lin2(out).relu()
 
         return self.lin_logits(out), self.lin_fraction(out).tanh()
 
@@ -107,12 +107,12 @@ class CNN(nn.Module):
         # market_data: (batch_size, market_features, window_size)
         # prev_step_data: (batch_size, prev_step_features)
 
-        out1: torch.Tensor = self.conv1(market_data).relu_()
+        out1: torch.Tensor = self.conv1(market_data).relu()
         out1 = self.conv2(out1).squeeze(2)
 
         out2: torch.Tensor = self.lin1(prev_step_data)
 
-        out = torch.cat((out1, out2), dim=1).relu_()
-        out = self.lin2(out).relu_()
+        out = torch.cat((out1, out2), dim=1).relu()
+        out = self.lin2(out).relu()
 
         return out
