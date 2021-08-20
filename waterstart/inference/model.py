@@ -14,34 +14,43 @@ class GatedTransition(nn.Module):
         super().__init__()
         self.input_dim = input_dim
         self.z_dim = z_dim
-        self.softplus = nn.Softplus()
+        self._softplus = nn.Softplus()
 
-        self.lin_xr = nn.Linear(input_dim, hidden_dim)
-        self.lin_hr = nn.Linear(z_dim, hidden_dim)
+        self._gru = nn.GRUCell(input_dim, z_dim)
+        self._lin_loc = nn.Linear(z_dim, z_dim)
+        self._lin_scale = nn.Linear(z_dim, z_dim)
+        # self.lin_xr = nn.Linear(input_dim, hidden_dim)
+        # self.lin_hr = nn.Linear(z_dim, hidden_dim)
 
-        self.lin_xm_ = nn.Linear(input_dim, z_dim)
-        self.lin_rm_ = nn.Linear(hidden_dim, z_dim)
+        # self.lin_xm_ = nn.Linear(input_dim, z_dim)
+        # self.lin_rm_ = nn.Linear(hidden_dim, z_dim)
 
-        self.lin_xg = nn.Linear(input_dim, z_dim)
-        self.lin_hg = nn.Linear(z_dim, z_dim)
+        # self.lin_xg = nn.Linear(input_dim, z_dim)
+        # self.lin_hg = nn.Linear(z_dim, z_dim)
 
-        self.lin_hm = nn.Linear(z_dim, z_dim)
+        # self.lin_hm = nn.Linear(z_dim, z_dim)
 
-        self.lin_m_s = nn.Linear(z_dim, z_dim)
+        # self.lin_m_s = nn.Linear(z_dim, z_dim)
         self._eps = torch.finfo(torch.get_default_dtype()).eps
 
     def forward(  # type: ignore
         self, x: torch.Tensor, h: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        r = torch.relu(self.lin_xr(x) + self.lin_hr(h))
-        mean_: torch.Tensor = self.lin_xm_(x) + self.lin_rm_(r)
+        x.flatten(0, -2)
+        out = self._gru(x, h)
 
-        g = torch.sigmoid(self.lin_xg(x) + self.lin_hg(h))
+        loc = self._lin_loc(out)
+        scale = self._softplus(self._lin_scale(out)) + self._eps
 
-        mean: torch.Tensor = (1 - g) * self.lin_hm(h) + g * mean_
-        sigma = self.softplus(self.lin_m_s(mean_.relu())) + self._eps
+        return loc, scale
+        # r = torch.relu(self.lin_xr(x) + self.lin_hr(h))
+        # mean_: torch.Tensor = self.lin_xm_(x) + self.lin_rm_(r)
 
-        return mean, sigma
+        # g = torch.sigmoid(self.lin_xg(x) + self.lin_hg(h))
+
+        # mean: torch.Tensor = (1 - g) * self.lin_hm(h) + g * mean_
+        # sigma = self.softplus(self.lin_m_s(mean_.relu())) + self._eps
+        # return mean, sigma
 
 
 class Emitter(nn.Module):

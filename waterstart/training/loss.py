@@ -9,15 +9,16 @@ from ..inference.low_level_engine import LowLevelInferenceEngine
 class Critic(nn.Module):
     def __init__(self, n_features: int, z_dim: int, hidden_dim: int, n_traded_sym: int):
         super().__init__()
-        self.lin1 = nn.Linear(n_features + z_dim, hidden_dim)
-        self.lin2 = nn.Linear(hidden_dim, hidden_dim)
-        self.lin3 = nn.Linear(hidden_dim, 1)
+        self._gru = nn.GRUCell(n_features, z_dim)
+        self._lin1 = nn.Linear(z_dim, hidden_dim)
+        self._lin2 = nn.Linear(hidden_dim, 1)
+        # self.lin3 = nn.Linear(hidden_dim, 1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore
-        out = self.lin1(x).relu()
-        out = self.lin2(out).relu()
+    def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:  # type: ignore
+        out = self._gru(x, h)
+        out = self._lin1(out).relu()
 
-        return self.lin3(out).squeeze(-1)
+        return self._lin2(out).squeeze(-1)
 
 
 @dataclass
@@ -80,16 +81,18 @@ class LossEvaluator(nn.Module):
         exec_logprobs = raw_model_output.exec_logprobs
         tot_logprob = raw_model_output.z_logprob + exec_logprobs.sum(0)
 
-        critic_input = torch.cat(
-            [raw_model_output.cnn_output.detach(), model_input.hidden_state], dim=-1
+        hidden_state = model_input.hidden_state
+        batch_shape = hidden_state[..., 0].shape
+        values: torch.Tensor = self._critic(
+            raw_model_output.cnn_output,
+            model_input.hidden_state.flatten(0, -2),
         )
-        assert not critic_input.requires_grad
-        values: torch.Tensor = self._critic(critic_input)
+        values = values.unflatten(0, batch_shape)  # type: ignore
 
         loss = -rewards.detach()
-        deltas = rewards[:-1] + 0.99 * values[1:] - values[:-1]
+        deltas = rewards[:-1] + torch.detach(0.99 * values[1:] - values[:-1])
 
-        surrogate_loss = tot_logprob[:-1] * deltas.detach()
+        surrogate_loss = tot_logprob[:-1] * deltas.detach() + deltas
         baseline_loss = (values[:-1] - (rewards[:-1].detach() + 0.99 * values[1:])) ** 2
 
         new_balance = old_balance + profit_loss

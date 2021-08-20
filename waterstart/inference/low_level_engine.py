@@ -289,11 +289,15 @@ class LowLevelInferenceEngine(nn.Module):
             scaled_market_data.flatten(0, -3), trades_data.flatten(0, -2)
         )
         batch_shape = trades_data[..., 0].shape
-        cnn_output = cnn_output.unflatten(0, batch_shape)  # type: ignore
+        # cnn_output = cnn_output.unflatten(0, batch_shape)  # type: ignore
 
         z_loc: torch.Tensor
         z_scale: torch.Tensor
-        z_loc, z_scale = net_modules.gated_trans(cnn_output, hidden_state)
+        z_loc, z_scale = net_modules.gated_trans(
+            cnn_output, hidden_state.flatten(0, -2)
+        )
+        z_loc = z_loc.unflatten(0, batch_shape)  # type: ignore
+        z_scale = z_scale.unflatten(0, batch_shape)  # type: ignore
 
         # z_dist = dist.TransformedDistribution(
         #     dist.Normal(z_loc, z_scale), net_modules.iafs
@@ -417,8 +421,8 @@ class LowLevelInferenceEngine(nn.Module):
 
         assert not torch.any((new_trades_sizes == 0) != (new_trades_prices == 0))
         assert torch.all(
-            torch.all(new_trades_sizes >= 0, dim=0)
-            | torch.all(new_trades_sizes <= 0, dim=0)
+            torch.all((new_trades_sizes >= 0) & (closed_trades_sizes >= 0), dim=0)
+            | torch.all((new_trades_sizes <= 0) & (closed_trades_sizes <= 0), dim=0)
         )
         assert cls._get_validity_mask(new_trades_sizes).all()
 

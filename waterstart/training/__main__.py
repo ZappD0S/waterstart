@@ -26,8 +26,8 @@ SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
 class TraingingArgs(argparse.Namespace):
     train_data_file: str = ""
     iterations: int = 0
-    learning_rate: float = 1e-4
-    baseline_learning_rate: float = 1e-4
+    learning_rate: float = 1e-3
+    baseline_learning_rate: float = 1e-3
     weight_decay: float = 0.1
     max_gradient_norm: float = 10.0
     detect_anomaly: bool = False
@@ -191,9 +191,7 @@ def get_modules(
     net_modules: NetworkModules = torch.load(  # type: ignore
         latest_checkpoint_dir / "net_modules.pt"
     )
-    critic: Critic = torch.load(  # type: ignore
-        latest_checkpoint_dir / "critic.pt"
-    )
+    critic: Critic = torch.load(latest_checkpoint_dir / "critic.pt")  # type: ignore
 
     return net_modules, critic
 
@@ -219,9 +217,7 @@ def main(args: TraingingArgs):
     loss_eval.to(device)  # type: ignore
 
     parameters = list(loss_eval.parameters())
-    optimizer = torch.optim.Adam(
-        parameters, lr=args.learning_rate, weight_decay=args.weight_decay
-    )
+    optimizer = torch.optim.Adam(parameters, lr=args.learning_rate, eps=1e-5)
     writer = SummaryWriter(args.tensorboard_log_dir)
 
     train_data_manager = TrainDataManager(
