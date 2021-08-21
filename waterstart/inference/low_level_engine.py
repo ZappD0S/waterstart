@@ -325,7 +325,8 @@ class LowLevelInferenceEngine(nn.Module):
         exec_logprobs: torch.Tensor = exec_dist.log_prob(exec_samples)  # type: ignore
 
         frac_dist = dist.TransformedDistribution(
-            dist.Normal(frac_loc, frac_scale), dist.transforms.TanhTransform()
+            dist.Normal(frac_loc, frac_scale),
+            dist.transforms.TanhTransform(cache_size=1),
         )
         fracs: torch.Tensor = frac_dist.sample()  # type: ignore
         fracs_logprobs: torch.Tensor = frac_dist.log_prob(fracs)  # type: ignore

@@ -21,6 +21,7 @@ class GatedTransition(nn.Module):
         self._lin_mean = nn.Linear(z_dim, z_dim)
         self._lin_log_std = nn.Linear(z_dim, z_dim)
 
+
         # self.lin_xr = nn.Linear(input_dim, hidden_dim)
         # self.lin_hr = nn.Linear(z_dim, hidden_dim)
 
