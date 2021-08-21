@@ -58,6 +58,7 @@ class NetworkModules(nn.Module):
         self._max_trades = cnn.max_trades
         self._window_size = cnn.window_size
         self._hidden_state_size = gated_trans.z_dim
+        self._batch_size = cnn.batch_size
         self._leverage = leverage
 
     @property
@@ -83,6 +84,10 @@ class NetworkModules(nn.Module):
     @property
     def window_size(self) -> int:
         return self._window_size
+
+    @property
+    def batch_size(self) -> int:
+        return self._batch_size
 
     @property
     def cnn(self) -> CNN:
@@ -265,7 +270,7 @@ class LowLevelInferenceEngine(nn.Module):
         )
 
         new_pos_sizes = self._compute_new_pos_sizes(
-            model_output.fractions,
+            model_output.fracs,
             model_output.exec_mask,
             account_state.pos_size,
             market_state.margin_rate,
@@ -301,21 +306,29 @@ class LowLevelInferenceEngine(nn.Module):
 
         # z_dist = dist.TransformedDistribution(
         #     dist.Normal(z_loc, z_scale), net_modules.iafs
-        # )0
+        # )
         z_dist = dist.Independent(dist.Normal(z_loc, z_scale), 1)
-        z_sample: torch.Tensor = z_dist.rsample()  # type: ignore
+        z_sample: torch.Tensor = z_dist.sample()  # type: ignore
         z_logprob: torch.Tensor = z_dist.log_prob(z_sample)  # type: ignore
 
         exec_logits: torch.Tensor
-        fractions: torch.Tensor
-        exec_logits, fractions = net_modules.emitter(z_sample)
+        frac_loc: torch.Tensor
+        frac_scale: torch.Tensor
+        exec_logits, frac_loc, frac_scale = net_modules.emitter(z_sample)
 
         exec_logits = exec_logits.movedim(-1, 0)
-        fractions = fractions.movedim(-1, 0)
+        frac_loc = frac_loc.movedim(-1, 0)
+        frac_scale = frac_scale.movedim(-1, 0)
 
         exec_dist = dist.Bernoulli(logits=exec_logits)
         exec_samples: torch.Tensor = exec_dist.sample()  # type: ignore
         exec_logprobs: torch.Tensor = exec_dist.log_prob(exec_samples)  # type: ignore
+
+        frac_dist = dist.TransformedDistribution(
+            dist.Normal(frac_loc, frac_scale), dist.transforms.TanhTransform()
+        )
+        fracs: torch.Tensor = frac_dist.sample()  # type: ignore
+        fracs_logprobs: torch.Tensor = frac_dist.log_prob(fracs)  # type: ignore
 
         return RawModelOutput(
             cnn_output=cnn_output,
@@ -323,7 +336,8 @@ class LowLevelInferenceEngine(nn.Module):
             z_logprob=z_logprob,
             exec_samples=exec_samples,
             exec_logprobs=exec_logprobs,
-            fractions=fractions,
+            fracs=fracs,
+            fracs_logprobs=fracs_logprobs,
         )
 
     @staticmethod

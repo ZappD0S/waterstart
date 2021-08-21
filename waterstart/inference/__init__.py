@@ -48,7 +48,8 @@ class RawModelOutput:
     z_logprob: torch.Tensor
     exec_samples: torch.Tensor
     exec_logprobs: torch.Tensor
-    fractions: torch.Tensor
+    fracs: torch.Tensor
+    fracs_logprobs: torch.Tensor
 
     @cached_property
     def exec_mask(self) -> torch.Tensor:

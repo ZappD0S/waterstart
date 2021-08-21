@@ -5,8 +5,10 @@ import torch
 import torch.nn as nn
 
 
-# def clamp_preserve_gradients(x: torch.Tensor, min: float, max: float) -> torch.Tensor:
-#     return x + torch.detach(x.clamp(min, max) - x)
+def get_std(log_std: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    below_threshold = log_std.exp()
+    above_threshold = torch.log1p(log_std + eps) + 1.0
+    return torch.where(log_std > 0, above_threshold, below_threshold)
 
 
 class GatedTransition(nn.Module):
@@ -14,11 +16,11 @@ class GatedTransition(nn.Module):
         super().__init__()
         self.input_dim = input_dim
         self.z_dim = z_dim
-        self._softplus = nn.Softplus()
 
         self._gru = nn.GRUCell(input_dim, z_dim)
-        self._lin_loc = nn.Linear(z_dim, z_dim)
-        self._lin_scale = nn.Linear(z_dim, z_dim)
+        self._lin_mean = nn.Linear(z_dim, z_dim)
+        self._lin_log_std = nn.Linear(z_dim, z_dim)
+
         # self.lin_xr = nn.Linear(input_dim, hidden_dim)
         # self.lin_hr = nn.Linear(z_dim, hidden_dim)
 
@@ -31,18 +33,17 @@ class GatedTransition(nn.Module):
         # self.lin_hm = nn.Linear(z_dim, z_dim)
 
         # self.lin_m_s = nn.Linear(z_dim, z_dim)
-        self._eps = torch.finfo(torch.get_default_dtype()).eps
 
     def forward(  # type: ignore
         self, x: torch.Tensor, h: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        x.flatten(0, -2)
         out = self._gru(x, h)
 
-        loc = self._lin_loc(out)
-        scale = self._softplus(self._lin_scale(out)) + self._eps
+        mean = self._lin_mean(out)
+        log_std = self._lin_log_std(out)
+        return mean, get_std(log_std)
+        # scale = self._lin_scale(out)[..., self._rev_tril_inds].tril()
 
-        return loc, scale
         # r = torch.relu(self.lin_xr(x) + self.lin_hr(h))
         # mean_: torch.Tensor = self.lin_xm_(x) + self.lin_rm_(r)
 
@@ -59,18 +60,23 @@ class Emitter(nn.Module):
         self.n_traded_sym = n_traded_sym
         self.lin1 = nn.Linear(z_dim, hidden_dim)
         self.lin2 = nn.Linear(hidden_dim, hidden_dim)
-        self.lin_logits = nn.Linear(hidden_dim, n_traded_sym)
-        self.lin_fraction = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin_exec_logits = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin_frac_mean = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin_frac_log_std = nn.Linear(hidden_dim, n_traded_sym)
 
     def forward(  # type: ignore
         self, z: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # z: (..., z_dim)
 
         out = self.lin1(z).relu()
         out = self.lin2(out).relu()
 
-        return self.lin_logits(out), self.lin_fraction(out).tanh()
+        exec_logits = self.lin_exec_logits(out)
+        frac_mean = self.lin_frac_mean(out)
+        frac_log_std = self.lin_frac_log_std(out)
+
+        return exec_logits, frac_mean, get_std(frac_log_std)
 
 
 # TODO: should we keep this name?

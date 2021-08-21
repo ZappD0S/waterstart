@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import torch
 import torch.nn as nn
+import torch.jit as jit
 
 from ..inference import ModelInput, AccountState
 from ..inference.low_level_engine import LowLevelInferenceEngine
@@ -35,6 +36,25 @@ class LossEvaluator(nn.Module):
         self._engine = engine
         self._net_modules = engine.net_modules
         self._critic = critic
+        self._gamma = 0.99
+        self._gae_lambda = 0.95
+
+    @jit.export  # type: ignore
+    def _compute_returns(
+        self, rewards: torch.Tensor, values: torch.Tensor
+    ) -> torch.Tensor:
+        advantages = torch.zeros_like(rewards)
+        last_gae_lam = rewards.new_zeros([])
+        gamma = self._gamma
+        gae_lambda = self._gae_lambda
+
+        for step in reversed(range(self._net_modules.batch_size - 1)):
+            delta = rewards[step] + gamma * values[step + 1] - values[step]
+            last_gae_lam = delta + gamma * gae_lambda * last_gae_lam
+            advantages[step] = last_gae_lam
+
+        returns = advantages + values
+        return returns[:-1]
 
     def forward(self, model_input: ModelInput) -> LossOutput:  # type: ignore
         market_state = model_input.market_state
@@ -48,13 +68,6 @@ class LossEvaluator(nn.Module):
         half_spreads = market_state.spreads / 2
         bid_prices = midpoint_prices - half_spreads
         ask_prices = midpoint_prices + half_spreads
-
-        trade_size = new_pos_size - old_account_state.pos_size
-        trade_price = torch.where(
-            trade_size > 0,
-            ask_prices,
-            torch.where(trade_size < 0, bid_prices, bid_prices.new_zeros([])),
-        )
 
         account_state, closed_trades_sizes = self._engine.close_or_reduce_trades(
             old_account_state, new_pos_size
@@ -78,8 +91,10 @@ class LossEvaluator(nn.Module):
         assert torch.all(ratio > -1)
         rewards = torch.log1p(ratio)
 
+        z_logprob = raw_model_output.z_logprob
         exec_logprobs = raw_model_output.exec_logprobs
-        tot_logprob = raw_model_output.z_logprob + exec_logprobs.sum(0)
+        fracs_logprobs = raw_model_output.fracs_logprobs
+        tot_logprob = z_logprob + exec_logprobs.sum(0) + fracs_logprobs.sum(0)
 
         hidden_state = model_input.hidden_state
         batch_shape = hidden_state[..., 0].shape
@@ -90,10 +105,14 @@ class LossEvaluator(nn.Module):
         values = values.unflatten(0, batch_shape)  # type: ignore
 
         loss = -rewards.detach()
-        deltas = rewards[:-1] + torch.detach(0.99 * values[1:] - values[:-1])
 
-        surrogate_loss = tot_logprob[:-1] * deltas.detach() + deltas
-        baseline_loss = (values[:-1] - (rewards[:-1].detach() + 0.99 * values[1:])) ** 2
+        returns = self._compute_returns(rewards, values)
+
+        advantages = returns - values[:-1]
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        surrogate_loss = tot_logprob[:-1] * advantages.detach()
+        baseline_loss = (values[:-1] - returns.detach()) ** 2
 
         new_balance = old_balance + profit_loss
         assert torch.all(new_balance > 0)
