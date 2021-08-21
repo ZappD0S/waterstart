@@ -163,6 +163,7 @@ class LowLevelInferenceEngine(nn.Module):
         self._scaling_idx = net_modules.market_data_arr_mapper.scaling_idxs
         self._leverage = net_modules.leverage
         self._n_traded_sym = net_modules.n_traded_sym
+        self._tanh_transform = dist.transforms.TanhTransform(cache_size=1)
 
     @property
     def net_modules(self) -> NetworkModules:
@@ -307,7 +308,9 @@ class LowLevelInferenceEngine(nn.Module):
         # z_dist = dist.TransformedDistribution(
         #     dist.Normal(z_loc, z_scale), net_modules.iafs
         # )
-        z_dist = dist.Independent(dist.Normal(z_loc, z_scale), 1)
+        z_dist = dist.TransformedDistribution(
+            dist.Independent(dist.Normal(z_loc, z_scale), 1), self._tanh_transform
+        )
         z_sample: torch.Tensor = z_dist.sample()  # type: ignore
         z_logprob: torch.Tensor = z_dist.log_prob(z_sample)  # type: ignore
 
@@ -325,8 +328,7 @@ class LowLevelInferenceEngine(nn.Module):
         exec_logprobs: torch.Tensor = exec_dist.log_prob(exec_samples)  # type: ignore
 
         frac_dist = dist.TransformedDistribution(
-            dist.Normal(frac_loc, frac_scale),
-            dist.transforms.TanhTransform(cache_size=1),
+            dist.Normal(frac_loc, frac_scale), self._tanh_transform
         )
         fracs: torch.Tensor = frac_dist.sample()  # type: ignore
         fracs_logprobs: torch.Tensor = frac_dist.log_prob(fracs)  # type: ignore

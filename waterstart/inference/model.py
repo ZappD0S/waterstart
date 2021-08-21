@@ -21,20 +21,6 @@ class GatedTransition(nn.Module):
         self._lin_mean = nn.Linear(z_dim, z_dim)
         self._lin_log_std = nn.Linear(z_dim, z_dim)
 
-
-        # self.lin_xr = nn.Linear(input_dim, hidden_dim)
-        # self.lin_hr = nn.Linear(z_dim, hidden_dim)
-
-        # self.lin_xm_ = nn.Linear(input_dim, z_dim)
-        # self.lin_rm_ = nn.Linear(hidden_dim, z_dim)
-
-        # self.lin_xg = nn.Linear(input_dim, z_dim)
-        # self.lin_hg = nn.Linear(z_dim, z_dim)
-
-        # self.lin_hm = nn.Linear(z_dim, z_dim)
-
-        # self.lin_m_s = nn.Linear(z_dim, z_dim)
-
     def forward(  # type: ignore
         self, x: torch.Tensor, h: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -43,16 +29,6 @@ class GatedTransition(nn.Module):
         mean = self._lin_mean(out)
         log_std = self._lin_log_std(out)
         return mean, get_std(log_std)
-        # scale = self._lin_scale(out)[..., self._rev_tril_inds].tril()
-
-        # r = torch.relu(self.lin_xr(x) + self.lin_hr(h))
-        # mean_: torch.Tensor = self.lin_xm_(x) + self.lin_rm_(r)
-
-        # g = torch.sigmoid(self.lin_xg(x) + self.lin_hg(h))
-
-        # mean: torch.Tensor = (1 - g) * self.lin_hm(h) + g * mean_
-        # sigma = self.softplus(self.lin_m_s(mean_.relu())) + self._eps
-        # return mean, sigma
 
 
 class Emitter(nn.Module):
