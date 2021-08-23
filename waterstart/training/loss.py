@@ -13,7 +13,6 @@ class Critic(nn.Module):
         self._gru = nn.GRUCell(n_features, z_dim)
         self._lin1 = nn.Linear(z_dim, hidden_dim)
         self._lin2 = nn.Linear(hidden_dim, 1)
-        # self.lin3 = nn.Linear(hidden_dim, 1)
 
     def forward(self, x: torch.Tensor, h: torch.Tensor) -> torch.Tensor:  # type: ignore
         out = self._gru(x, h)
@@ -31,12 +30,14 @@ class LossOutput:
 
 
 class LossEvaluator(nn.Module):
-    def __init__(self, engine: LowLevelInferenceEngine, critic: Critic) -> None:
+    def __init__(
+        self, engine: LowLevelInferenceEngine, critic: Critic, gamma: float
+    ) -> None:
         super().__init__()
         self._engine = engine
         self._net_modules = engine.net_modules
         self._critic = critic
-        self._gamma = 0.99
+        self._gamma = gamma
         self._gae_lambda = 0.95
 
     @jit.export  # type: ignore
@@ -76,8 +77,8 @@ class LossEvaluator(nn.Module):
         closed_size = closed_trades_sizes.sum(0)
         close_price = torch.where(
             closed_size > 0,
-            ask_prices,
-            torch.where(closed_size < 0, bid_prices, bid_prices.new_zeros([])),
+            bid_prices,
+            torch.where(closed_size < 0, ask_prices, bid_prices.new_zeros([])),
         )
         profit_loss = torch.sum(
             closed_trades_sizes

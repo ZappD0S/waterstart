@@ -248,23 +248,40 @@ class LowLevelInferenceEngine(nn.Module):
 
         assert scaled_market_data.isfinite().all()
 
+        midpoint_prices = market_state.midpoint_prices
+        half_spreads = market_state.spreads / 2
+        bid_prices = midpoint_prices - half_spreads
+        ask_prices = midpoint_prices + half_spreads
+
         account_state = model_input.account_state
-        rel_prices = account_state.trades_prices / market_state.midpoint_prices
-
-        trades_used_margins = account_state.trades_sizes / (
-            market_state.margin_rate * self._leverage
-        )
-        pos_used_margins = trades_used_margins.sum(0)
-
+        trades_sizes = account_state.trades_sizes
+        pos_size = account_state.pos_size
         balance = account_state.balance
+
+        close_price = torch.where(
+            pos_size > 0,
+            bid_prices,
+            torch.where(pos_size < 0, ask_prices, bid_prices.new_zeros([])),
+        )
+        profits_losses = torch.sum(
+            trades_sizes
+            * (close_price - account_state.trades_prices)
+            / market_state.quote_to_dep_rate,
+            dim=0,
+        )
+
+        pos_used_margins = pos_size / (market_state.margin_rate * self._leverage)
         unused_margin = balance - pos_used_margins.abs().sum(0)
         # unused_margin = unused_margin.maximum(unused_margin.new_zeros([]))
 
-        rel_margins = (
-            torch.cat((trades_used_margins.flatten(0, 1), unused_margin.unsqueeze(0)))
-            / balance
+        used_trades_fracs = torch.sum(trades_sizes != 0, dim=0) / trades_sizes.shape[0]
+
+        trades_data = torch.stack(
+            (profits_losses / balance, pos_used_margins / balance, used_trades_fracs)
         )
-        trades_data = torch.cat((rel_margins, rel_prices.flatten(0, 1))).movedim(0, -1)
+        trades_data = torch.cat(
+            (trades_data.flatten(0, 1), torch.unsqueeze(unused_margin / balance, dim=0))
+        ).movedim(0, -1)
 
         model_output = self._evaluate(
             trades_data, scaled_market_data, model_input.hidden_state
@@ -273,7 +290,7 @@ class LowLevelInferenceEngine(nn.Module):
         new_pos_sizes = self._compute_new_pos_sizes(
             model_output.fracs,
             model_output.exec_mask,
-            account_state.pos_size,
+            pos_size,
             market_state.margin_rate,
             unused_margin,
         )

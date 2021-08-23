@@ -74,7 +74,7 @@ class CNN(nn.Module):
         self.kernel_size = 3
         self.n_traded_sym = n_traded_sym
         self.max_trades = max_trades
-        self.prev_step_features = 2 * n_traded_sym * max_trades + 1
+        self.prev_step_features = 3 * n_traded_sym + 1
 
         hidden_dim = 2 ** max(
             5, round(log2(fmean((market_features, self.prev_step_features))))

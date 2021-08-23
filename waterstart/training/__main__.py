@@ -2,7 +2,7 @@ import argparse
 import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -12,23 +12,23 @@ from pyro.distributions.transforms.affine_autoregressive import (  # type: ignor
 )
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm  # type: ignore
+from shutil import rmtree
 
 from ..inference.low_level_engine import LowLevelInferenceEngine, NetworkModules
 from ..inference.model import CNN, Emitter, GatedTransition
-from .loss import LossEvaluator, LossOutput, Critic
-
-from .train_data import TrainDataManager, TrainingData
+from .loss import Critic, LossEvaluator, LossOutput
+from .train_data import TrainDataManager, TrainingData, TrainingState
 
 SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
 
 
 @dataclass
-class TraingingArgs(argparse.Namespace):
+class TrainingArgs(argparse.Namespace):
     train_data_file: str = ""
     iterations: int = 0
     learning_rate: float = 1e-3
     baseline_learning_rate: float = 1e-3
-    weight_decay: float = 0.1
+    gamma: float = 0.99
     max_gradient_norm: float = 10.0
     detect_anomaly: bool = False
     use_cuda: bool = False
@@ -123,7 +123,7 @@ def write_summary(
 
 
 def build_modules(
-    args: TraingingArgs, training_data: TrainingData
+    args: TrainingArgs, training_data: TrainingData
 ) -> tuple[NetworkModules, Critic]:
     cnn = CNN(
         args.batch_size,
@@ -162,13 +162,8 @@ def build_modules(
     )
 
 
-def get_modules(
-    args: TraingingArgs, training_data: TrainingData
-) -> tuple[NetworkModules, Critic]:
-    if args.checkpoints_dir is None or not args.load_checkpoint:
-        return build_modules(args, training_data)
-
-    checkpoints_dir = Path(args.checkpoints_dir)
+def load_state_dict(search_dir: str) -> Optional[dict[str, Any]]:
+    checkpoints_dir = Path(search_dir)
     latest_checkpoint_dir: Optional[Path] = None
     latest_dt: datetime.datetime = datetime.datetime.min
 
@@ -177,7 +172,7 @@ def get_modules(
             continue
 
         try:
-            dt = datetime.datetime.strptime(str(dir), SAVE_FOLDER_NAME_FORMAT)
+            dt = datetime.datetime.strptime(dir.name, SAVE_FOLDER_NAME_FORMAT)
         except ValueError:
             raise RuntimeError()
 
@@ -186,33 +181,98 @@ def get_modules(
             latest_checkpoint_dir = dir
 
     if latest_checkpoint_dir is None:
-        raise RuntimeError()
+        return None
 
-    net_modules: NetworkModules = torch.load(  # type: ignore
-        latest_checkpoint_dir / "net_modules.pt"
+    state_dict = torch.load(latest_checkpoint_dir / "checkpoint.pt")  # type: ignore
+
+    assert isinstance(state_dict, dict)
+    assert all(isinstance(key, str) for key in state_dict)  # type: ignore
+
+    return state_dict  # type: ignore
+
+
+def init_training_state(
+    args: TrainingArgs, training_data: TrainingData
+) -> TrainingState:
+    n_timestemps = training_data.n_timestemps
+    n_traded_sym = training_data.n_traded_sym
+    n_samples = args.n_samples
+    max_trades = args.max_trades
+
+    return TrainingState(
+        torch.full((n_timestemps, n_samples), args.initial_balance),
+        torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
+        torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
+        torch.zeros((n_timestemps, n_samples, args.hidden_state_size)),
+        None,
+        None,
     )
-    critic: Critic = torch.load(latest_checkpoint_dir / "critic.pt")  # type: ignore
-
-    return net_modules, critic
 
 
-def save_modules(
-    checkpoints_dir: str, net_modules: NetworkModules, critic: Critic
+def get_state(
+    args: TrainingArgs, training_data: TrainingData
+) -> tuple[NetworkModules, Critic, TrainingState]:
+
+    net_modules, critic = build_modules(args, training_data)
+
+    if (
+        (checkpoints_dir := args.checkpoints_dir) is None
+        or not args.load_checkpoint
+        or (state_dict := load_state_dict(checkpoints_dir)) is None
+    ):
+        return net_modules, critic, init_training_state(args, training_data)
+
+    net_modules.load_state_dict(state_dict["net_modules"])
+    critic.load_state_dict(state_dict["critic"])
+    training_state = state_dict["training_state"]
+    assert isinstance(training_state, TrainingState)
+    return net_modules, critic, training_state
+
+
+def remove_content(save_dir: Path) -> None:
+    for dir in save_dir.iterdir():
+        if not dir.is_dir():
+            continue
+
+        try:
+            datetime.datetime.strptime(dir.name, SAVE_FOLDER_NAME_FORMAT)
+        except ValueError:
+            continue
+
+        rmtree(dir)
+
+
+def save_state(
+    checkpoints_dir: Path,
+    net_modules: NetworkModules,
+    critic: Critic,
+    training_state: TrainingState,
+    remove_prev: bool = True,
 ) -> None:
+    if remove_prev:
+        remove_content(checkpoints_dir)
+
     now = datetime.datetime.now()
-    save_dir = checkpoints_dir / Path(now.strftime(SAVE_FOLDER_NAME_FORMAT))
+    save_dir = checkpoints_dir / now.strftime(SAVE_FOLDER_NAME_FORMAT)
     save_dir.mkdir(parents=True)
-    torch.save(net_modules, save_dir / "net_modules.pt")  # type: ignore
-    torch.save(critic, save_dir / "critic.pt")  # type: ignore
+
+    torch.save(  # type: ignore
+        {
+            "net_modules": net_modules.state_dict(),
+            "critic": critic.state_dict(),
+            "training_state": training_state,
+        },
+        save_dir / "checkpoint.pt",
+    )
 
 
-def main(args: TraingingArgs):
+def main(args: TrainingArgs):
     training_data = load_training_data(args.train_data_file)
-    net_modules, critic = get_modules(args, training_data)
+    net_modules, critic, training_state = get_state(args, training_data)
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
-    loss_eval = LossEvaluator(LowLevelInferenceEngine(net_modules), critic)
+    loss_eval = LossEvaluator(LowLevelInferenceEngine(net_modules), critic, args.gamma)
     device = torch.device("cuda" if args.use_cuda else "cpu")
     loss_eval.to(device)  # type: ignore
 
@@ -222,23 +282,21 @@ def main(args: TraingingArgs):
 
     train_data_manager = TrainDataManager(
         training_data,
+        training_state,
         args.batch_size,
         args.n_samples,
         args.window_size,
-        args.max_trades,
-        args.hidden_state_size,
-        args.initial_balance,
         device,
     )
 
     max_gradient_norm = args.max_gradient_norm
     checkpoint_interval = args.checkpoint_interval
-    checkpoints_dir = args.checkpoints_dir
+    checkpoints_dir = None if (dir := args.checkpoints_dir) is None else Path(dir)
 
     try:
         n_iter: int
         for n_iter in tqdm(range(args.iterations)):  # type: ignore
-            model_input = train_data_manager.load()
+            model_input = train_data_manager.load_data()
             loss_out: LossOutput = loss_eval(model_input)  # type: ignore
 
             loss_out.surrogate_loss.mean().backward()  # type: ignore
@@ -253,10 +311,15 @@ def main(args: TraingingArgs):
                 writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
             )
 
-            train_data_manager.save(loss_out.account_state, loss_out.hidden_state)
+            train_data_manager.store_data(loss_out.account_state, loss_out.hidden_state)
 
             if checkpoints_dir is not None and (n_iter + 1) % checkpoint_interval == 0:
-                save_modules(checkpoints_dir, net_modules, critic)
+                save_state(
+                    checkpoints_dir,
+                    net_modules,
+                    critic,
+                    train_data_manager.save_state(),
+                )
     finally:
         if args.replay_buffers_save_dir is not None:
             np.savez_compressed(  # type: ignore
@@ -273,7 +336,7 @@ parser.add_argument("train_data_file", type=str)
 parser.add_argument("iterations", type=int)
 parser.add_argument("-lr", "--learning-rate", type=float)
 parser.add_argument("--baseline-learning-rate", type=float)
-parser.add_argument("--weight-decay", type=float)
+parser.add_argument("--gamma", type=float)
 parser.add_argument("--max-gradient-norm", type=float)
 parser.add_argument("--detect-anomaly", action="store_true")
 parser.add_argument("--use-cuda", action="store_true")
@@ -298,6 +361,6 @@ parser.add_argument("--checkpoints-dir", type=str)
 parser.add_argument("--load-checkpoint", action="store_true")
 parser.add_argument("--replay-buffers-save-dir", type=str)
 
-nsp = TraingingArgs()
+nsp = TrainingArgs()
 args = parser.parse_args(namespace=nsp)
 main(args)

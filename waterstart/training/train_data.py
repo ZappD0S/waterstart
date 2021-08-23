@@ -188,42 +188,48 @@ class BatchManager(ReadonlyBatchManager):
         return batch.permute(*range(ndim - batch_dims, ndim), *range(ndim - batch_dims))
 
 
+@dataclass
+class TrainingState:
+    balances: torch.Tensor
+    trades_sizes: torch.Tensor
+    trades_prices: torch.Tensor
+    hidden_states: torch.Tensor
+    batch_inds_it: Optional[Iterator[torch.Tensor]]
+    next_batch_inds: Optional[torch.Tensor]
+
+
 class TrainDataManager:
     def __init__(
         self,
         training_data: TrainingData,
-        # TODO: maybe pass NetworkModules instead?
+        training_state: TrainingState,
         batch_size: int,
         n_samples: int,
         window_size: int,
-        max_trades: int,
-        hidden_state_size: int,
-        initial_balance: float,
         device: Optional[torch.device] = None,
     ) -> None:
-        n_timestemps = training_data.n_timestemps
-        n_traded_sym = training_data.n_traded_sym
+        # TODO: check that training_data and training_state shapes match
 
         self._balances_batch_manager = BatchManager(
-            torch.full((n_timestemps, n_samples), initial_balance),
+            training_state.balances,
             batch_dims=2,
             load_lag=1,
             device=device,
         )
         self._trades_sizes_batch_manager = BatchManager(
-            torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
+            training_state.trades_sizes,
             batch_dims=2,
             load_lag=1,
             device=device,
         )
         self._trades_prices_batch_manager = BatchManager(
-            torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
+            training_state.trades_prices,
             batch_dims=2,
             load_lag=1,
             device=device,
         )
         self._hidden_states_batch_manager = BatchManager(
-            torch.zeros((n_timestemps, n_samples, hidden_state_size)),
+            training_state.hidden_states,
             batch_dims=2,
             load_lag=1,
             batch_dims_last=False,
@@ -267,11 +273,19 @@ class TrainDataManager:
             device=device,
         )
 
-        self._n_timestemps = n_timestemps
+        self._n_timestemps = training_data.n_timestemps
         self._batch_size = batch_size
         self._window_size = window_size
-        self._batch_inds_it: Iterator[torch.Tensor] = self._build_batch_inds_it()
-        self._next_batch_inds: Optional[torch.Tensor] = next(self._batch_inds_it)
+
+        batch_inds_it = training_state.batch_inds_it
+        next_batch_inds = training_state.next_batch_inds
+        if batch_inds_it is None:
+            batch_inds_it = self._build_batch_inds_it()
+            assert next_batch_inds is None
+            next_batch_inds = next(batch_inds_it)
+
+        self._batch_inds_it = batch_inds_it
+        self._next_batch_inds = next_batch_inds
         self._save_pending: bool = False
 
     @property
@@ -295,7 +309,7 @@ class TrainDataManager:
         rand_perm = torch.randperm(batch_inds.shape[0])
         return iter(batch_inds[rand_perm])
 
-    def load(self) -> ModelInput:
+    def load_data(self) -> ModelInput:
         if (batch_inds := self._next_batch_inds) is None:
             self._batch_inds_it = self._build_batch_inds_it()
             batch_inds = self._next_batch_inds = next(self._batch_inds_it)
@@ -325,9 +339,20 @@ class TrainDataManager:
         )
 
     # TODO: maybe return the transformed balance batch from here (smth else?)
-    def save(self, account_state: AccountState, hidden_state: torch.Tensor) -> None:
+    def store_data(
+        self, account_state: AccountState, hidden_state: torch.Tensor
+    ) -> None:
         self._trades_sizes_batch_manager.store_batch(account_state.trades_sizes)
         self._trades_prices_batch_manager.store_batch(account_state.trades_prices)
         self._balances_batch_manager.store_batch(account_state.balance)
-
         self._hidden_states_batch_manager.store_batch(hidden_state)
+
+    def save_state(self) -> TrainingState:
+        return TrainingState(
+            self._balances_batch_manager.storage.cpu(),
+            self._trades_sizes_batch_manager.storage.cpu(),
+            self._trades_prices_batch_manager.storage.cpu(),
+            self._hidden_states_batch_manager.storage.cpu(),
+            self._batch_inds_it,
+            self._next_batch_inds,
+        )
