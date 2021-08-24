@@ -349,10 +349,10 @@ class TrainDataManager:
 
     def save_state(self) -> TrainingState:
         return TrainingState(
-            self._balances_batch_manager.storage.cpu(),
-            self._trades_sizes_batch_manager.storage.cpu(),
-            self._trades_prices_batch_manager.storage.cpu(),
-            self._hidden_states_batch_manager.storage.cpu(),
+            self._balances_batch_manager.storage,
+            self._trades_sizes_batch_manager.storage,
+            self._trades_prices_batch_manager.storage,
+            self._hidden_states_batch_manager.storage,
             self._batch_inds_it,
             self._next_batch_inds,
         )

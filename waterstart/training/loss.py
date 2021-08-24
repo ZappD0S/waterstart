@@ -136,6 +136,9 @@ class LossEvaluator(nn.Module):
             open_price,
         )
 
+        # exec_mask = raw_model_output.exec_mask
+        # assert (account_state.pos_size == old_account_state.pos_size)[~exec_mask].all()
+
         return LossOutput(
             loss,
             -surrogate_loss + 0.5 * baseline_loss,

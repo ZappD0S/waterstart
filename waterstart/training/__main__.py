@@ -49,7 +49,6 @@ class TrainingArgs(argparse.Namespace):
     checkpoint_interval: int = 1000
     checkpoints_dir: Optional[str] = None
     load_checkpoint: bool = False
-    replay_buffers_save_dir: Optional[str] = None
 
 
 def load_training_data(path: str) -> TrainingData:
@@ -293,40 +292,31 @@ def main(args: TrainingArgs):
     checkpoint_interval = args.checkpoint_interval
     checkpoints_dir = None if (dir := args.checkpoints_dir) is None else Path(dir)
 
-    try:
-        n_iter: int
-        for n_iter in tqdm(range(args.iterations)):  # type: ignore
-            model_input = train_data_manager.load_data()
-            loss_out: LossOutput = loss_eval(model_input)  # type: ignore
+    n_iter: int
+    for n_iter in tqdm(range(args.iterations)):  # type: ignore
+        model_input = train_data_manager.load_data()
+        loss_out: LossOutput = loss_eval(model_input)  # type: ignore
 
-            loss_out.surrogate_loss.mean().backward()  # type: ignore
+        optimizer.zero_grad()
+        loss_out.surrogate_loss.mean().backward()  # type: ignore
 
-            grad_norm = nn.utils.clip_grad_norm_(
-                parameters, max_norm=max_gradient_norm, error_if_nonfinite=True
-            )
-            optimizer.step()
-            optimizer.zero_grad()
+        grad_norm = nn.utils.clip_grad_norm_(
+            parameters, max_norm=max_gradient_norm, error_if_nonfinite=True
+        )
+        optimizer.step()
 
-            write_summary(
-                writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
-            )
+        write_summary(
+            writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
+        )
 
-            train_data_manager.store_data(loss_out.account_state, loss_out.hidden_state)
+        train_data_manager.store_data(loss_out.account_state, loss_out.hidden_state)
 
-            if checkpoints_dir is not None and (n_iter + 1) % checkpoint_interval == 0:
-                save_state(
-                    checkpoints_dir,
-                    net_modules,
-                    critic,
-                    train_data_manager.save_state(),
-                )
-    finally:
-        if args.replay_buffers_save_dir is not None:
-            np.savez_compressed(  # type: ignore
-                Path(args.replay_buffers_save_dir) / "replay_buffers.npz",
-                balances=train_data_manager.balances,
-                trades_sizes=train_data_manager.trades_sizes,
-                trades_prices=train_data_manager.trades_prices,
+        if checkpoints_dir is not None and (n_iter + 1) % checkpoint_interval == 0:
+            save_state(
+                checkpoints_dir,
+                net_modules,
+                critic,
+                train_data_manager.save_state(),
             )
 
 
@@ -359,7 +349,6 @@ parser.add_argument("--tensorboard-log-dir", type=str)
 parser.add_argument("--checkpoint-interval", type=int)
 parser.add_argument("--checkpoints-dir", type=str)
 parser.add_argument("--load-checkpoint", action="store_true")
-parser.add_argument("--replay-buffers-save-dir", type=str)
 
 nsp = TrainingArgs()
 args = parser.parse_args(namespace=nsp)
