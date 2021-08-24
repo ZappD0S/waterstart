@@ -17,8 +17,6 @@ class State(Generic[T]):
     call_setters_task: asyncio.Task[None]
 
 
-# TODO: maybe pass to the constructor a series of coroutines (or tasks?)
-# that are scheduled and when we close are canceled and awaited?
 class Observable(ABC, Generic[T]):
     def __init__(self) -> None:
         super().__init__()

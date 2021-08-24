@@ -167,9 +167,7 @@ class InferenceEngine:
 
         self._shift_and_maybe_update_market_state(market_state_arr, None)
 
-    def update_symbol_state(
-        self, sym_id: int, size: float, price: float, balance: Optional[float] = None
-    ) -> bool:
+    def update_symbol_state(self, sym_id: int, size: float, price: float) -> bool:
 
         # TODO: this is only correct once the state is initialized
         # the first time around we should do this check!
@@ -183,8 +181,8 @@ class InferenceEngine:
         trades_sizes_and_prices_map = self._trades_sizes_and_prices_map
         trades_sizes_and_prices_map[sym_id] = (size, price)
 
-        if balance is not None:
-            self.update_balance(balance)
+        # if balance is not None:
+        #     self.update_balance(balance)
 
         if done := not sym_left_to_update:
             self._update_trades(trades_sizes_and_prices_map)
@@ -214,14 +212,14 @@ class InferenceEngine:
             self._traded_sym_arr_mapper, trades_sizes_and_prices_map, np.float32
         )
         opened_mask = torch.from_numpy(masked_arrs.mask)  # type: ignore
-        new_pos_sizes, new_pos_prices = map(
+        new_trades_sizes, new_pos_prices = map(
             torch.from_numpy, masked_arrs  # type: ignore
         )
 
-        new_pos_sizes = new_pos_sizes.where(opened_mask, account_state.pos_size)
+        new_pos_sizes = account_state.pos_size + new_trades_sizes
 
         low_level_engine = self._low_level_engine
-        account_state = low_level_engine.close_or_reduce_trades(
+        account_state, _ = low_level_engine.close_or_reduce_trades(
             account_state, new_pos_sizes
         )
         # TODO: find decent name

@@ -50,6 +50,10 @@ class BaseMarketDataProducer(ABC):
         tick_producer: BaseTicksProducer,
         last_trading_time: datetime.datetime,
     ) -> AsyncIterator[MarketData[float]]:
+        symbols = self._symbols
+        aggregator = self._aggregator
+        MAX_TICKS_LEN = self.MAX_TICKS_LEN
+        ONE_DAY = self.ONE_DAY
 
         default_tb_data_map = {
             sym.id: SymbolData.build_default() for sym in self._traded_symbols
@@ -63,7 +67,7 @@ class BaseMarketDataProducer(ABC):
         loop = asyncio.get_running_loop()
 
         for next_trading_time in trading_times:
-            bid_ask_ticks_map = {sym.id: BidAskTicks([], []) for sym in self._symbols}
+            bid_ask_ticks_map = {sym.id: BidAskTicks([], []) for sym in symbols}
             aggreg_task: Awaitable[AggregationData]
             aggreg_task = get_default_aggreg_data(bid_ask_ticks_map)
 
@@ -74,7 +78,7 @@ class BaseMarketDataProducer(ABC):
                 ticks = ask_bid_ticks[tick_data.type]
                 ticks.append(tick_data.tick)
 
-                if len(ticks) < self.MAX_TICKS_LEN:
+                if len(ticks) < MAX_TICKS_LEN:
                     continue
 
                 try:
@@ -84,7 +88,7 @@ class BaseMarketDataProducer(ABC):
 
                 aggreg_task = loop.run_in_executor(
                     None,
-                    self._aggregator.aggregate,
+                    aggregator.aggregate,
                     AggregationData(bid_ask_ticks_map, aggreg_data.tb_data_map),
                 )
 
@@ -102,11 +106,11 @@ class BaseMarketDataProducer(ABC):
                 raise RuntimeError()
 
             aggreg_data = await aggreg_task
-            aggreg_data = self._aggregator.aggregate(
+            aggreg_data = aggregator.aggregate(
                 AggregationData(bid_ask_ticks_map, aggreg_data.tb_data_map)
             )
-            time_of_day = delta_to_midnight(next_trading_time) / self.ONE_DAY
-            delta_to_last = (next_trading_time - last_trading_time) / self.ONE_DAY
+            time_of_day = delta_to_midnight(next_trading_time) / ONE_DAY
+            delta_to_last = (next_trading_time - last_trading_time) / ONE_DAY
             yield MarketData(aggreg_data.tb_data_map, time_of_day, delta_to_last)
 
             last_trading_time = next_trading_time

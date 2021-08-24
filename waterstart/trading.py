@@ -51,6 +51,7 @@ class Trader:
 
         self._client = client
         self._engine = engine
+        self._balance_version = 0
 
         # TODO: store the state to disk (or to /tmp) so that we can reload if the
         # app crashes. But we also have to check that it's still valid
@@ -98,6 +99,7 @@ class Trader:
         trader = trader_res.trader
         balance = trader.balance / 10 ** trader.moneyDigits
         self._engine.update_balance(balance)
+        self._balance_version = trader.balanceVersion
 
     async def _init_account_state(self, pos_map: Mapping[int, ProtoOAPosition]) -> None:
         # TODO: use ProtoOADealListReq to retrieve the prices and sizes of
@@ -130,7 +132,7 @@ class Trader:
                 isinstance(res, ProtoOAExecutionEvent)
                 and res.executionType == ORDER_ACCEPTED
             ):
-                return res.position.tradeData.symbolId
+                return res.order.tradeData.symbolId
             else:
                 return None
 
@@ -174,14 +176,13 @@ class Trader:
             order_err_gen = await stack.enter_async_context(
                 self._client.register_type_for_trader(ProtoOAOrderErrorEvent)
             )
-
-            exec_gen = res_gen | order_err_gen
-
             market_data_gen = await stack.enter_async_context(
                 ComposableAsyncIterable.from_it(
                     self._live_market_data_producer.generate_market_data()
                 )
             )
+
+            exec_gen = res_gen | order_err_gen
 
             async for event in exec_gen | market_data_gen:
                 if isinstance(market_data := event, MarketData):
@@ -196,8 +197,10 @@ class Trader:
                         raise RuntimeError()
 
                     dw = exec_event.depositWithdraw
-                    balance = dw.balance / 10 ** dw.moneyDigits
-                    self._engine.update_balance(balance)
+                    if dw.balanceVersion > self._balance_version:
+                        balance = dw.balance / 10 ** dw.moneyDigits
+                        self._engine.update_balance(balance)
+                        self._balance_version = dw.balanceVersion
                 else:
                     raise RuntimeError()
 
@@ -214,11 +217,12 @@ class Trader:
         target_pos_sizes_map = engine.evaluate()
         await self._create_orders(target_pos_sizes_map, pos_map, exec_gen)
 
+        balance_version = self._balance_version
+        balance = float("nan")
+
         success = True
         done = False
 
-        # BUG: since we don't know the order of events, we need to check the
-        # balance version parameter to know which is the latest value!
         async for exec_event in exec_gen:
             if isinstance(exec_event, ProtoOAOrderErrorEvent):
                 raise RuntimeError()
@@ -227,8 +231,9 @@ class Trader:
 
             if exec_type == DEPOSIT_WITHDRAW:
                 dw = exec_event.depositWithdraw
-                balance = dw.balance / 10 ** dw.moneyDigits
-                self._engine.update_balance(balance)
+                if dw.balanceVersion > balance_version:
+                    balance = dw.balance / 10 ** dw.moneyDigits
+                    balance_version = dw.balanceVersion
                 continue
 
             if exec_type == ORDER_REJECTED:
@@ -246,11 +251,12 @@ class Trader:
                 size = sign * volume / 10 ** deal.moneyDigits
                 price = deal.executionPrice
 
-                balance = None
-                if (cpd := deal.closePositionDetail).IsInitialized():
+                cpd = deal.closePositionDetail
+                if cpd.IsInitialized() and cpd.balanceVersion > balance_version:
                     balance = cpd.balance / 10 ** cpd.moneyDigits
+                    balance_version = cpd.balanceVersion
 
-                done = engine.update_symbol_state(sym_id, size, price, balance)
+                done = engine.update_symbol_state(sym_id, size, price)
 
                 pos_map[sym_id] = exec_event.position
             else:
@@ -258,5 +264,10 @@ class Trader:
 
             if done:
                 break
+
+        if balance_version > self._balance_version:
+            assert balance != float("nan")
+            engine.update_balance(balance)
+            self._balance_version = balance_version
 
         return success
