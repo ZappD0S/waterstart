@@ -47,7 +47,7 @@ class Trader:
         self._n_traded_sym = net_modules.n_traded_sym
         self._window_size = window_size = net_modules.window_size
         self._max_trades = net_modules.max_trades
-        self._market_features = net_modules.market_features
+        self._market_features = net_modules.raw_market_data_size
 
         self._client = client
         self._engine = engine

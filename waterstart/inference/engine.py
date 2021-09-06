@@ -14,7 +14,7 @@ from ..array_mapping.utils import (
     partial_map_to_masked_arrays,
 )
 from ..price import MarketData
-from . import AccountState, ModelInput, RawMarketState
+from . import AccountState, ModelInput, MarketState
 from .low_level_engine import LowLevelInferenceEngine, NetworkModules
 
 
@@ -27,7 +27,7 @@ class InferenceEngine:
         self._n_traded_sym = net_modules.n_traded_sym
         self._window_size = net_modules.window_size
         self._max_trades = net_modules.max_trades
-        self._market_features = net_modules.market_features
+        self._market_features = net_modules.raw_market_data_size
         hidden_state_size = net_modules.hidden_state_size
 
         self._account_state = AccountState(
@@ -40,7 +40,7 @@ class InferenceEngine:
         self._market_state_arr: Optional[torch.Tensor] = None
         self._market_data_list: list[MarketData[float]] = []
 
-        self._raw_market_state: Optional[RawMarketState] = None
+        self._raw_market_state: Optional[MarketState] = None
 
         self._sym_left_to_update: set[int] = set()
         self._trades_sizes_and_prices_map: dict[int, tuple[float, float]] = {}
@@ -53,7 +53,7 @@ class InferenceEngine:
 
     def _build_raw_market_state(
         self, market_data: MarketData[float], market_state_arr: torch.Tensor
-    ) -> RawMarketState:
+    ) -> MarketState:
         symbols_data_map = market_data.symbols_data_map
         market_state_map = {
             sym: (
@@ -70,7 +70,7 @@ class InferenceEngine:
             map_to_arrays(self._traded_sym_arr_mapper, market_state_map, np.float32),
         )
 
-        return RawMarketState(
+        return MarketState(
             market_data=market_state_arr.unsqueeze(0),
             midpoint_prices=midpoint_prices.unsqueeze(-1),
             spreads=spreads.unsqueeze(-1),

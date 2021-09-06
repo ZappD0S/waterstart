@@ -1,5 +1,4 @@
 from math import log2
-from statistics import fmean
 
 import torch
 import torch.nn as nn
@@ -17,17 +16,17 @@ class GatedTransition(nn.Module):
         self.input_dim = input_dim
         self.z_dim = z_dim
 
-        self._gru = nn.GRUCell(input_dim, z_dim)
-        self._lin_mean = nn.Linear(z_dim, z_dim)
-        self._lin_log_std = nn.Linear(z_dim, z_dim)
+        self.gru = nn.GRUCell(input_dim, z_dim)
+        self.lin_mean = nn.Linear(z_dim, z_dim)
+        self.lin_log_std = nn.Linear(z_dim, z_dim)
 
     def forward(  # type: ignore
         self, x: torch.Tensor, h: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        out = self._gru(x, h)
+        out = self.gru(x, h)
 
-        mean = self._lin_mean(out)
-        log_std = self._lin_log_std(out)
+        mean = self.lin_mean(out)
+        log_std = self.lin_log_std(out)
         return mean, get_std(log_std)
 
 
@@ -35,76 +34,63 @@ class Emitter(nn.Module):
     def __init__(self, z_dim: int, n_traded_sym: int, hidden_dim: int):
         super().__init__()
         self.n_traded_sym = n_traded_sym
+        self.prev_step_features = 3 * n_traded_sym + 2
+
         self.lin1 = nn.Linear(z_dim, hidden_dim)
-        self.lin2 = nn.Linear(hidden_dim, hidden_dim)
-        self.lin_exec_logits = nn.Linear(hidden_dim, n_traded_sym)
-        self.lin_frac_mean = nn.Linear(hidden_dim, n_traded_sym)
-        self.lin_frac_log_std = nn.Linear(hidden_dim, n_traded_sym)
+        self.lin2 = nn.Linear(self.prev_step_features, hidden_dim)
+        self.lin3 = nn.Linear(2 * hidden_dim, hidden_dim)
+
+        # self.lin_exec_logit = nn.Linear(hidden_dim, 1)
+        # self.lin_sign_logits = nn.Linear(hidden_dim, n_traded_sym)
+
+        # self.lin_frac_log_conc = nn.Linear(hidden_dim, n_traded_sym + 1)
+        self.lin_frac_loc = nn.Linear(hidden_dim, n_traded_sym + 1)
+        self.lin_frac_log_scale = nn.Linear(hidden_dim, n_traded_sym + 1)
 
     def forward(  # type: ignore
-        self, z: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # z: (..., z_dim)
+        self, z0: torch.Tensor, trades_data: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        out = self.lin1(z).relu()
-        out = self.lin2(out).relu()
+        out1 = self.lin1(z0)
+        out2 = self.lin2(trades_data)
 
-        exec_logits = self.lin_exec_logits(out)
-        frac_mean = self.lin_frac_mean(out)
-        frac_log_std = self.lin_frac_log_std(out)
+        out = torch.cat((out1, out2), dim=-1).relu()
+        out = self.lin3(out).relu()
 
-        return exec_logits, frac_mean, get_std(frac_log_std)
+        # exec_logit = self.lin_exec_logit(out).squeeze(-1)
+        # sign_logits: torch.Tensor = self.lin_sign_logits(out)
+
+        # frac_log_conc: torch.Tensor = self.lin_frac_log_conc(out)
+        frac_loc: torch.Tensor = self.lin_frac_loc(out)
+        frac_log_scale: torch.Tensor = self.lin_frac_log_scale(out)
+
+        return frac_loc, get_std(frac_log_scale)
 
 
-# TODO: should we keep this name?
 class CNN(nn.Module):
-    def __init__(
-        self,
-        batch_size: int,
-        window_size: int,
-        market_features: int,
-        out_features: int,
-        n_traded_sym: int,
-        max_trades: int,
-    ):
+    def __init__(self, window_size: int, raw_market_data_size: int, out_features: int):
         super().__init__()
-        self.batch_size = batch_size
         self.window_size = window_size
-        self.market_features = market_features
+        self.raw_market_data_size = raw_market_data_size
         self.kernel_size = 3
-        self.n_traded_sym = n_traded_sym
-        self.max_trades = max_trades
-        self.prev_step_features = 3 * n_traded_sym + 1
 
-        hidden_dim = 2 ** max(
-            5, round(log2(fmean((market_features, self.prev_step_features))))
-        )
+        hidden_dim = 2 ** max(5, round(log2(raw_market_data_size)))
 
         self.conv1 = nn.Conv1d(
-            market_features, market_features, kernel_size=self.kernel_size
+            raw_market_data_size, raw_market_data_size, kernel_size=self.kernel_size
         )
         self.conv2 = nn.Conv1d(
-            market_features,
+            raw_market_data_size,
             hidden_dim,
             kernel_size=window_size + 1 - self.kernel_size,
         )
-        self.lin1 = nn.Linear(self.prev_step_features, hidden_dim)
-        self.lin2 = nn.Linear(2 * hidden_dim, out_features)
+        self.lin = nn.Linear(hidden_dim, out_features)
 
-    def forward(  # type: ignore
-        self,
-        market_data: torch.Tensor,
-        prev_step_data: torch.Tensor,
-    ) -> torch.Tensor:
+    def forward(self, market_data: torch.Tensor) -> torch.Tensor:  # type: ignore
         # market_data: (batch_size, market_features, window_size)
-        # prev_step_data: (batch_size, prev_step_features)
 
-        out1: torch.Tensor = self.conv1(market_data).relu()
-        out1 = self.conv2(out1).squeeze(2)
-
-        out2: torch.Tensor = self.lin1(prev_step_data)
-
-        out = torch.cat((out1, out2), dim=1).relu()
-        out = self.lin2(out).relu()
+        out: torch.Tensor = self.conv1(market_data).relu()
+        out = self.conv2(out).squeeze(2).relu()
+        out = self.lin(out).relu()
 
         return out

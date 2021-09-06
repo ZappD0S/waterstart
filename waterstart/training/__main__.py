@@ -1,23 +1,28 @@
 import argparse
 import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
+from shutil import rmtree
 from typing import Any, Optional
 
 import numpy as np
 import torch
+from torch import jit
 import torch.nn as nn
-from pyro.distributions.transforms.affine_autoregressive import (  # type: ignore
-    affine_autoregressive,
-)
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm  # type: ignore
-from shutil import rmtree
 
-from ..inference.low_level_engine import LowLevelInferenceEngine, NetworkModules
-from ..inference.model import CNN, Emitter, GatedTransition
-from .loss import Critic, LossEvaluator, LossOutput
-from .train_data import TrainDataManager, TrainingData, TrainingState
+from ..inference import (
+    CNN,
+    Emitter,
+    GatedTransition,
+    LowLevelInferenceEngine,
+    NetworkModules,
+)
+from .loss import Critic, LossOutput
+from .loss.sequential import SequentialLossEvaluator
+from .traindata import TrainingData, TrainingState
+from .traindata.sequential import SequentialTrainDataManager
 
 SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
 
@@ -26,25 +31,25 @@ SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
 class TrainingArgs(argparse.Namespace):
     train_data_file: str = ""
     iterations: int = 0
+    # learning_rate: float = 3e-4
     learning_rate: float = 1e-3
-    baseline_learning_rate: float = 1e-3
     gamma: float = 0.99
-    max_gradient_norm: float = 10.0
+    # max_gradient_norm: float = 0.5
+    max_gradient_norm: float = float("inf")
     detect_anomaly: bool = False
     use_cuda: bool = False
-    batch_size: int = 100
-    n_samples: int = 11
+    seq_len: int = 50
+    batch_size: int = 64
     window_size: int = 50
+    # window_size: int = 30
     cnn_out_features: int = 256
     max_trades: int = 10
     hidden_state_size: int = 128
     gated_trans_hidden_size: int = 200
     critic_hidden_size: int = 200
     emitter_hidden_size: int = 200
-    n_iafs: int = 2
-    iafs_hidden_sizes: list[int] = field(default_factory=lambda: [200])
-    leverage: float = 20.0
-    initial_balance: float = 1000.0
+    leverage: float = 1.0
+    initial_balance: float = 100_000.0
     tensorboard_log_dir: Optional[str] = None
     checkpoint_interval: int = 1000
     checkpoints_dir: Optional[str] = None
@@ -76,38 +81,38 @@ def write_summary(
     grad_norm: torch.Tensor,
     n_iter: int,
 ):
-    step_log_rates = balance[..., 1:, :].log() - balance[..., :-1, :].log()
-    positive_log_rates = torch.sum(step_log_rates > 0).item()
-    negative_log_rates = torch.sum(step_log_rates < 0).item()
-    tot_log_rates = step_log_rates.numel()
+    single_step_returns = balance[1:] / balance[:-1] - 1
     writer.add_scalar(  # type: ignore
-        "single step/positive fraction", positive_log_rates / tot_log_rates, n_iter
-    )
-    writer.add_scalar(  # type: ignore
-        "single step/negative fraction", negative_log_rates / tot_log_rates, n_iter
+        "single step/avg return", single_step_returns.mean().item(), n_iter
     )
 
-    avg_step_gain = step_log_rates.mean(-1).exp().mean().item()
-    writer.add_scalar("single step/average gain", avg_step_gain, n_iter)  # type: ignore
-
-    whole_seq_log_rates = balance[..., -1, :].log() - balance[..., 0, :].log()
-    positive_log_rates = torch.sum(whole_seq_log_rates > 0).item()
-    negative_log_rates = torch.sum(whole_seq_log_rates < 0).item()
-    tot_log_rates = whole_seq_log_rates.numel()
+    positive_returns = torch.sum(single_step_returns > 0).item()
+    negative_returns = torch.sum(single_step_returns < 0).item()
+    tot_returns = single_step_returns.numel()
     writer.add_scalar(  # type: ignore
-        "whole sequence/positive fraction", positive_log_rates / tot_log_rates, n_iter
+        "single step/positive fraction", positive_returns / tot_returns, n_iter
     )
     writer.add_scalar(  # type: ignore
-        "whole sequence/negative fraction", negative_log_rates / tot_log_rates, n_iter
+        "single step/negative fraction", negative_returns / tot_returns, n_iter
     )
 
-    avg_whole_seq_gain = whole_seq_log_rates.mean(-1).exp().mean().item()
+    max_returns = balance.max(0).values / balance[0] - 1
     writer.add_scalar(  # type: ignore
-        "whole sequence/average gain", avg_whole_seq_gain, n_iter
+        "whole sequence/avg max return", max_returns.mean().item(), n_iter
+    )
+
+    min_returns = balance.min(0).values / balance[0] - 1
+    writer.add_scalar(  # type: ignore
+        "whole sequence/avg min return", min_returns.mean().item(), n_iter
+    )
+
+    close_returns = balance[-1] / balance[0] - 1
+    writer.add_scalar(  # type: ignore
+        "whole sequence/avg close return", close_returns.mean().item(), n_iter
     )
 
     loss_loc: float = loss.mean().item()  # type: ignore
-    loss_scale: float = loss.std(-1).mean().item()  # type: ignore
+    loss_scale: float = loss.std().item()  # type: ignore
     writer.add_scalars(  # type: ignore
         "loss with stdev bounds",
         {
@@ -124,38 +129,31 @@ def write_summary(
 def build_modules(
     args: TrainingArgs, training_data: TrainingData
 ) -> tuple[NetworkModules, Critic]:
-    cnn = CNN(
-        args.batch_size,
-        args.window_size,
-        training_data.n_market_features,
-        args.cnn_out_features,
-        training_data.n_traded_sym,
-        args.max_trades,
-    )
+    cnn = CNN(args.window_size, training_data.n_market_features, args.cnn_out_features)
     gated_trans = GatedTransition(
-        args.cnn_out_features, args.hidden_state_size, args.gated_trans_hidden_size
+        args.cnn_out_features,
+        args.hidden_state_size,
+        args.gated_trans_hidden_size,
     )
     emitter = Emitter(
-        args.hidden_state_size, training_data.n_traded_sym, args.emitter_hidden_size
+        # args.hidden_state_size,
+        args.cnn_out_features,
+        training_data.n_traded_sym,
+        args.emitter_hidden_size,
     )
-
-    iafs = [
-        affine_autoregressive(args.hidden_state_size, args.iafs_hidden_sizes)
-        for _ in range(args.n_iafs)
-    ]
 
     return NetworkModules(
         cnn,
         gated_trans,
-        iafs,
         emitter,
         training_data.market_data_arr_mapper,
         training_data.traded_sym_arr_mapper,
         training_data.traded_symbols,
+        args.max_trades,
         args.leverage,
     ), Critic(
+        # args.hidden_state_size,
         args.cnn_out_features,
-        args.hidden_state_size,
         args.critic_hidden_size,
         training_data.n_traded_sym,
     )
@@ -190,27 +188,9 @@ def load_state_dict(search_dir: str) -> Optional[dict[str, Any]]:
     return state_dict  # type: ignore
 
 
-def init_training_state(
-    args: TrainingArgs, training_data: TrainingData
-) -> TrainingState:
-    n_timestemps = training_data.n_timestemps
-    n_traded_sym = training_data.n_traded_sym
-    n_samples = args.n_samples
-    max_trades = args.max_trades
-
-    return TrainingState(
-        torch.full((n_timestemps, n_samples), args.initial_balance),
-        torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
-        torch.zeros((n_timestemps, n_samples, max_trades, n_traded_sym)),
-        torch.zeros((n_timestemps, n_samples, args.hidden_state_size)),
-        None,
-        None,
-    )
-
-
 def get_state(
     args: TrainingArgs, training_data: TrainingData
-) -> tuple[NetworkModules, Critic, TrainingState]:
+) -> tuple[NetworkModules, Critic, Optional[TrainingState]]:
 
     net_modules, critic = build_modules(args, training_data)
 
@@ -219,7 +199,7 @@ def get_state(
         or not args.load_checkpoint
         or (state_dict := load_state_dict(checkpoints_dir)) is None
     ):
-        return net_modules, critic, init_training_state(args, training_data)
+        return net_modules, critic, None
 
     net_modules.load_state_dict(state_dict["net_modules"])
     critic.load_state_dict(state_dict["critic"])
@@ -271,20 +251,29 @@ def main(args: TrainingArgs):
 
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
 
-    loss_eval = LossEvaluator(LowLevelInferenceEngine(net_modules), critic, args.gamma)
+    loss_eval = SequentialLossEvaluator(
+        LowLevelInferenceEngine(net_modules), critic, args.seq_len, args.gamma
+    )
+    # loss_eval: SequentialLossEvaluator = jit.script(loss_eval)  # type: ignore
+
     device = torch.device("cuda" if args.use_cuda else "cpu")
     loss_eval.to(device)  # type: ignore
 
     parameters = list(loss_eval.parameters())
-    optimizer = torch.optim.Adam(parameters, lr=args.learning_rate, eps=1e-5)
+    optimizer = torch.optim.Adam(
+        parameters, lr=args.learning_rate, eps=1e-5, weight_decay=0.001
+    )
     writer = SummaryWriter(args.tensorboard_log_dir)
 
-    train_data_manager = TrainDataManager(
+    train_data_manager = SequentialTrainDataManager(
         training_data,
         training_state,
         args.batch_size,
-        args.n_samples,
+        args.seq_len,
         args.window_size,
+        args.max_trades,
+        args.hidden_state_size,
+        args.initial_balance,
         device,
     )
 
@@ -295,7 +284,7 @@ def main(args: TrainingArgs):
     n_iter: int
     for n_iter in tqdm(range(args.iterations)):  # type: ignore
         model_input = train_data_manager.load_data()
-        loss_out: LossOutput = loss_eval(model_input)  # type: ignore
+        loss_out: LossOutput = loss_eval.evaluate(model_input)  # type: ignore
 
         optimizer.zero_grad()
         loss_out.surrogate_loss.mean().backward()  # type: ignore
@@ -309,7 +298,7 @@ def main(args: TrainingArgs):
             writer, loss_out.account_state.balance, loss_out.loss, grad_norm, n_iter
         )
 
-        train_data_manager.store_data(loss_out.account_state, loss_out.hidden_state)
+        # train_data_manager.store_data(loss_out.account_state, loss_out.hidden_state)
 
         if checkpoints_dir is not None and (n_iter + 1) % checkpoint_interval == 0:
             save_state(
@@ -340,8 +329,8 @@ parser.add_argument("--hidden-state-size", type=int)
 parser.add_argument("--gated-trans-hidden-size", type=int)
 parser.add_argument("--emitter-hidden-size", type=int)
 parser.add_argument("--nn-baseline-hidden-size", type=int)
-parser.add_argument("--n-iafs", type=int)
-parser.add_argument("--iafs-hidden-sizes", type=int, nargs="+")
+# parser.add_argument("--n-iafs", type=int)
+# parser.add_argument("--iafs-hidden-sizes", type=int, nargs="+")
 parser.add_argument("--leverage", type=float)
 parser.add_argument("--initial-balance", type=float)
 
