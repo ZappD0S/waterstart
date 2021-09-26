@@ -176,8 +176,9 @@ class LowLevelInferenceEngine(nn.Module):
 
         return MinStepMax(min=min, step=step, max=max)
 
+    @staticmethod
     def _build_scaling_idxs_arr(
-        self, scaling_idxs: Sequence[tuple[int, list[int]]]
+        scaling_idxs: Sequence[tuple[int, list[int]]]
     ) -> torch.Tensor:
         flat_idxs = [
             ([src_ind] * len(dst_inds), dst_inds) for src_ind, dst_inds in scaling_idxs
@@ -337,9 +338,7 @@ class LowLevelInferenceEngine(nn.Module):
 
         fracs = fracs.movedim(-1, 0)
         new_pos_margins = fracs * balance
-        new_pos_sizes = (
-            new_pos_margins * market_state.margin_rate * self._leverage
-        )
+        new_pos_sizes = new_pos_margins * market_state.margin_rate * self._leverage
 
         new_pos_sizes = new_pos_sizes.movedim(0, -1)
 
@@ -417,9 +416,7 @@ class LowLevelInferenceEngine(nn.Module):
         frac_scale: torch.Tensor
         # exec_logit, sign_logits, frac_conc = net_modules.emitter(z_sample, trades_data)
         # exec_logit, sign_logits, frac_conc = net_modules.emitter(
-        frac_loc, frac_scale = net_modules.emitter(
-            market_features, trades_data
-        )
+        frac_loc, frac_scale = net_modules.emitter(market_features, trades_data)
 
         # exec_dist = dist.Bernoulli(logits=exec_logit)
         # exec_sample: torch.Tensor = exec_dist.sample()  # type: ignore

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Generic, NamedTuple, TypeVar
 
-T = TypeVar("T")
+T = TypeVar("T", covariant=True)
 
 
 @dataclass
