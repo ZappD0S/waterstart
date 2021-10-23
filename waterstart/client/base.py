@@ -14,7 +14,6 @@ from collections.abc import (
 )
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing import (
-    AsyncContextManager,
     Final,
     Optional,
     TypeVar,
@@ -41,7 +40,13 @@ class OpenApiErrorResException(Exception):
         self.error_res = error_res
 
 
-class BaseClient(ABC):
+class BaseClient(Observable[Message], ABC):
+    _payloadtype_to_messageproto: Mapping[int, type[Message]] = {
+        proto.payloadType.DESCRIPTOR.default_value: proto  # type: ignore
+        for proto in messages_dict.values()
+        if hasattr(proto, "payloadType")
+    }
+
     def __init__(self) -> None:
         super().__init__()
         self._lock_map: dict[type[Message], asyncio.Lock] = {}
@@ -56,16 +61,36 @@ class BaseClient(ABC):
             )
             self._err_gen = err_gen
 
-        return err_gen  # type: ignore
+        return err_gen
 
-    @abstractmethod
-    def register_type(
+    @asynccontextmanager
+    async def register_type(
         self,
         message_type: type[T],
         pred: Optional[Callable[[T], bool]] = None,
         maxsize: int = 0,
-    ) -> AsyncContextManager[ComposableAsyncIterable[T]]:
-        ...
+    ) -> AsyncIterator[ComposableAsyncIterable[T]]:
+        def get_map_f_with_pred(pred: Callable[[T], bool]):
+            def map_f(x: Message) -> Optional[T]:
+                return x if isinstance(x, types) and pred(x) else None  # type: ignore
+
+            return map_f
+
+        def map_f_without_pred(x: Message) -> Optional[T]:
+            return x if isinstance(x, types) else None  # type: ignore
+
+        types = (
+            get_args(message_type)
+            if get_origin(message_type) is Union
+            else (message_type,)
+        )
+
+        map_f = map_f_without_pred if pred is None else get_map_f_with_pred(pred)
+
+        async with AsyncExitStack() as stack:
+            gen = await stack.enter_async_context(self.register(map_f, maxsize))
+
+            yield await stack.enter_async_context(ComposableAsyncIterable.from_it(gen))
 
     async def _get_async_generator(self) -> AsyncGenerator[Message, None]:
         while True:
@@ -79,6 +104,34 @@ class BaseClient(ABC):
     async def _read_message(self) -> Message:
         ...
 
+    @classmethod
+    def _parse_message(cls, data: bytes) -> Message:
+        protomessage = ProtoMessage.FromString(data)
+        messageproto = cls._payloadtype_to_messageproto[protomessage.payloadType]
+        return messageproto.FromString(protomessage.payload)
+
+    @classmethod
+    async def _read_message_from_reader(cls, reader: StreamReader) -> Message:
+        length_data = await reader.readexactly(4)
+        length = int.from_bytes(length_data, byteorder="big")
+
+        if length <= 0:
+            raise RuntimeError()
+
+        payload_data = await reader.readexactly(length)
+        return cls._parse_message(payload_data)
+
+    @staticmethod
+    async def _write_message_to_writer(writer: StreamWriter, message: Message) -> None:
+        protomessage = ProtoMessage(
+            payloadType=message.payloadType,  # type: ignore
+            payload=message.SerializeToString(),
+        )
+        payload_data = protomessage.SerializeToString()
+        length_data = len(payload_data).to_bytes(4, byteorder="big")
+        writer.write(length_data + payload_data)
+        await writer.drain()
+
     @asynccontextmanager
     async def _type_lock(self, res_type: type[T]):
         types = get_args(res_type) if get_origin(res_type) is Union else (res_type,)
@@ -88,18 +141,18 @@ class BaseClient(ABC):
         async with AsyncExitStack() as stack:
             await stack.enter_async_context(self._global_lock)  # type: ignore
 
-            for typ in types:
-                if (lock := lock_map.get(typ)) is None:
-                    new_lock_types.add(typ)
-                    lock = lock_map[typ] = asyncio.Lock()
+            for t in types:
+                if (lock := lock_map.get(t)) is None:
+                    new_lock_types.add(t)
+                    lock = lock_map[t] = asyncio.Lock()
 
                 await stack.enter_async_context(lock)  # type: ignore
 
             try:
                 yield
             finally:
-                for typ in new_lock_types:
-                    del lock_map[typ]
+                for t in new_lock_types:
+                    del lock_map[t]
 
     async def send_request(
         self,
@@ -116,10 +169,8 @@ class BaseClient(ABC):
                     self.register_type(res_type, pred)
                 )
 
-            gen = res_gen | err_gen  # type: ignore
-            res = await self._send_request(req, res_type, gen)
-
-        return res
+            gen = res_gen | err_gen
+            return await self._send_request(req, res_type, gen)
 
     async def _send_request(
         self,
@@ -156,7 +207,7 @@ class BaseClient(ABC):
             if res_gen is None:
                 res_gen = await stack.enter_async_context(self.register_type(res_type))
 
-            gen = res_gen | err_gen  # type: ignore
+            gen = res_gen | err_gen
 
             async for key_res in self._send_requests(
                 key_to_req, res_type, get_key, gen
@@ -199,96 +250,25 @@ class BaseClient(ABC):
 
     async def aclose(self) -> None:
         await self._exit_stack.aclose()
+        await super().aclose()
 
 
-class HelperClient(BaseClient, Observable[Message]):
-    _payloadtype_to_messageproto: Mapping[int, type[Message]] = {
-        proto.payloadType.DESCRIPTOR.default_value: proto  # type: ignore
-        for proto in messages_dict.values()
-        if hasattr(proto, "payloadType")
-    }
-
+class HelperClient(BaseClient):
     def __init__(self, reader: StreamReader, writer: StreamWriter) -> None:
         super().__init__()
         self._reader = reader
         self._writer = writer
 
-    @asynccontextmanager
-    async def register_type(
-        self,
-        message_type: type[T],
-        pred: Optional[Callable[[T], bool]] = None,
-        maxsize: int = 0,
-    ) -> AsyncIterator[ComposableAsyncIterable[T]]:
-        def get_map_f_with_pred(pred: Callable[[T], bool]):
-            def map_f(x: Message) -> Optional[T]:
-                return x if isinstance(x, types) and pred(x) else None  # type: ignore
-
-            return map_f
-
-        def map_f_without_pred(x: Message) -> Optional[T]:
-            return x if isinstance(x, types) else None  # type: ignore
-
-        types = (
-            get_args(message_type)
-            if get_origin(message_type) is Union
-            else (message_type,)
-        )
-
-        map_f = map_f_without_pred if pred is None else get_map_f_with_pred(pred)
-
-        async with AsyncExitStack() as stack:
-            gen: AsyncIterator[T] = await stack.enter_async_context(
-                self.register(map_f, maxsize)
-            )
-
-            comp_gen = await stack.enter_async_context(
-                ComposableAsyncIterable.from_it(gen)
-            )
-
-            yield comp_gen
-
-    def _parse_message(self, data: bytes) -> Message:
-        protomessage = ProtoMessage.FromString(data)
-        messageproto = self._payloadtype_to_messageproto[protomessage.payloadType]
-        return messageproto.FromString(protomessage.payload)
+    async def _write_message(self, message: Message) -> None:
+        await self._write_message_to_writer(self._writer, message)
 
     async def _read_message(self) -> Message:
-        return await self.read_message()
-
-    async def read_message(self) -> Message:
-        length_data = await self._reader.readexactly(4)
-        length = int.from_bytes(length_data, byteorder="big")
-
-        if length <= 0:
-            raise RuntimeError()
-
-        payload_data = await self._reader.readexactly(length)
-        return self._parse_message(payload_data)
-
-    async def _write_message(self, message: Message) -> None:
-        await self.write_message(message)
-
-    async def write_message(self, message: Message) -> None:
-        protomessage = ProtoMessage(
-            payloadType=message.payloadType,  # type: ignore
-            payload=message.SerializeToString(),
-        )
-        payload_data = protomessage.SerializeToString()
-        length_data = len(payload_data).to_bytes(4, byteorder="big")
-        self._writer.write(length_data + payload_data)
-        await self._writer.drain()
-        self._last_sent_message_time = time.time()
-
-    async def aclose(self) -> None:
-        await super().aclose()
-        self._writer.close()
-        await self._writer.wait_closed()
+        return await self._read_message_from_reader(self._reader)
 
 
 # TODO: add task that listens to ProtoOAClientDisconnectEvent and
 # reconnects when it happens..
-class BaseReconnectingClient(BaseClient, ABC):
+class BaseReconnectingClient(BaseClient):
     HEARTBEAT_INTERVAL: Final[float] = 10.0
     RECONNECTION_DELAY: Final[float] = 1.0
 
@@ -298,45 +278,59 @@ class BaseReconnectingClient(BaseClient, ABC):
     ) -> None:
         super().__init__()
 
-        def create_connect_task() -> asyncio.Task[HelperClient]:
-            return asyncio.create_task(self._connect(open_connection))
+        def create_connect_task() -> asyncio.Task[tuple[StreamReader, StreamWriter]]:
+            return asyncio.create_task(
+                self._connect(open_connection), name="get_reader_writer"
+            )
 
         self._create_connect_task = create_connect_task
-        self._connect_task: asyncio.Task[HelperClient] = create_connect_task()
+        self._connect_task: asyncio.Task[tuple[StreamReader, StreamWriter]]
+        self._connect_task = create_connect_task()
 
         self._last_sent_t = 0.0
-        self._heartbeat_task = asyncio.create_task(self._send_heatbeat())
+        self._heartbeat_task = asyncio.create_task(
+            self._send_heatbeat(), name="heartbeat"
+        )
+
+    @abstractmethod
+    async def _setup_connection(self, helper_client: HelperClient) -> None:
+        ...
 
     async def _connect(
         self,
         open_connection: Callable[[], Awaitable[tuple[StreamReader, StreamWriter]]],
-    ) -> HelperClient:
-        async def get_reader_writer() -> tuple[StreamReader, StreamWriter]:
-            while True:
-                try:
-                    return await open_connection()
-                except Exception:
+    ) -> tuple[StreamReader, StreamWriter]:
+        while True:
+            try:
+                reader, writer = await open_connection()
+            except Exception:
+                await asyncio.sleep(self.RECONNECTION_DELAY)
+                continue
+
+            helper_client = HelperClient(reader, writer)
+
+            failed = False
+
+            try:
+                await self._setup_connection(helper_client)
+            except Exception:  # TODO: correct exception...
+                failed = True
+                continue
+            finally:
+                await helper_client.aclose()
+
+                if failed:
+                    writer.close()
+                    await writer.wait_closed()
                     await asyncio.sleep(self.RECONNECTION_DELAY)
 
-        reader, writer = await get_reader_writer()
-        return HelperClient(reader, writer)
-
-    @asynccontextmanager
-    async def register_type(
-        self,
-        message_type: type[T],
-        pred: Optional[Callable[[T], bool]] = None,
-        maxsize: int = 0,
-    ) -> AsyncIterator[ComposableAsyncIterable[T]]:
-        helper_client = await self._connect_task
-        async with helper_client.register_type(message_type, pred, maxsize) as gen:
-            yield gen
+            return reader, writer
 
     async def _write_message(self, message: Message) -> None:
         while True:
-            helper_client = await self._connect_task
+            _, writer = await self._connect_task
             try:
-                await helper_client.write_message(message)
+                await self._write_message_to_writer(writer, message)
                 self._last_sent_t = time.time()
                 return
             except Exception:
@@ -344,9 +338,10 @@ class BaseReconnectingClient(BaseClient, ABC):
 
     async def _read_message(self) -> Message:
         while True:
-            helper_client = await self._connect_task
+            reader, _ = await self._connect_task
+
             try:
-                return await helper_client.read_message()
+                return await self._read_message_from_reader(reader)
             except Exception:  # TODO: replace correct exception
                 self._connect_task = self._create_connect_task()
 
@@ -362,11 +357,12 @@ class BaseReconnectingClient(BaseClient, ABC):
             pass
 
         try:
-            helper_client = await self._connect_task
+            _, writer = await self._connect_task
         except asyncio.CancelledError:
             return
 
-        await helper_client.aclose()
+        writer.close()
+        await writer.wait_closed()
 
     async def _send_heatbeat(self) -> None:
         while True:

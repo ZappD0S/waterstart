@@ -1,11 +1,13 @@
-from typing import Optional
+from typing import Any, Optional
 import torch
+import numpy as np
+import numpy.typing as npt
 
 
 class ReadonlyBatchManager:
     def __init__(
         self,
-        storage: torch.Tensor,
+        storage: npt.NDArray[Any],
         batch_dims: int,
         load_lag: int,
         batch_dims_last: bool = True,
@@ -26,25 +28,27 @@ class ReadonlyBatchManager:
         self._device = device
 
     @property
-    def storage(self) -> torch.Tensor:
+    def storage(self) -> npt.NDArray[Any]:
         return self._storage
 
-    def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
-        batch: torch.Tensor = self._storage[inds - self._load_lag]
+    def build_batch(self, inds: npt.NDArray[Any]) -> torch.Tensor:
+        batch = self._storage[inds - self._load_lag]
         batch = self._transform_batch(batch, self._batch_dims + inds.ndim - 1)
-        return batch.to(self._device)
+        return torch.from_numpy(batch).to(self._device)
 
-    def _transform_batch(self, batch: torch.Tensor, batch_dims: int) -> torch.Tensor:
+    def _transform_batch(
+        self, batch: npt.NDArray[Any], batch_dims: int
+    ) -> npt.NDArray[Any]:
         if not self._batch_dims_last:
             return batch
 
-        return batch.permute(*range(batch_dims, batch.ndim), *range(batch_dims))
+        return batch.transpose(*range(batch_dims, batch.ndim), *range(batch_dims))
 
 
 class ExpandableBatchManagager(ReadonlyBatchManager):
     def __init__(
         self,
-        storage: torch.Tensor,
+        storage: npt.NDArray[Any],
         expand_size: int,
         batch_dims: int,
         load_lag: int,
@@ -52,7 +56,7 @@ class ExpandableBatchManagager(ReadonlyBatchManager):
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__(
-            storage.unsqueeze(batch_dims),
+            np.expand_dims(storage, batch_dims),
             batch_dims + 1,
             load_lag,
             batch_dims_last,
@@ -60,48 +64,47 @@ class ExpandableBatchManagager(ReadonlyBatchManager):
         )
         self._expand_size = expand_size
 
-    def _transform_batch(self, batch: torch.Tensor, batch_dims: int) -> torch.Tensor:
-        batch = batch.expand(
-            *(-1,) * (batch_dims - 1),
-            self._expand_size,
-            *(-1,) * (batch.ndim - batch_dims),
-        )
-
+    def _transform_batch(
+        self, batch: npt.NDArray[Any], batch_dims: int
+    ) -> npt.NDArray[Any]:
+        batch = batch.repeat(self._expand_size, axis=batch_dims)
         return super()._transform_batch(batch, batch_dims)
 
 
 class BatchManager(ReadonlyBatchManager):
     def __init__(
         self,
-        storage: torch.Tensor,
+        storage: npt.NDArray[Any],
         batch_dims: int,
         load_lag: int,
         batch_dims_last: bool = True,
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__(storage, batch_dims, load_lag, batch_dims_last, device)
-        self._inds: Optional[torch.Tensor] = None
+        self._inds: Optional[npt.NDArray[Any]] = None
 
-    def build_batch(self, inds: torch.Tensor) -> torch.Tensor:
+    def build_batch(self, inds: npt.NDArray[Any]) -> torch.Tensor:
         self._inds = inds
         return super().build_batch(inds)
 
-    def store_batch(self, batch: torch.Tensor) -> torch.Tensor:
+    def store_batch(self, gpu_batch: torch.Tensor) -> npt.NDArray[Any]:
         if (inds := self._inds) is None:
             raise RuntimeError()
 
-        assert not batch.requires_grad
-        batch = batch.cpu()
+        assert not gpu_batch.requires_grad
+        batch = gpu_batch.cpu().numpy()
         batch = self._inverse_transform_batch(batch, self._batch_dims + inds.ndim - 1)
         self._inds = None
         self._storage[inds] = batch
         return batch
 
     def _inverse_transform_batch(
-        self, batch: torch.Tensor, batch_dims: int
-    ) -> torch.Tensor:
+        self, batch: npt.NDArray[Any], batch_dims: int
+    ) -> npt.NDArray[Any]:
         if not self._batch_dims_last:
             return batch
 
         ndim = batch.ndim
-        return batch.permute(*range(ndim - batch_dims, ndim), *range(ndim - batch_dims))
+        return batch.transpose(
+            *range(ndim - batch_dims, ndim), *range(ndim - batch_dims)
+        )

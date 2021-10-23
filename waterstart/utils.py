@@ -72,8 +72,15 @@ class SingleComposableAsyncIterable(ComposableAsyncIterable[T]):
                 self._task = None
 
     def _get_tasks(self) -> tuple[asyncio.Task[T], ...]:
-        if (task := self._task) is None or (task.done() and task.exception() is None):
-            task = self._task = asyncio.create_task(self._wrapped_it.__anext__())
+        if (task := self._task) is None:
+            task = self._task = asyncio.create_task(
+                self._wrapped_it.__anext__(), name="comp_it_next"
+            )
+
+        if task.done() and task.exception() is None:
+            self._task = asyncio.create_task(
+                self._wrapped_it.__anext__(), name="comp_it_next"
+            )
 
         return (task,)
 
@@ -97,7 +104,7 @@ class MultipleComposableAsyncIterable(ComposableAsyncIterable[Union[T, U]]):
         self._second = second
         self._it = self._get_iterator()
 
-    def _get_tasks(self) -> tuple[asyncio.Task[Union[T, U]], ...]:  # type: ignore
+    def _get_tasks(self) -> tuple[asyncio.Task[Union[T, U]], ...]:
         return self._first._get_tasks() + self._second._get_tasks()  # type: ignore
 
     def __or__(

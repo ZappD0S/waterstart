@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 import torch
-from torch.functional import Tensor
+import numpy.typing as npt
 
 from ...inference import ModelInput
 from .utils import TrainingData, TrainingState
@@ -24,7 +24,7 @@ class BaseTrainDataManager(ABC):
         self._seq_len = seq_len
         self._window_size = window_size
 
-        self._next_batch_inds: Optional[Tensor]
+        self._next_batch_inds: Optional[npt.NDArray[Any]]
 
         if training_state is None:
             self._batch_inds_it = self._build_batch_inds_it()
@@ -36,10 +36,10 @@ class BaseTrainDataManager(ABC):
         self._device = device
 
     @abstractmethod
-    def _build_batch_inds_it(self) -> Iterator[torch.Tensor]:
+    def _build_batch_inds_it(self) -> Iterator[npt.NDArray[Any]]:
         ...
 
-    def _get_next_batch_inds(self) -> torch.Tensor:
+    def _get_next_batch_inds(self) -> npt.NDArray[Any]:
         if (batch_inds := self._next_batch_inds) is None:
             self._batch_inds_it = self._build_batch_inds_it()
             batch_inds = self._next_batch_inds = next(self._batch_inds_it)

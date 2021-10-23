@@ -32,23 +32,11 @@ class AppClient(BaseReconnectingClient):
         self._client_id = client_id
         self._client_secret = client_secret
 
-    async def _connect(
-        self,
-        open_connection: Callable[[], Awaitable[tuple[StreamReader, StreamWriter]]],
-    ) -> HelperClient:
-        auth_req = ProtoOAApplicationAuthReq(
-            clientId=self._client_id,
-            clientSecret=self._client_secret,
+    async def _setup_connection(self, helper_client: HelperClient) -> None:
+        await helper_client.send_request(
+            ProtoOAApplicationAuthReq(
+                clientId=self._client_id,
+                clientSecret=self._client_secret,
+            ),
+            ProtoOAApplicationAuthRes,
         )
-
-        while True:
-            helper_client = await super()._connect(open_connection)
-            try:
-                _ = await helper_client.send_request(
-                    auth_req, ProtoOAApplicationAuthRes
-                )
-            except Exception as e:  # TODO: correct exception...
-                print(e)
-                continue
-
-            return helper_client

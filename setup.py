@@ -1,3 +1,12 @@
-import setuptools  # type: ignore
+import setuptools
 
-setuptools.setup(name="waterstart")  # type: ignore
+setuptools.setup(
+    name="waterstart",
+    install_requires=[
+        "tqdm",
+        "numpy",
+        "dataclasses",
+        "protobuf",
+        "torch",
+    ],
+)

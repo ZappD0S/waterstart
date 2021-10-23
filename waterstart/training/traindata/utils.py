@@ -1,6 +1,7 @@
 from dataclasses import dataclass, InitVar
-from typing import Collection, Iterator, Mapping, Optional
-import torch
+from typing import Any, Collection, Iterator, Mapping, Optional
+import numpy as np
+import numpy.typing as npt
 
 from ...array_mapping.base_mapper import FieldData
 from ...array_mapping.dict_based_mapper import DictBasedArrayMapper
@@ -11,11 +12,11 @@ from ...symbols import TradedSymbolInfo
 
 @dataclass
 class TrainingData:
-    market_data: torch.Tensor
-    midpoint_prices: torch.Tensor
-    spreads: torch.Tensor
-    base_to_dep_rates: torch.Tensor
-    quote_to_dep_rates: torch.Tensor
+    market_data: npt.NDArray[Any]
+    midpoint_prices: npt.NDArray[Any]
+    spreads: npt.NDArray[Any]
+    base_to_dep_rates: npt.NDArray[Any]
+    quote_to_dep_rates: npt.NDArray[Any]
     market_data_blueprint: InitVar[MarketData[FieldData]]
     traded_sym_blueprint_map: InitVar[Mapping[int, FieldData]]
     traded_symbols: Collection[TradedSymbolInfo]
@@ -83,5 +84,23 @@ class TrainingData:
 
 @dataclass
 class TrainingState:
-    batch_inds_it: Iterator[torch.Tensor]
-    next_batch_inds: Optional[torch.Tensor]
+    batch_inds_it: Iterator[npt.NDArray[Any]]
+    next_batch_inds: Optional[npt.NDArray[Any]]
+
+
+def load_training_data(path: str) -> TrainingData:
+    data = np.load(path, allow_pickle=True)  # type: ignore
+
+    # TODO: make names uniform
+    return TrainingData(
+        market_data=data["market_data_arr"],  # type: ignore
+        midpoint_prices=data["sym_prices"],  # type: ignore
+        spreads=data["spreads"],  # type: ignore
+        base_to_dep_rates=data["margin_rates"],  # type: ignore
+        quote_to_dep_rates=data["quote_to_dep_rates"],  # type: ignore
+        market_data_blueprint=data["market_data_blueprint"].item(),  # type: ignore
+        traded_sym_blueprint_map=data[  # type: ignore
+            "traded_sym_blueprint_map"
+        ].item(),
+        traded_symbols=data["traded_symbols"].tolist(),  # type: ignore
+    )

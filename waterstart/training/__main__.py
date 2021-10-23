@@ -5,11 +5,9 @@ from pathlib import Path
 from shutil import rmtree
 from typing import Any, Optional
 
-import numpy as np
 import torch
-from torch import jit
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm  # type: ignore
 
 from ..inference import (
@@ -21,7 +19,7 @@ from ..inference import (
 )
 from .loss import Critic, LossOutput
 from .loss.sequential import SequentialLossEvaluator
-from .traindata import TrainingData, TrainingState
+from .traindata import TrainingData, TrainingState, load_training_data
 from .traindata.sequential import SequentialTrainDataManager
 
 SAVE_FOLDER_NAME_FORMAT = "%Y%m%d_%H%S%f"
@@ -54,24 +52,6 @@ class TrainingArgs(argparse.Namespace):
     checkpoint_interval: int = 1000
     checkpoints_dir: Optional[str] = None
     load_checkpoint: bool = False
-
-
-def load_training_data(path: str) -> TrainingData:
-    data = np.load(path, allow_pickle=True)  # type: ignore
-
-    # TODO: make names uniform
-    return TrainingData(
-        market_data=torch.from_numpy(data["market_data_arr"]),  # type: ignore
-        midpoint_prices=torch.from_numpy(data["sym_prices"]),  # type: ignore
-        spreads=torch.from_numpy(data["spreads"]),  # type: ignore
-        base_to_dep_rates=torch.from_numpy(data["margin_rates"]),  # type: ignore
-        quote_to_dep_rates=torch.from_numpy(data["quote_to_dep_rates"]),  # type: ignore
-        market_data_blueprint=data["market_data_blueprint"].item(),  # type: ignore
-        traded_sym_blueprint_map=data[  # type: ignore
-            "traded_sym_blueprint_map"
-        ].item(),
-        traded_symbols=data["traded_symbols"].tolist(),  # type: ignore
-    )
 
 
 def write_summary(
@@ -249,7 +229,7 @@ def main(args: TrainingArgs):
     training_data = load_training_data(args.train_data_file)
     net_modules, critic, training_state = get_state(args, training_data)
 
-    torch.autograd.set_detect_anomaly(args.detect_anomaly)
+    torch.autograd.anomaly_mode.set_detect_anomaly(args.detect_anomaly)
 
     loss_eval = SequentialLossEvaluator(
         LowLevelInferenceEngine(net_modules), critic, args.seq_len, args.gamma
@@ -289,7 +269,7 @@ def main(args: TrainingArgs):
         optimizer.zero_grad()
         loss_out.surrogate_loss.mean().backward()  # type: ignore
 
-        grad_norm = nn.utils.clip_grad_norm_(
+        grad_norm = nn.utils.clip_grad.clip_grad_norm_(
             parameters, max_norm=max_gradient_norm, error_if_nonfinite=True
         )
         optimizer.step()

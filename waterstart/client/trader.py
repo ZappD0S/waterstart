@@ -4,7 +4,7 @@ import asyncio
 from asyncio import StreamReader, StreamWriter
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
-from typing import Optional, TypeVar
+from typing import Any, Optional, TypeVar
 
 from google.protobuf.message import Message
 from waterstart.utils import ComposableAsyncIterable
@@ -43,42 +43,32 @@ class TraderClient(BaseReconnectingClient):
         self._refresh_token = refresh_token
 
         self._refresh_token_on_expiry_task = asyncio.create_task(
-            self._refresh_token_on_expiry()
+            self._refresh_token_on_expiry(), name="refresh_on_expiry"
         )
 
-    def _belongs_to_trader(self, res: Message) -> bool:
+    def _belongs_to_trader(self, res: Any) -> bool:
         if (trader_id := getattr(res, "ctidTraderAccountId", None)) is None:
             return False
 
         return trader_id == self._trader_id
 
-    async def _connect(
-        self,
-        open_connection: Callable[[], Awaitable[tuple[StreamReader, StreamWriter]]],
-    ) -> HelperClient:
-        account_auth_req = ProtoOAAccountAuthReq(
-            ctidTraderAccountId=self._trader_id, accessToken=self._access_token
-        )
-        app_auth_req = ProtoOAApplicationAuthReq(
-            clientId=self._client_id, clientSecret=self._client_secret
+    async def _setup_connection(self, helper_client: HelperClient) -> None:
+        await helper_client.send_request(
+            ProtoOAApplicationAuthReq(
+                clientId=self._client_id,
+                clientSecret=self._client_secret,
+            ),
+            ProtoOAApplicationAuthRes,
         )
 
-        while True:
-            helper_client = await super()._connect(open_connection)
-
-            try:
-                _ = await helper_client.send_request(
-                    app_auth_req, ProtoOAApplicationAuthRes
-                )
-                _ = await helper_client.send_request(
-                    account_auth_req,
-                    ProtoOAAccountAuthRes,
-                    pred=lambda res: res.ctidTraderAccountId == self._trader_id,
-                )
-            except Exception:  # TODO: correct exception...
-                continue
-
-            return helper_client
+        await helper_client.send_request(
+            ProtoOAAccountAuthReq(
+                ctidTraderAccountId=self._trader_id,
+                accessToken=self._access_token,
+            ),
+            ProtoOAAccountAuthRes,
+            pred=lambda res: res.ctidTraderAccountId == self._trader_id,
+        )
 
     async def _refresh_token_on_expiry(self) -> None:
         async with self.register_type(

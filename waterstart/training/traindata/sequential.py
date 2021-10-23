@@ -1,12 +1,15 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
+import numpy as np
+import numpy.typing as npt
 import torch
+from numpy.lib.stride_tricks import sliding_window_view
 
+from ...inference import AccountState, MarketState, ModelInput
 from .abc import BaseTrainDataManager, TrainingData, TrainingState
 from .batch_manager import ReadonlyBatchManager
-from ...inference import AccountState, MarketState, ModelInput
 
 
 @dataclass
@@ -34,7 +37,7 @@ class SequentialTrainDataManager(BaseTrainDataManager):
         # TODO: check that training_data and training_state shapes match
 
         self._market_data_batch_manager = ReadonlyBatchManager(
-            training_data.market_data.unfold(0, window_size, step=1),
+            sliding_window_view(training_data.market_data, window_size, axis=0),
             batch_dims=1,
             load_lag=window_size - 1,
             batch_dims_last=False,
@@ -84,20 +87,17 @@ class SequentialTrainDataManager(BaseTrainDataManager):
         default_hidden_state = torch.zeros((batch_size, hidden_state_size))
         self._default_hidden_state = default_hidden_state.to(device)
 
-    def _build_batch_inds_it(self) -> Iterator[torch.Tensor]:
+    def _build_batch_inds_it(self) -> Iterator[npt.NDArray[Any]]:
         batch_size = self._batch_size
         seq_len = self._seq_len
-        batch_inds = torch.arange(self._window_size - 1, self._n_timestemps - seq_len)
+        batch_inds = np.arange(self._window_size - 1, self._n_timestemps - seq_len)
 
         n_samples = batch_inds.shape[0]
         n_batches = n_samples // batch_size
-        rand_perm = torch.randperm(n_batches * batch_size).reshape(
-            n_batches, batch_size
-        )
+        rand_perm = np.random.permutation(n_batches * batch_size)
+        rand_perm.shape = (n_batches, batch_size)
 
-        batch_inds = batch_inds[rand_perm].unsqueeze(1) + torch.arange(
-            seq_len
-        ).unsqueeze(-1)
+        batch_inds = batch_inds[rand_perm, None] + np.arange(seq_len)[:, None]
         return iter(batch_inds)
 
     def load_data(self) -> ModelInput:
