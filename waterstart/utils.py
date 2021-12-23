@@ -56,7 +56,7 @@ class SingleComposableAsyncIterable(ComposableAsyncIterable[T]):
     def __or__(
         self, other: ComposableAsyncIterable[U]
     ) -> ComposableAsyncIterable[Union[T, U]]:
-        return MultipleComposableAsyncIterable(self, other)  # type: ignore
+        return MultipleComposableAsyncIterable(self, other)
 
     def __aiter__(self) -> AsyncIterator[T]:
         return self._it
@@ -110,7 +110,7 @@ class MultipleComposableAsyncIterable(ComposableAsyncIterable[Union[T, U]]):
     def __or__(
         self, other: ComposableAsyncIterable[V]
     ) -> ComposableAsyncIterable[Union[T, U, V]]:
-        return MultipleComposableAsyncIterable(self, other)  # type: ignore
+        return MultipleComposableAsyncIterable(self, other)
 
     def __aiter__(self) -> AsyncIterator[Union[T, U]]:
         return self._it

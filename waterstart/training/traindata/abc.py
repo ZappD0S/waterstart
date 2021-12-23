@@ -19,7 +19,7 @@ class BaseTrainDataManager(ABC):
         device: Optional[torch.device] = None,
     ) -> None:
 
-        self._n_timestemps = training_data.n_timestemps
+        self._n_timesteps = training_data.n_timesteps
         self._batch_size = batch_size
         self._seq_len = seq_len
         self._window_size = window_size

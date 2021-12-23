@@ -48,7 +48,7 @@ class NetworkModules(nn.Module):
         self.emitter = emitter
         self.market_data_arr_mapper = market_data_arr_mapper
         self.traded_sym_arr_mapper = traded_sym_arr_mapper
-        self.id_to_traded_sym = id_to_traded_sym
+        self.traded_symbols = traded_symbols
 
         self._n_traded_sym = emitter.n_traded_sym
         self._raw_market_data_size = raw_market_data_size

@@ -139,14 +139,14 @@ class BaseClient(Observable[Message], ABC):
 
         new_lock_types: set[type[Message]] = set()
         async with AsyncExitStack() as stack:
-            await stack.enter_async_context(self._global_lock)  # type: ignore
+            await stack.enter_async_context(self._global_lock)
 
             for t in types:
                 if (lock := lock_map.get(t)) is None:
                     new_lock_types.add(t)
                     lock = lock_map[t] = asyncio.Lock()
 
-                await stack.enter_async_context(lock)  # type: ignore
+                await stack.enter_async_context(lock)
 
             try:
                 yield

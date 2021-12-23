@@ -1,5 +1,6 @@
-from dataclasses import dataclass, InitVar
+from dataclasses import InitVar, dataclass
 from typing import Any, Collection, Iterator, Mapping, Optional
+
 import numpy as np
 import numpy.typing as npt
 
@@ -27,7 +28,7 @@ class TrainingData:
         traded_sym_blueprint_map: Mapping[int, FieldData],
     ):
         if (
-            not (n_timestemps := self.market_data.shape[0])
+            not (n_timesteps := self.market_data.shape[0])
             == self.midpoint_prices.shape[0]
             == self.spreads.shape[0]
             == self.base_to_dep_rates.shape[0]
@@ -57,13 +58,13 @@ class TrainingData:
 
         self._market_data_arr_mapper = market_data_arr_mapper
         self._traded_sym_arr_mapper = traded_sym_arr_mapper
-        self._n_timestemps = n_timestemps
+        self._n_timesteps = n_timesteps
         self._n_traded_sym = n_traded_sym
         self._n_market_features = n_market_features
 
     @property
-    def n_timestemps(self) -> int:
-        return self._n_timestemps
+    def n_timesteps(self) -> int:
+        return self._n_timesteps
 
     @property
     def n_traded_sym(self) -> int:

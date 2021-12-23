@@ -90,7 +90,7 @@ class SequentialTrainDataManager(BaseTrainDataManager):
     def _build_batch_inds_it(self) -> Iterator[npt.NDArray[Any]]:
         batch_size = self._batch_size
         seq_len = self._seq_len
-        batch_inds = np.arange(self._window_size - 1, self._n_timestemps - seq_len)
+        batch_inds = np.arange(self._window_size - 1, self._n_timesteps - seq_len)
 
         n_samples = batch_inds.shape[0]
         n_batches = n_samples // batch_size

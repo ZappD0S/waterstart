@@ -108,10 +108,11 @@ class BufferedTrainDataManager(BaseTrainDataManager):
 
         self._save_pending: bool = False
 
+    # TODO: fix this
     def _build_batch_inds_it(self) -> Iterator[torch.Tensor]:
         batch_size = self._batch_size
         seq_len = self._seq_len
-        batch_inds = torch.arange(self._window_size - 1, self._n_timestemps - seq_len)
+        batch_inds = torch.arange(self._window_size - 1, self._n_timesteps - seq_len)
 
         n_samples = batch_inds.shape[0]
         n_batches = n_samples // batch_size
