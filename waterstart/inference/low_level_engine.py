@@ -393,58 +393,14 @@ class LowLevelInferenceEngine(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         net_modules = self._net_modules
 
-        # z_loc: torch.Tensor
-        # z_scale: torch.Tensor
-        # z_loc, z_scale = net_modules.gated_trans(
-        #     market_features.flatten(0, -2), z0.flatten(0, -2)
-        # )
-        # batch_shape = market_features[..., 0].shape
-        # z_loc = z_loc.unflatten(0, batch_shape)  # type: ignore
-        # z_scale = z_scale.unflatten(0, batch_shape)  # type: ignore
+        alphas: torch.Tensor = net_modules.emitter(market_features, trades_data)
 
-        # # z_dist = dist.TransformedDistribution(
-        # #     dist.Independent(dist.Normal(z_loc, z_scale), 1),
-        # #     dist.transforms.TanhTransform(cache_size=1),
-        # # )
-        # z_dist = dist.Independent(dist.Normal(z_loc, z_scale), 1)
-        # z_sample: torch.Tensor = z_dist.rsample()  # type: ignore
+        frac_dist = dist.Dirichlet(alphas)
 
-        # exec_logit: torch.Tensor
-        # sign_logits: torch.Tensor
-        # frac_conc: torch.Tensor
-        frac_loc: torch.Tensor
-        frac_scale: torch.Tensor
-        # exec_logit, sign_logits, frac_conc = net_modules.emitter(z_sample, trades_data)
-        # exec_logit, sign_logits, frac_conc = net_modules.emitter(
-        frac_loc, frac_scale = net_modules.emitter(market_features, trades_data)
+        frac_samples = frac_dist.sample()
+        logprob = frac_dist.log_prob(frac_samples)
 
-        # exec_dist = dist.Bernoulli(logits=exec_logit)
-        # exec_sample: torch.Tensor = exec_dist.sample()  # type: ignore
-        # exec_logprob: torch.Tensor = exec_dist.log_prob(exec_sample)  # type: ignore
-
-        # sign_dist = dist.TransformedDistribution(
-        #     dist.Bernoulli(logits=sign_logits),
-        #     dist.transforms.AffineTransform(-1, 2, event_dim=1),
-        # )
-        # sign_samples: torch.Tensor = sign_dist.sample()  # type: ignore
-        # sign_logprob: torch.Tensor = sign_dist.log_prob(sign_samples)  # type: ignore
-
-        # frac_dist = dist.Independent(dist.Dirichlet(frac_conc), 1)
-        frac_dist = dist.Independent(dist.Normal(frac_loc, frac_scale), 1)
-        frac_samples: torch.Tensor = frac_dist.sample()  # type: ignore
-        frac_logprob: torch.Tensor = frac_dist.log_prob(frac_samples)  # type: ignore
-
-        fracs = frac_samples / frac_samples.abs().sum(-1, keepdim=True)
-
-        # logprob = exec_logprob + sign_logprob + frac_logprob
-        # logprob = sign_logprob + frac_logprob
-        logprob = frac_logprob
-        # fracs = sign_samples * frac_samples[..., :-1]
-
-        # return z_sample, exec_sample, fracs, logprob
-        # return z_sample, fracs, logprob
-        # return sign_samples, frac_samples[..., :-1], logprob
-        return fracs[..., :-1], logprob
+        return frac_samples[..., :-1], logprob
 
     # TODO: make the following methods part of the AccountState class?
     @staticmethod

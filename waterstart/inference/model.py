@@ -2,7 +2,7 @@ from math import log2
 
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 
 def get_std(log_std: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     below_threshold = log_std.exp()
@@ -31,7 +31,7 @@ class GatedTransition(nn.Module):
 
 
 class Emitter(nn.Module):
-    def __init__(self, z_dim: int, n_traded_sym: int, hidden_dim: int):
+    def __init__(self, z_dim: int, n_traded_sym: int, hidden_dim: int, T = 1.5):
         super().__init__()
         self.n_traded_sym = n_traded_sym
         self.prev_step_features = 3 * n_traded_sym + 2
@@ -40,12 +40,9 @@ class Emitter(nn.Module):
         self.lin2 = nn.Linear(self.prev_step_features, hidden_dim)
         self.lin3 = nn.Linear(2 * hidden_dim, hidden_dim)
 
-        # self.lin_exec_logit = nn.Linear(hidden_dim, 1)
-        # self.lin_sign_logits = nn.Linear(hidden_dim, n_traded_sym)
-
-        # self.lin_frac_log_conc = nn.Linear(hidden_dim, n_traded_sym + 1)
-        self.lin_frac_loc = nn.Linear(hidden_dim, n_traded_sym + 1)
-        self.lin_frac_log_scale = nn.Linear(hidden_dim, n_traded_sym + 1)
+        self.lin_weights = nn.Linear(hidden_dim, n_traded_sym + 1)
+        self.lin_kappa = nn.Linear(hidden_dim, 1)
+        self._T = T
 
     def forward(  # type: ignore
         self, z0: torch.Tensor, trades_data: torch.Tensor
@@ -57,14 +54,17 @@ class Emitter(nn.Module):
         out = torch.cat((out1, out2), dim=-1).relu()
         out = self.lin3(out).relu()
 
-        # exec_logit = self.lin_exec_logit(out).squeeze(-1)
-        # sign_logits: torch.Tensor = self.lin_sign_logits(out)
+        # a T > 1 avoid sparse outputs, so that we don't always allocate mostly to a single symbol
+        weights: torch.Tensor = F.softmax(self.lin_weights(out) / self._T, dim=-1)
 
-        # frac_log_conc: torch.Tensor = self.lin_frac_log_conc(out)
-        frac_loc: torch.Tensor = self.lin_frac_loc(out)
-        frac_log_scale: torch.Tensor = self.lin_frac_log_scale(out)
+        # kappa does not affects the ratio between the weights but affects the variance of the samples
+        # the 1.0 is a lower bound that limits the variance of samples
+        kappa: torch.Tensor = 1.0 + F.softplus(self.lin_kappa(out))
 
-        return frac_loc, get_std(frac_log_scale)
+        # alphas to parametrize a Dirichlet distribution
+        alphas: torch.Tensor = kappa * weights
+
+        return alphas
 
 
 class CNN(nn.Module):
