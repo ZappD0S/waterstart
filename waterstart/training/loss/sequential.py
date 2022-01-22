@@ -231,19 +231,15 @@ class SequentialLossEvaluator(BaseLossEvaluator):
 
         loss = -rewards.detach()
 
-        advantages = self._compute_advantages(rewards, values.detach())
+        # this is: r_i + gamma * V(s_{i+1}) - V(s_i)
+        deltas = torch.detach(rewards[:-1] + self._gae_lambda * values[1:]) - values[:-1]
 
-        # TODO: this is what might have caused the huge gradient issue...
-        # advantages = (advantages - advantages.mean()) / advantages.std().maximum(torch.tensor(1e-4))
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
-        # advantages = (advantages - advantages.mean())
+        # we want to maximize this, hence the minus
+        actor_loss = -logprobs[:-1] * deltas.detach()
+        # we want V(s_i) to match r_i + gamma * V(s_{i+1})
+        critic_loss = 0.5 * deltas ** 2
 
-        action_loss = logprobs[:-1] * advantages.detach()
-
-        returns = torch.detach(advantages + values[:-1])
-        baseline_loss = (values[:-1] - returns) ** 2
-
-        surrogate_loss = -action_loss + 0.5 * baseline_loss
+        surrogate_loss = actor_loss + critic_loss
 
         return LossOutput(
             loss,
