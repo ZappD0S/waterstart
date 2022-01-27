@@ -8,11 +8,13 @@ from ...inference import ModelInput
 from .utils import LossOutput
 
 
+
 class BaseLossEvaluator(ABC, nn.Module):
     def __init__(self, seq_len: int, gamma: float, gae_lambda: float = 0.95) -> None:
         super().__init__()
         self._seq_len = seq_len
         self._gamma = gamma
+        # GAE stands for generalised advantage estimation
         self._gae_lambda = gae_lambda
 
     @jit.export  # type: ignore
