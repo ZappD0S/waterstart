@@ -7,6 +7,7 @@ import torch.jit as jit
 from ...inference import ModelInput
 from .utils import LossOutput
 
+# GAE: generalised advantage estimation
 
 class BaseLossEvaluator(ABC, nn.Module):
     def __init__(self, seq_len: int, gamma: float, gae_lambda: float = 0.95) -> None:
